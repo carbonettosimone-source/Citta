@@ -1,41 +1,92 @@
-import { EVENTS, PROTO, WORLD_ID, type EventMode } from '../game/content';
-import { INTERNAL_SCALE } from '../render/pipeline';
+import { EVENTS, PAYOUT_MULT, PROTO, WORLD_ID, payoutFor, type EventMode } from '../game/content';
 import type { Session } from '../game/session';
+
+export type RaceView = {
+  title: string;
+  time: string;
+  hint: string;
+  canQuit: boolean;
+  lock: boolean;
+};
+
+export type ResultView = {
+  place: number;
+  time: number | null;
+  stake: number;
+  payout: number;
+  netLabel: string;
+  title: string;
+  line: string;
+};
 
 export type Hud = {
   blocksPlay(): boolean;
   toast(message: string): void;
   setPrompt(text: string | null): void;
   sync(): void;
+  showRace(view: RaceView | null): void;
+  showResult(view: ResultView | null): void;
+  onAbandon(cb: () => void): void;
+  onResultClose(cb: () => void): void;
 };
 
-export function createHud(root: HTMLElement, session: Session, onInteract: () => void): Hud {
+export function createHud(
+  root: HTMLElement,
+  session: Session,
+  hooks: { onInteract: () => void; onStartDemo: (mode: EventMode) => void },
+): Hud {
   root.innerHTML = '';
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
 
   const status = el('section', 'status');
   status.innerHTML = `
+    <p class="mark">Minimondo</p>
     <p class="world">${WORLD_ID}</p>
-    <p class="coins">monete <strong id="coins">0</strong></p>
-    <p class="rank" title="Il server dello shard pubblica il rango a fine settimana.">
-      settimana ${isoWeek(new Date())} · rango <strong>—</strong>
-    </p>
-    <p class="pipe">render ${Math.round(INTERNAL_SCALE * 100)}% · nebbia corta</p>
+    <p class="coins"><span>monete</span> <strong id="coins">0</strong></p>
+    <p class="rank">settimana ${isoWeek(new Date())} · rango <strong id="rank">—</strong></p>
   `;
 
   const tools = el('div', 'tools');
-  const look = button('Sguardo', 'ghost');
-  look.title = 'Blocca il mouse per guardarti intorno. Esc per lasciarlo.';
   const eventsBtn = button('Eventi', 'primary');
   eventsBtn.setAttribute('aria-expanded', 'false');
-  tools.append(look, eventsBtn);
+  tools.append(eventsBtn);
+
+  const coach = el('div', 'coach');
+  coach.innerHTML = `
+    <p>Il faro è davanti a te.</p>
+    <strong>${coarse ? 'Pollice sinistro per camminare, dito sul mondo per girarti.' : 'WASD per camminare, trascina per girarti.'}</strong>
+  `;
 
   const hint = el('p', 'hint');
-  hint.textContent = 'WASD cammina · trascina per guardare · Q/R ruotano · E interagisce · spazio salta';
+  hint.textContent = coarse
+    ? 'Levetta a sinistra · dito sul mondo per girare · Salta a destra'
+    : 'WASD o levetta · trascina per guardare · E raccoglie · spazio salta';
 
   const prompt = button('', 'prompt');
   prompt.hidden = true;
 
   const toasts = el('div', 'toasts');
+
+  const race = el('section', 'race');
+  race.hidden = true;
+  race.innerHTML = `
+    <p class="race-kicker"></p>
+    <p class="race-time"></p>
+    <p class="race-hint"></p>
+    <button type="button" class="ghost" id="race-quit">Abbandona</button>
+  `;
+
+  const result = el('div', 'result');
+  result.hidden = true;
+  result.innerHTML = `
+    <div class="sheet result-sheet">
+      <p class="eyebrow">Risultato · sessione locale</p>
+      <h2 id="res-title"></h2>
+      <p id="res-line"></p>
+      <p class="math" id="res-math"></p>
+      <button type="button" class="primary wide" id="res-close">Torna in piazza</button>
+    </div>
+  `;
 
   const panel = el('div', 'panel');
   panel.hidden = true;
@@ -46,46 +97,77 @@ export function createHud(root: HTMLElement, session: Session, onInteract: () =>
     <div class="sheet">
       <header class="sheet-head">
         <div>
+          <p class="eyebrow">${WORLD_ID} · proto ${PROTO}</p>
           <h2 id="events-title">Eventi</h2>
-          <p>Stanze effimere. La puntata la conferma il server: qui è solo l'anteprima.</p>
+          <p>Scegli un modo, guarda la puntata, entra se ti basta.</p>
         </div>
         <button type="button" class="ghost" id="events-close">Chiudi</button>
       </header>
-      <p class="wallet">portafoglio <strong id="wallet">0</strong> monete · ${WORLD_ID} · proto ${PROTO}</p>
+      <p class="wallet">portafoglio <strong id="wallet">0</strong> monete</p>
       <ul class="modes"></ul>
-      <p class="fine">Privilegi settimanali: li assegna la classifica dello shard. Il rango resta vuoto finché non c'è un server.</p>
+      <div class="buyin" hidden>
+        <p class="eyebrow" id="buy-kicker"></p>
+        <h3 id="buy-name"></h3>
+        <p id="buy-blurb"></p>
+        <p class="stake">Puntata demo <strong id="buy-stake"></strong></p>
+        <ol class="payout" id="buy-payout"></ol>
+        <p class="note" id="buy-note"></p>
+        <div class="buy-actions">
+          <button type="button" class="ghost" id="buy-back">Indietro</button>
+          <button type="button" class="primary" id="buy-go">Entra (demo)</button>
+        </div>
+      </div>
+      <p class="fine">Il rango settimanale di questa sessione si muove quando chiudi una gara. Niente soldi veri.</p>
     </div>
   `;
 
-  root.append(status, tools, hint, prompt, toasts, panel);
+  root.append(status, tools, coach, hint, prompt, toasts, race, result, panel);
 
-  const coinsQuery = status.querySelector<HTMLElement>('#coins');
-  const walletQuery = panel.querySelector<HTMLElement>('#wallet');
-  const list = panel.querySelector<HTMLElement>('.modes');
-  const closeBtn = panel.querySelector<HTMLButtonElement>('#events-close');
-  if (!coinsQuery || !walletQuery || !list || !closeBtn) throw new Error('hud incompleto');
-  const coinsEl: HTMLElement = coinsQuery;
-  const walletEl: HTMLElement = walletQuery;
+  const coinsEl = must<HTMLElement>(status, '#coins');
+  const rankEl = must<HTMLElement>(status, '#rank');
+  const walletEl = must<HTMLElement>(panel, '#wallet');
+  const list = must<HTMLElement>(panel, '.modes');
+  const buyin = must<HTMLElement>(panel, '.buyin');
+  const closeBtn = must<HTMLButtonElement>(panel, '#events-close');
+  const backBtn = must<HTMLButtonElement>(panel, '#buy-back');
+  const goBtn = must<HTMLButtonElement>(panel, '#buy-go');
+  const quitBtn = must<HTMLButtonElement>(race, '#race-quit');
+  const resClose = must<HTMLButtonElement>(result, '#res-close');
+  const raceKicker = must<HTMLElement>(race, '.race-kicker');
+  const raceTime = must<HTMLElement>(race, '.race-time');
+  const raceHint = must<HTMLElement>(race, '.race-hint');
+
+  let selected: EventMode | null = null;
+  let resultOpen = false;
+  let raceLock = false;
+  let abandon = () => {};
+  let resultClose = () => {};
+  let promptText = '';
 
   for (const mode of EVENTS) {
     const item = document.createElement('li');
-    item.innerHTML = `
-      <div>
+    const open = button('', 'mode');
+    open.innerHTML = `
+      <span>
         <strong>${mode.name}</strong>
-        <span>${mode.players} giocatori · puntata ${mode.min}–${mode.max}</span>
-        <em>${mode.blurb}</em>
-      </div>
+        <em>${mode.players} giocatori · ${mode.playable ? 'demo pronta' : 'presto'}</em>
+      </span>
+      <b>${mode.demoStake}</b>
     `;
-    const enter = button('Entra', 'enter');
-    enter.addEventListener('click', () => join(mode));
-    item.append(enter);
+    open.addEventListener('click', () => showBuyin(mode));
+    item.append(open);
     list.append(item);
   }
 
   const setOpen = (open: boolean) => {
+    if (open && (raceLock || !race.hidden || resultOpen)) {
+      toast('Prima chiudi la corsa.');
+      return;
+    }
     panel.hidden = !open;
     eventsBtn.setAttribute('aria-expanded', String(open));
     eventsBtn.classList.toggle('on', open);
+    if (open) showList();
   };
 
   eventsBtn.addEventListener('click', () => setOpen(panel.hidden));
@@ -93,38 +175,70 @@ export function createHud(root: HTMLElement, session: Session, onInteract: () =>
   panel.addEventListener('click', (event) => {
     if (event.target === panel) setOpen(false);
   });
-  window.addEventListener('keydown', (event) => {
-    if (event.code === 'Escape') setOpen(false);
-  });
-
-  look.addEventListener('click', () => {
-    const canvas = document.querySelector<HTMLCanvasElement>('#view');
-    if (!canvas) return;
-    if (document.pointerLockElement === canvas) {
-      document.exitPointerLock();
+  backBtn.addEventListener('click', showList);
+  goBtn.addEventListener('click', () => {
+    if (!selected) return;
+    if (session.coins < selected.demoStake) {
+      toast(`Ti servono ${selected.demoStake} monete. Ne hai ${session.coins}.`);
       return;
     }
-    void canvas.requestPointerLock();
+    if (!selected.playable) {
+      toast(`${selected.name} arriva dopo. Oggi si corre Ostacoli.`);
+      return;
+    }
+    const mode = selected;
+    setOpen(false);
+    hooks.onStartDemo(mode);
   });
-  document.addEventListener('pointerlockchange', () => {
-    const locked = document.pointerLockElement === document.querySelector('#view');
-    look.classList.toggle('on', locked);
-    look.textContent = locked ? 'Sguardo on' : 'Sguardo';
+  quitBtn.addEventListener('click', () => abandon());
+  resClose.addEventListener('click', () => {
+    result.hidden = true;
+    resultOpen = false;
+    resultClose();
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.code === 'Escape' && result.hidden) setOpen(false);
   });
 
   prompt.addEventListener('click', () => {
-    onInteract();
+    hooks.onInteract();
     prompt.blur();
   });
 
-  let promptText = '';
+  const hideCoach = () => coach.classList.add('gone');
+  window.setTimeout(hideCoach, 7000);
+  window.addEventListener('pointerdown', hideCoach, { once: true });
+  window.addEventListener('keydown', hideCoach, { once: true });
 
-  function join(mode: EventMode): void {
-    if (session.coins < mode.min) {
-      toast(`Servono almeno ${mode.min} monete per ${mode.name}. Nel portafoglio: ${session.coins}.`);
-      return;
+  function showList(): void {
+    list.hidden = false;
+    buyin.hidden = true;
+    selected = null;
+  }
+
+  function showBuyin(mode: EventMode): void {
+    selected = mode;
+    list.hidden = true;
+    buyin.hidden = false;
+    text(buyin, '#buy-kicker', mode.playable ? 'Demo locale · 4 corridori' : 'Non ancora in anteprima');
+    text(buyin, '#buy-name', mode.name);
+    text(buyin, '#buy-blurb', mode.blurb);
+    text(buyin, '#buy-stake', String(mode.demoStake));
+    const payout = must<HTMLElement>(buyin, '#buy-payout');
+    payout.innerHTML = '';
+    if (mode.playable) {
+      PAYOUT_MULT.forEach((mult, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${index + 1}°</span><b>${payoutFor(index + 1, mode.demoStake)}</b>`;
+        li.dataset['mult'] = String(mult);
+        payout.append(li);
+      });
+      text(buyin, '#buy-note', 'La puntata esce quando parte il via. 1° prende il grosso, 4° non riprende nulla.');
+      goBtn.textContent = 'Entra (demo)';
+    } else {
+      text(buyin, '#buy-note', `In sala vera la puntata va da ${mode.min} a ${mode.max}. Qui il tasto non apre la stanza.`);
+      goBtn.textContent = 'Entra (demo)';
     }
-    toast(`${mode.name}: puntata non inviata. La stanza la apre il server.`);
   }
 
   function toast(message: string): void {
@@ -132,30 +246,79 @@ export function createHud(root: HTMLElement, session: Session, onInteract: () =>
     node.textContent = message;
     toasts.append(node);
     while (toasts.children.length > 3) toasts.firstElementChild?.remove();
-    window.setTimeout(() => node.classList.add('out'), 2800);
-    window.setTimeout(() => node.remove(), 3300);
+    window.setTimeout(() => node.classList.add('out'), 3200);
+    window.setTimeout(() => node.remove(), 3700);
   }
 
   function sync(): void {
     coinsEl.textContent = String(session.coins);
     walletEl.textContent = String(session.coins);
+    rankEl.textContent = session.weekRank === null ? '—' : String(session.weekRank);
     coinsEl.classList.remove('pop');
     void coinsEl.offsetWidth;
     coinsEl.classList.add('pop');
   }
 
   return {
-    blocksPlay: () => !panel.hidden,
+    blocksPlay: () => !panel.hidden || resultOpen || raceLock,
     toast,
-    setPrompt(text) {
-      const next = text ?? '';
+    setPrompt(textValue) {
+      const next = textValue ?? '';
       if (next === promptText) return;
       promptText = next;
       prompt.hidden = next.length === 0;
       prompt.textContent = next;
     },
     sync,
+    showRace(view) {
+      if (!view) {
+        race.hidden = true;
+        raceLock = false;
+        eventsBtn.disabled = resultOpen;
+        return;
+      }
+      race.hidden = false;
+      raceLock = view.lock;
+      eventsBtn.disabled = true;
+      raceKicker.textContent = view.title;
+      raceTime.textContent = view.time;
+      raceHint.textContent = view.hint;
+      quitBtn.hidden = !view.canQuit;
+    },
+    showResult(view) {
+      if (!view) {
+        result.hidden = true;
+        resultOpen = false;
+        eventsBtn.disabled = false;
+        return;
+      }
+      resultOpen = true;
+      result.hidden = false;
+      race.hidden = true;
+      raceLock = false;
+      eventsBtn.disabled = true;
+      text(result, '#res-title', view.title);
+      text(result, '#res-line', view.time === null ? view.line : `${view.line} Tempo ${view.time.toFixed(1)}s.`);
+      text(result, '#res-math', `Puntata ${view.stake} · incasso ${view.payout} · netto ${view.netLabel}`);
+    },
+    onAbandon(cb) {
+      abandon = cb;
+    },
+    onResultClose(cb) {
+      resultClose = cb;
+    },
   };
+}
+
+function text(root: ParentNode, selector: string, value: string): void {
+  const node = root.querySelector(selector);
+  if (node) node.textContent = value;
+}
+
+function must<T extends Element>(root: ParentNode, selector: string): T {
+  const node = root.querySelector<T>(selector);
+  if (!node) throw new Error(`manca ${selector}`);
+  return node;
 }
 
 function el(tag: string, className: string): HTMLElement {

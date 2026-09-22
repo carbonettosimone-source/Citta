@@ -38,9 +38,9 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
   renderer.autoClear = true;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(FOG_COLOR, 9, 30);
-  scene.add(new THREE.HemisphereLight(0xfff6e6, 0x7fbf6e, 0.72));
-  const sun = new THREE.DirectionalLight(0xfffaf2, 1.05);
+  scene.fog = new THREE.Fog(FOG_COLOR, 11, 28);
+  scene.add(new THREE.HemisphereLight(0xfff6e6, 0x6eae62, 0.46));
+  const sun = new THREE.DirectionalLight(0xfff3df, 1.35);
   sun.position.set(12, 18, 6);
   scene.add(sun);
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CHALLENGES, FINISH } from '../game/content';
+import { CHALLENGES, FINISH, RACE_BARS, RACE_PATH } from '../game/content';
 import { commit, setInstance } from '../render/instance';
 import { createSky } from '../render/sky';
 import { toonInstances, toonMaterial } from '../render/toon';
@@ -251,28 +251,32 @@ function tooClose(x: number, z: number, pad: number): boolean {
 }
 
 function addMonument(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
-  // Fuori dagli assi del sentiero: in mezzo alla croce il pilastro bloccava la corsa dritta.
-  const x = 4.6;
-  const z = -4.6;
-  const stone = toonMaterial(gradient, 0xe7e0d4);
-  const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.55, 2.35, 0.55), stone);
-  pillar.position.set(x, 1.18, z);
-  scene.add(pillar);
+  const x = 4.2;
+  const z = -0.4;
+  const stone = toonMaterial(gradient, 0xf4efe4);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.7, 0.42), stone);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.7, 0.42), stone);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.32, 0.48), stone);
+  left.position.set(x - 0.78, 1.35, z);
+  right.position.set(x + 0.78, 1.35, z);
+  beam.position.set(x, 2.55, z);
   const gem = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.34, 0),
+    new THREE.OctahedronGeometry(0.32, 0),
     new THREE.MeshBasicMaterial({ color: 0xf0a03a }),
   );
-  gem.position.set(x, 2.55, z);
-  scene.add(gem);
-  blockers.push({ kind: 'circle', x, z, r: 0.48, h: 3.2 });
+  gem.position.set(x, 3.05, z);
+  const cloth = new THREE.MeshBasicMaterial({ color: 0x1d6fd0, side: THREE.DoubleSide });
+  const flagL = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.36), cloth);
+  const flagR = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.36), cloth);
+  flagL.position.set(x - 0.95, 2.15, z + 0.02);
+  flagR.position.set(x + 0.95, 2.15, z + 0.02);
+  scene.add(left, right, beam, gem, flagL, flagR);
+  blockers.push({ kind: 'circle', x: x - 0.78, z, r: 0.36, h: 3.4 });
+  blockers.push({ kind: 'circle', x: x + 0.78, z, r: 0.36, h: 3.4 });
 }
 
 function addCourse(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
-  const bars: Stamp[] = [
-    bar(10.15, 9.15, 12.15),
-    bar(12.75, 11.85, 14.85),
-    bar(15.35, 9.15, 12.15),
-  ];
+  const bars: Stamp[] = RACE_BARS.map((item) => bar(item.x, item.minZ, item.maxZ));
   const mesh = new THREE.InstancedMesh(
     new THREE.BoxGeometry(1, 1, 1),
     toonInstances(gradient),
@@ -291,19 +295,51 @@ function addCourse(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocke
     });
   }
 
+  const arrows = new THREE.InstancedMesh(
+    new THREE.ConeGeometry(0.28, 0.7, 4),
+    new THREE.MeshBasicMaterial({ color: 0xf0a03a }),
+    RACE_PATH.length,
+  );
+  arrows.frustumCulled = false;
+  for (let i = 0; i < RACE_PATH.length; i++) {
+    const point = RACE_PATH[i];
+    const next = RACE_PATH[i + 1] ?? point;
+    if (!point || !next) continue;
+    const yaw = Math.atan2(next.x - point.x, next.z - point.z);
+    setInstance(arrows, i, point.x, 0.42, point.z, 1, 1, 1, Math.PI / 2, yaw, 0xf0a03a);
+  }
+  commit(arrows);
+  scene.add(arrows);
+
   const pad = new THREE.Mesh(
-    new THREE.CylinderGeometry(FINISH.r, FINISH.r, 0.08, 18),
+    new THREE.CylinderGeometry(FINISH.r, FINISH.r, 0.08, 20),
     new THREE.MeshBasicMaterial({ color: 0x1eb8c8 }),
   );
-  pad.position.set(FINISH.x, 0.04, FINISH.z);
-  scene.add(pad);
-
-  // TODO(eventi): il parcours vero sta in una stanza effimera (40–100, puntata).
-  // Questo corridoio è solo la prova locale di salto e collisione.
+  pad.position.set(FINISH.x, 0.05, FINISH.z);
+  const mast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.1, 2.4, 6),
+    new THREE.MeshBasicMaterial({ color: 0x1eb8c8 }),
+  );
+  mast.position.set(FINISH.x, 1.2, FINISH.z);
+  const flag = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.36, 0.05),
+    new THREE.MeshBasicMaterial({ color: 0xf7f4ec }),
+  );
+  flag.position.set(FINISH.x + 0.38, 2.15, FINISH.z);
+  scene.add(pad, mast, flag);
+  const start = RACE_PATH[0];
+  if (start) {
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.08, 2.4),
+      new THREE.MeshBasicMaterial({ color: 0xf7f4ec }),
+    );
+    line.position.set(start.x, 0.05, start.z);
+    scene.add(line);
+  }
 }
 
 function bar(x: number, minZ: number, maxZ: number): Stamp {
-  const height = 0.52;
+  const height = 1.12;
   return {
     x,
     y: height / 2,

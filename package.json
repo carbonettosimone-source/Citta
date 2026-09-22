@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:pages": "tsc --noEmit && VITE_BASE=/Citta/ vite build",
     "preview": "vite preview"
   },
   "dependencies": {

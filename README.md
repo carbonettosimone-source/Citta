@@ -1,44 +1,73 @@
 # Minimondo
 
-Hub di gioco nel browser: un mondo piccolo, chiaro, low-poly, da esplorare a piedi per raccogliere monete. Gli eventi competitivi — gare, logica, precisione, ostacoli, da 20 a 100 giocatori — sono solo l'anteprima. Le monete restano nel gioco: niente cashout.
+**Apri sul telefono:** [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/)
 
-English: a walkable local hub prototype. `npm install && npm run dev`. Coins, challenge markers, and the Events panel are stubs. The client is deliberately dumb; a future server owns wagers, match rooms, and per-shard leaderboards.
+Hub nel browser, pensato per il pollice: un mondo piccolo, piatto, low-poly, da girare a piedi. Raccogli le sfide, poi entra nella demo di Ostacoli. Le monete restano nel gioco. Niente cashout, niente soldi veri.
 
-## Avvio
+English: mobile-first local hub. Touch stick, drag to look, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
+
+## Come si gioca
+
+Si parte in piazza, di fronte al faro. Il faro vale 20 monete: bastano per la demo.
+
+- **Pollice sinistro** sulla levetta per camminare. In alto si va avanti.
+- **Dito sul mondo** per girare la visuale. Il blocco del puntatore non serve.
+- **Salta** è il tasto tondo a destra.
+- Il pulsante al centro raccoglie la sfida quando sei vicino.
+- **Eventi** → scegli il modo → vedi la puntata → **Entra (demo)**.
+
+Tastiera, se c'è: WASD o frecce, trascina per guardare, E raccoglie, spazio salta, Q e R ruotano.
+
+Portrait e landscape usano gli stessi controlli. I pannelli rispettano le safe area.
+
+## La demo Ostacoli
+
+Quattro corridori, puntata 20, tutto in questa sessione del browser. La puntata esce solo al «via»: se abbandoni il conto alla rovescia non perdi nulla. Dopo il via, abbandonare o sforare i 24 secondi è un quarto posto.
+
+Il montepremi di quattro puntate torna ai corridori, senza rake:
+
+| Posto | Incasso su 20 |
+| --- | --- |
+| 1° | 48 |
+| 2° | 24 |
+| 3° | 8 |
+| 4° | 0 |
+
+Rami, Lea e Nico sono tempi fissi. Una linea pulita può arrivare prima di Rami; una corsa lenta prende il terzo. Il rango settimanale di questa sessione parte vuoto e migliora (il numero scende) quando chiudi una gara. Poi **Torna in piazza**.
+
+Corsa, Logica e Precisione mostrano la puntata ma non aprono una stanza: un toast lo dice, e non scala monete.
+
+Il cerchio ciano in fondo al percorso sblocca anche il cancello, se lo raggiungi fuori dalla gara.
+
+`grant`, `trySpend` e `applyMatchResult` in `src/game/session.ts` sono lo stub. Un server futuro manda lo stesso riepilogo e il client smette di decidere il portafoglio.
+
+## Avvio in locale
 
 ```bash
 npm install
 npm run dev
 ```
 
-Vite stampa un indirizzo locale (di solito `http://localhost:5173`). Per la build di produzione: `npm run build` e `npm run preview`.
+Vite stampa un indirizzo (di solito `http://localhost:5173`). Build: `npm run build`. Anteprima della build: `npm run preview`.
 
-Controlli:
-
-- **WASD** o frecce per camminare
-- **trascina** il mouse per guardare, oppure **Sguardo** per bloccare il puntatore (Esc per lasciarlo)
-- **Q / R** ruotano la visuale
-- **E** o il pulsante in basso per interagire
-- **spazio** per saltare
-- **Eventi** apre l'anteprima delle stanze
-
-Si parte sul sentiero sud, di fronte al faro. A sud-est c'è un corridoio di barriere: è una prova locale, non un match.
+La base degli asset è `/` in locale. Il sito GitHub Pages usa `VITE_BASE=/Citta/` (`npm run build:pages`).
 
 ## Cosa c'è in questa versione
 
-- Isola-hub a tasselli (chunk da 8 m solo come tinta dell'erba, non un motore voxel)
+- Isola-hub a tasselli. I chunk da 8 m sono solo la tinta dell'erba, non un motore voxel
 - Mondo rigenerato da seme (`hash32`, niente `Math.random`)
-- Pipeline WebGL2: scena a metà risoluzione, poi upscale nearest sul canvas
-- Nebbia corta, colore allineato al cielo
-- Materiali toon (`MeshToonMaterial`) e unlit piatti per gemme e anelli. Niente PBR
-- Alberi, rocce, barriere e segnaposto in `InstancedMesh`
-- Cinque sfide che versano monete finte e un toast
-- HUD: monete, id **Mondo-1**, rango settimanale vuoto, pannello Eventi
-- Corridoio ostacoli in singolo. Il match vero è nel backlog
+- WebGL2: scena a metà risoluzione, upscale nearest
+- Nebbia corta, stesso colore del cielo
+- Toon a quattro fasce, niente PBR. Gemme e segnali piatti, così restano leggibili nella nebbia
+- Alberi, rocce, barriere e frecce in `InstancedMesh`
+- Faro, anello, pietre, belvedere e cancello: sagome diverse, ricompense diverse
+- Arco in piazza come punto di riferimento
+- HUD: monete, Mondo-1, rango di sessione, toast, Eventi
+- Mini-gara ostacoli completabile, con avversari finti e saldo monete
 
 ## Architettura prevista
 
-Il client disegna e manda l'intenzione (direzione, salto, interazione). Non decide monete, punteggi, puntate o chi vince.
+Il client disegna e manda l'intenzione. Non deve restare l'autorità su monete, punteggi e puntate: oggi lo è solo perché non c'è ancora un socket.
 
 ```mermaid
 flowchart LR
@@ -51,55 +80,44 @@ flowchart LR
   room -->|esito e montepremi| client
 ```
 
-**Shard.** Ogni mondo è un clone identico, funzione pura di `(seme, chunk)`. Mondo-1 e Mondo-2 hanno gli stessi alberi e le stesse sfide, e classifiche diverse. Quando uno shard è pieno se ne apre un altro: stesso contenuto, altro id. La geometria non si streama. `PROTO` in `src/game/content.ts` va alzato se il layout cambia, così un client vecchio viene rifiutato invece di divergere.
+**Shard.** Ogni mondo è un clone, funzione di `(seme, chunk)`. Quando uno shard è pieno se ne apre un altro, stesso contenuto, altro id. `PROTO` in `src/game/content.ts` va alzato se il layout cambia.
 
-**Stanze effimere.** Un evento non gira dentro l'hub. Il server apre una room (corsa, logica, precisione, ostacoli; 20–100 giocatori), incassa la puntata in monete, simula la prova, paga il montepremi, chiude la room. Il corridoio a est è solo un assaggio in locale.
+**Stanze.** In produzione un evento non vive nell'hub: il server apre una room, incassa la puntata, simula, paga, chiude. La demo Ostacoli è la stessa regola, risolta in locale da `src/game/match.ts`.
 
-**Monete.** Conto interno. I privilegi settimanali escono dalla classifica dello shard. Nessun cashout, nessun oggetto fuori dal gioco.
+**Monete.** Conto interno di sessione. Il rango settimanale qui è un segnaposto. Nessun cashout.
 
-Il vecchio prototipo separava già la simulazione dal disegno e teneva sul filo solo i giocatori. Quel confine resta il modello: predizione locale sul movimento, riconciliazione dal server, interesse limitato a chi è vicino. Non è implementato qui.
+Il vecchio prototipo teneva sul filo solo i giocatori e separava la simulazione dal disegno. Quel confine resta il modello.
 
 ## Dal prototipo precedente
 
-`mondo-vivo.html` era una città deterministica in un solo file. Da lì restano, riscritte in piccolo:
+`mondo-vivo.html` era una città deterministica in un solo file. Da lì restano, riscritte in piccolo: hash e seme, prop in `InstancedMesh`, nebbia uguale al cielo, camera con costante di tempo, input fuori dal render, e l'idea che «server pieno» sia un altro shard.
 
-- hash intero e mondo funzione del seme
-- prop ripetuti in `InstancedMesh`, ricostruiti una volta e non a ogni frame
-- nebbia e cielo dello stesso colore, cupola con colori nei vertici
-- camera che insegue con costante di tempo (`1 - e^(-dt·k)`), non con uno smorzamento legato al frame
-- input tenuto fuori dal render: il tasto non è la posizione
-- l'idea che «server pieno» significhi un altro shard, non un rifiuto secco
-
-Non è stato portato il resto: griglia stradale infinita, lockstep a 20 Hz, pacchetti binari, vista ASCII, scheletri, ciclo del giorno. Era un'altra scena, e un file solo non regge il passo successivo.
+Non è stato portato il resto: griglia infinita, lockstep, pacchetti binari, vista ASCII, scheletri, ciclo del giorno.
 
 ## Layout
 
 ```
 src/
   main.ts                 loop
-  game/content.ts         sfide, eventi, Mondo-1, PROTO
-  game/session.ts         monete locali di questa sessione
-  game/challenges.ts      segnaposto e raccolta
-  player/player.ts        cammino, sguardo, salto
-  render/pipeline.ts      target a metà risoluzione e upscale
-  render/toon.ts          fascia toon
-  render/sky.ts           cupola
-  world/hash.ts           hash32
-  world/hub.ts            isola, alberi, rocce, corridoio
-  world/collide.ts
+  game/content.ts         sfide, eventi, percorso, PROTO
+  game/session.ts         stub di portafoglio e saldo gara
+  game/challenges.ts      segnaposto
+  game/match.ts           demo ostacoli
+  input/controls.ts       levetta, salto, trascinamento
+  player/player.ts
+  render/                 metà risoluzione, toon, cielo
+  world/                  isola, collisione, hash
   ui/hud.ts
 ```
 
 ## Backlog
 
-- Server autoritativo per monete, esiti e puntate
-- Handshake su `PROTO` e firma del seme
-- Gestore di shard: capienza, clone identico, classifica per mondo
-- Room effimere per i quattro modi, con chiusura a fine evento
-- Predizione del movimento e riconciliazione
+- Server autoritativo al posto di `session.ts`
+- Handshake su `PROTO`
+- Gestore di shard e classifica vera per mondo
+- Room vere per Corsa, Logica e Precisione
+- Predizione del movimento
 - Privilegi settimanali dal rango vero
-- Touch, sul modello del joystick del prototipo vecchio
-- Ostacoli come match, non come corridoio locale
-- Persistenza dell'account
+- Account
 
 Fuori scope anche dopo: soldi veri, NFT, Nanite, WebGPU obbligatorio, post-processing pesante.
