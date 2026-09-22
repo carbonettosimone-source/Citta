@@ -218,8 +218,8 @@ function leg(name: string, x: number, material: THREE.Material): THREE.Group {
   const pivot = new THREE.Group();
   pivot.name = name;
   pivot.position.set(x, 0.7, 0);
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.46, 5), material);
-  mesh.position.y = -0.22;
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.62, 5), material);
+  mesh.position.y = -0.32;
   pivot.add(mesh);
   return pivot;
 }

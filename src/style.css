@@ -46,6 +46,7 @@ button, .sheet {
 }
 
 .status {
+  z-index: 10;
   top: max(14px, env(safe-area-inset-top));
   left: max(14px, env(safe-area-inset-left));
   min-width: 196px;
@@ -90,6 +91,7 @@ button, .sheet {
 .pipe { margin-top: 8px; font-size: 11px; letter-spacing: 0.04em; color: rgba(247, 244, 236, 0.55); }
 
 .tools {
+  z-index: 10;
   top: max(14px, env(safe-area-inset-top));
   right: max(14px, env(safe-area-inset-right));
   display: flex;
@@ -145,13 +147,13 @@ button.on { background: var(--cyan); color: white; }
 }
 
 .toasts {
-  left: 50%;
-  top: 42%;
-  transform: translateX(-50%);
+  z-index: 40;
+  left: max(14px, env(safe-area-inset-left));
+  top: 148px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
   width: min(420px, calc(100% - 32px));
 }
 
@@ -168,6 +170,7 @@ button.on { background: var(--cyan); color: white; }
 .toast.out { opacity: 0; transition: opacity 0.4s ease; }
 
 .panel {
+  z-index: 20;
   inset: 0;
   display: grid;
   place-items: center;

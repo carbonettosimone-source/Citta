@@ -6,7 +6,7 @@ import type { Player } from '../player/player';
 import type { Session } from './session';
 import type { Hud } from '../ui/hud';
 
-const REACH = 2.35;
+const REACH = 7;
 const CLAIMED = 0xb7b1a8;
 
 export type Challenges = {
@@ -16,17 +16,17 @@ export type Challenges = {
 export function createChallenges(scene: THREE.Scene, gradient: THREE.Texture): Challenges {
   const count = CHALLENGES.length;
   const poles = new THREE.InstancedMesh(
-    new THREE.CylinderGeometry(0.07, 0.1, 1.5, 5),
+    new THREE.CylinderGeometry(0.09, 0.12, 2.2, 5),
     toonInstances(gradient),
     count,
   );
   const gems = new THREE.InstancedMesh(
-    new THREE.OctahedronGeometry(0.26, 0),
+    new THREE.OctahedronGeometry(0.38, 0),
     flatInstances(),
     count,
   );
   const rings = new THREE.InstancedMesh(
-    new THREE.TorusGeometry(0.72, 0.055, 5, 14),
+    new THREE.TorusGeometry(1.25, 0.07, 6, 18),
     flatInstances(),
     count,
   );
@@ -42,9 +42,9 @@ export function createChallenges(scene: THREE.Scene, gradient: THREE.Texture): C
       const def = CHALLENGES[i];
       if (!def) continue;
       const tint = claimed[i] ? CLAIMED : KIND_COLOR[def.kind];
-      const bob = claimed[i] ? 0 : Math.sin(time * 2.3 + i * 0.8) * 0.1;
-      setInstance(poles, i, def.x, 0.75, def.z, 1, 1, 1, 0, 0, 0xf6f1e8);
-      setInstance(gems, i, def.x, 1.72 + bob, def.z, 1, 1, 1, 0, time * 0.9 + i, tint);
+      const bob = claimed[i] ? 0 : Math.sin(time * 2.3 + i * 0.8) * 0.12;
+      setInstance(poles, i, def.x, 1.1, def.z, 1, 1, 1, 0, 0, tint);
+      setInstance(gems, i, def.x, 2.35 + bob, def.z, 1, 1, 1, 0, time * 0.9 + i, tint);
       const pulse = claimed[i] ? 0.92 : 1 + Math.sin(time * 2.3 + i) * 0.04;
       setInstance(rings, i, def.x, 0.05, def.z, pulse, pulse, pulse, Math.PI / 2, 0, tint);
     }

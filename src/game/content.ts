@@ -27,7 +27,7 @@ export const CHALLENGES: readonly ChallengeDef[] = [
     kind: 'race',
     coins: 15,
     x: 0,
-    z: -16,
+    z: -14,
   },
   {
     id: 'anello',

@@ -251,17 +251,20 @@ function tooClose(x: number, z: number, pad: number): boolean {
 }
 
 function addMonument(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
+  // Fuori dagli assi del sentiero: in mezzo alla croce il pilastro bloccava la corsa dritta.
+  const x = 4.6;
+  const z = -4.6;
   const stone = toonMaterial(gradient, 0xe7e0d4);
   const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.55, 2.35, 0.55), stone);
-  pillar.position.y = 1.18;
+  pillar.position.set(x, 1.18, z);
   scene.add(pillar);
   const gem = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.34, 0),
     new THREE.MeshBasicMaterial({ color: 0xf0a03a }),
   );
-  gem.position.y = 2.55;
+  gem.position.set(x, 2.55, z);
   scene.add(gem);
-  blockers.push({ kind: 'circle', x: 0, z: 0, r: 0.48, h: 3.2 });
+  blockers.push({ kind: 'circle', x, z, r: 0.48, h: 3.2 });
 }
 
 function addCourse(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
