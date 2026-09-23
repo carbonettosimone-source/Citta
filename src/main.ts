@@ -48,12 +48,16 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
   const match = createMatch(pipeline.scene, gradient, session, hud, player);
   startDemo = (mode) => match.start(mode);
 
-  const guideGeo = new THREE.TorusGeometry(1.15, 0.07, 6, 20);
-  guideGeo.rotateX(Math.PI / 2);
-  const guideRing = new THREE.Mesh(guideGeo, new THREE.MeshBasicMaterial({ color: 0xffc43a }));
-  guideRing.visible = false;
-  guideRing.frustumCulled = false;
-  pipeline.scene.add(guideRing);
+  const guideMark = new THREE.Group();
+  const guideMat = new THREE.MeshBasicMaterial({ color: 0xffc43a });
+  const guideRing = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.18, 8, 24), guideMat);
+  guideRing.rotation.x = Math.PI / 2;
+  const guideGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.38, 0), guideMat);
+  guideGem.position.y = 1.7;
+  guideMark.add(guideRing, guideGem);
+  guideMark.visible = false;
+  guideMark.frustumCulled = false;
+  pipeline.scene.add(guideMark);
   let aimed: Mark | null = null;
 
   let courseTold = false;
@@ -75,16 +79,17 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
       const dz = player.z - mark.z;
       if (dx * dx + dy * dy + dz * dz < 6 * 6) {
         clearMark();
-        guideRing.visible = false;
+        guideMark.visible = false;
         if (aimed === mark) hud.toast(`${mark.name} è qui.`);
       } else {
         const up = Math.hypot(mark.x, mark.y, mark.z) || 1;
-        const lift = shellLift(mark.x / up, mark.y / up, mark.z / up) + 0.16;
-        guideRing.visible = true;
-        guideRing.position.set((mark.x / up) * (PLANET_R + lift), (mark.y / up) * (PLANET_R + lift), (mark.z / up) * (PLANET_R + lift));
-        guideRing.quaternion.copy(frameQuaternion(mark.x, mark.y, mark.z, 1, 0, 0));
+        const lift = shellLift(mark.x / up, mark.y / up, mark.z / up) + 0.2;
+        guideMark.visible = true;
+        guideMark.position.set((mark.x / up) * (PLANET_R + lift), (mark.y / up) * (PLANET_R + lift), (mark.z / up) * (PLANET_R + lift));
+        guideMark.quaternion.copy(frameQuaternion(mark.x, mark.y, mark.z, 1, 0, 0));
+        guideGem.rotation.y += dt * 1.4;
       }
-    } else guideRing.visible = false;
+    } else guideMark.visible = false;
     const frozen = hud.blocksPlay();
     if (!reduceMotion) windTime.value = now / 1000;
     player.update(dt, hub.blockers, frozen);
