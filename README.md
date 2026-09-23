@@ -72,7 +72,7 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 - Nebbia corta, stesso colore del cielo
 - Toon a quattro fasce, niente PBR. Gemme e segnali piatti, così restano leggibili nella nebbia
 - Faro, anello, petali, belvedere e cancello: sagome diverse, ricompense diverse
-- HUD: monete, Mondo-1, rango di sessione, toast, Eventi, levetta e Salta
+- HUD: monete, Mondo-1, rango di sessione, toast, Mappa, Giochi, levetta (corri a fondo) e Salta
 - Mini-gara ostacoli sulle dune, completabile, con avversari finti e saldo monete
 
 ## Architettura prevista
