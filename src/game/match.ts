@@ -260,5 +260,6 @@ function runner(gradient: THREE.Texture, color: number): THREE.Group {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 5), toonMaterial(gradient, 0xffe0c4));
   head.position.y = 1.48;
   group.add(body, head);
+  group.scale.setScalar(0.2);
   return group;
 }

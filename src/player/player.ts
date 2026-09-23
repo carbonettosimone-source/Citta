@@ -5,11 +5,11 @@ import { toonMaterial } from '../render/toon';
 import { resolve, type Blocker } from '../world/collide';
 import { frameQuaternion, PLANET_R } from '../world/planet';
 
-const SPEED = 6;
+const SPEED = 2.6;
 const GRAVITY = 27;
-const JUMP = 8.2;
-const JUMP2 = 6.3;
-const RADIUS = 0.3;
+const JUMP = 5.15;
+const JUMP2 = 3.85;
+const RADIUS = 0.09;
 const STEP = 1 / 90;
 const FOLLOW = 9;
 
@@ -48,7 +48,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
 
   const body = buildAvatar(scene, gradient);
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.32, 14),
+    new THREE.CircleGeometry(0.1, 12),
     new THREE.MeshBasicMaterial({ color: 0x1a2430, transparent: true, opacity: 0.28, depthWrite: false }),
   );
   scene.add(shadow);
@@ -88,7 +88,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       }
       const moving = !frozen && grounded && Math.abs(input.strafe) + Math.abs(input.forward) > 0.08;
       if (moving) phase += dt * 9.5;
-      const bob = moving ? Math.sin(phase * 2) * 0.035 : 0;
+      const bob = moving ? Math.sin(phase * 2) * 0.012 : 0;
       place(bob);
       hopCue = Math.max(0, hopCue - dt * 2.6);
       pose(moving, hopCue);
@@ -104,16 +104,18 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       follow.lerp(up, k).normalize();
       heading(head);
       const portrait = window.innerHeight > window.innerWidth;
-      const dist = portrait ? 6.7 : 7.9;
+      const dist = portrait ? 3.15 : 3.7;
       const horiz = Math.cos(controls.pitch) * dist;
       const anchor = PLANET_R + alt;
+      camera.fov = portrait ? 70 : 60;
+      camera.updateProjectionMatrix();
       camera.position
         .copy(follow)
         .multiplyScalar(anchor)
-        .addScaledVector(follow, 1.2 + Math.sin(controls.pitch) * dist)
+        .addScaledVector(follow, 0.7 + Math.sin(controls.pitch) * dist * 0.72)
         .addScaledVector(head, -horiz);
       camera.up.copy(follow);
-      look.copy(follow).multiplyScalar(anchor).addScaledVector(follow, 1.05).addScaledVector(head, 0.45);
+      look.copy(follow).multiplyScalar(anchor).addScaledVector(follow, 0.2).addScaledVector(head, 1.45);
       camera.lookAt(look);
     },
     aim() {
@@ -135,7 +137,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
       basis.normalize();
       face.copy(basis);
-      controls.setYaw(0, 0.5);
+      controls.setYaw(0, 0.4);
       follow.copy(up);
       place();
     },
@@ -274,7 +276,7 @@ function buildAvatar(scene: THREE.Scene, gradient: THREE.Texture): THREE.Group {
   group.add(limb('armR', 0.2, 1.46, 0.58, 0.032, cloth));
 
   const puff = new THREE.Mesh(
-    new THREE.TorusGeometry(0.42, 0.03, 5, 14),
+    new THREE.TorusGeometry(0.95, 0.07, 5, 14),
     new THREE.MeshBasicMaterial({ color: 0xf6c14a, transparent: true, opacity: 0, depthWrite: false }),
   );
   puff.name = 'puff';
@@ -282,6 +284,7 @@ function buildAvatar(scene: THREE.Scene, gradient: THREE.Texture): THREE.Group {
   puff.position.y = 0.12;
   group.add(puff);
 
+  group.scale.setScalar(0.2);
   scene.add(group);
   return group;
 }

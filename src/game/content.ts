@@ -1,9 +1,10 @@
 import { BIOMES, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
+import { CRYSTAL_LOOK, DUNE_CAMP, HUB_PLAZA, MINT_PLAZA, VIOLET_PLAZA } from '../world/towns';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 5;
+export const PROTO = 6;
 
 const homeAz = biomeAzimuth(0);
 const home = onSphere(0.3, homeAz);
@@ -27,12 +28,12 @@ export type ChallengeDef = {
   needsCourse?: boolean;
 };
 
-const faro = onSphere(0.13, homeAz);
-const anello = onSphere(1.38, biomeAzimuth(1));
-const pietre = onSphere(1.92, biomeAzimuth(2));
-const belvedere = onSphere(2.35, biomeAzimuth(3));
+const faro = HUB_PLAZA;
+const anello = MINT_PLAZA;
+const pietre = VIOLET_PLAZA;
+const belvedere = CRYSTAL_LOOK;
 const dune = biomeAzimuth(4);
-const cancello = onSphere(1.48, dune - 0.28);
+const cancello = DUNE_CAMP;
 
 export const CHALLENGES: readonly ChallengeDef[] = [
   {
@@ -41,16 +42,16 @@ export const CHALLENGES: readonly ChallengeDef[] = [
     kind: 'race',
     coins: 20,
     biome: 0,
-    line: 'Il faro del polo ti segna come esploratore.',
+    line: 'La piazza del polo ti segna come esploratore.',
     ...faro,
   },
   {
     id: 'anello',
-    name: 'Anello di menta',
+    name: 'Piazza di menta',
     kind: 'precision',
     coins: 12,
     biome: 1,
-    line: 'Centro della prateria. Paga poco, ma paga.',
+    line: 'Il paese della prateria. Paga poco, ma paga.',
     ...anello,
   },
   {
@@ -59,7 +60,7 @@ export const CHALLENGES: readonly ChallengeDef[] = [
     kind: 'logic',
     coins: 30,
     biome: 2,
-    line: 'L’enigma viola, per ora, è una moneta grossa.',
+    line: 'Il paese viola, per ora, è una moneta grossa.',
     ...pietre,
   },
   {
@@ -68,16 +69,16 @@ export const CHALLENGES: readonly ChallengeDef[] = [
     kind: 'explore',
     coins: 16,
     biome: 3,
-    line: 'Sei arrivato dove il pianeta curva via.',
+    line: 'Il totem di cristallo, dove il pianeta curva via.',
     ...belvedere,
   },
   {
     id: 'cancello',
-    name: 'Cancello delle dune',
+    name: 'Campo delle dune',
     kind: 'obstacle',
     coins: 18,
     biome: 4,
-    line: 'Il cancello si ricorda di chi ha corso.',
+    line: 'Il campo ricorda chi ha corso il sentiero.',
     ...cancello,
     needsCourse: true,
   },
@@ -158,12 +159,12 @@ export const RANK_FOR_PLACE = [9, 26, 47, 70] as const;
 export type RacePoint = { x: number; y: number; z: number };
 
 const raceSamples: readonly { c: number; a: number }[] = [
-  { c: 1.06, a: dune - 0.038 },
-  { c: 1.06, a: dune - 0.008 },
-  { c: 1.105, a: dune + 0.012 },
-  { c: 1.105, a: dune + 0.036 },
-  { c: 1.055, a: dune + 0.048 },
-  { c: 1.085, a: dune + 0.072 },
+  { c: 1.045, a: dune - 0.016 },
+  { c: 1.045, a: dune - 0.004 },
+  { c: 1.068, a: dune + 0.005 },
+  { c: 1.068, a: dune + 0.015 },
+  { c: 1.042, a: dune + 0.021 },
+  { c: 1.055, a: dune + 0.032 },
 ];
 
 export const RACE_PATH: readonly RacePoint[] = raceSamples.map((sample) => onSphere(sample.c, sample.a));
@@ -175,7 +176,7 @@ function gate(index: number, side: number): RacePoint {
   return beside(a.x, a.y, a.z, b.x, b.y, b.z, side);
 }
 
-export const RACE_BARS: readonly RacePoint[] = [gate(0, 1.9), gate(2, -2), gate(4, -2)];
+export const RACE_BARS: readonly RacePoint[] = [gate(0, 1.25), gate(2, -1.3), gate(4, -1.2)];
 
 export const RACE_GHOSTS: readonly { name: string; seconds: number; color: number }[] = [
   { name: 'Rami', seconds: 5.6, color: 0xf0a03a },
@@ -187,7 +188,7 @@ export const RACE_LIMIT = 24;
 
 const finish = RACE_PATH[RACE_PATH.length - 1];
 if (!finish) throw new Error('percorso senza traguardo');
-export const FINISH = { x: finish.x, y: finish.y, z: finish.z, r: 2.5 };
+export const FINISH = { x: finish.x, y: finish.y, z: finish.z, r: 1.7 };
 
 export function payoutFor(place: number, stake: number): number {
   const mult = PAYOUT_MULT[place - 1] ?? 0;

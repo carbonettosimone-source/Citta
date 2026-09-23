@@ -53,7 +53,7 @@ export function createHud(
 
   const coach = el('div', 'coach');
   coach.innerHTML = `
-    <p>Il palo è avanti. I premi stanno negli spicchi.</p>
+    <p>La città è avanti, verso il palo. I paesi stanno negli spicchi.</p>
     <strong>${coarse ? 'Pollice sinistro per camminare, dito sul mondo per girarti.' : 'WASD per camminare, trascina per girarti.'}</strong>
   `;
 

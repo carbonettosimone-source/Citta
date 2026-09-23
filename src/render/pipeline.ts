@@ -44,7 +44,7 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
   sun.position.set(12, 18, 6);
   scene.add(sun);
 
-  const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 420);
 
   const target = new THREE.WebGLRenderTarget(2, 2, {
     depthBuffer: true,

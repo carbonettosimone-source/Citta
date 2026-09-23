@@ -6,7 +6,7 @@ import type { Player } from '../player/player';
 import { grant, type Session } from './session';
 import type { Hud } from '../ui/hud';
 
-const REACH = 10;
+const REACH = 6;
 const CLAIMED = 0xb7b1a8;
 
 type Marker = {

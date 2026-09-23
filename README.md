@@ -60,7 +60,9 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 - Sei spicchi larghi, con cucitura scura: mesa corallo, prateria menta, giardino viola, campo di cristalli, dune pesca, bosco di lanterne. Ogni spicchio ha un totem e la sua famiglia di piante
 - Piante inventate (ventagli, dischi esagonali, stelle su stelo, torri di petali, cristalli, nastri, lanterne). Niente pini, querce o palme. Quasi tutte in `InstancedMesh`
 - Palo-faro sul polo nord, sentiero chiaro, sfide lontane dallo spawn e colorate come il proprio spicchio
-- Avatar snello, braccia e mantello nel passo, doppio salto (anello ambra sul secondo)
+- Avatar snello, circa un quinto dell’altezza precedente, così case e rocce lo sovrastano. Braccia e mantello nel passo, doppio salto
+- Città del polo vicino allo spawn (piazza, strade, case, torri, chioschi) e paesi negli spicchi menta, viola e lanterne, più un campo sulle dune. Stesso seme `hashText('Mondo-1')` a ogni caricamento
+- Erba e detriti di bioma, rocce a gruppi, cuciture più larghe. Tutto in `InstancedMesh` dove si ripete
 - Mondo rigenerato da seme (`hash32`, niente `Math.random`)
 - WebGL2: scena a metà risoluzione, upscale nearest
 - Nebbia corta, stesso colore del cielo

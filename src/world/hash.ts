@@ -14,5 +14,15 @@ export function hash32(a: number, b: number, c: number): number {
 
 export const unit = (a: number, b: number, c: number): number => hash32(a, b, c) / 4294967296;
 
-/** Seme del Mondo-1. Cambiarlo cambia alberi e chiazze: va con PROTO. */
-export const WORLD_SEED = 20260902;
+/** Stesso intero per ogni clone di Mondo-1. Niente mappe diverse a ogni avvio. */
+export function hashText(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Seme fisso dello shard. Erba, rocce e paesi escono da qui, non da Math.random. */
+export const WORLD_SEED = hashText('Mondo-1');

@@ -19,7 +19,7 @@ const LOOK_SENS = 0.0052;
 export function createControls(canvas: HTMLCanvasElement, root: HTMLElement): Controls {
   const down = new Set<string>();
   let yaw = 0;
-  let pitch = 0.48;
+  let pitch = 0.4;
   let interactEdge = false;
   let jumpEdge = false;
   let jumpHeld = false;

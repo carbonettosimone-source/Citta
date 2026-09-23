@@ -4,7 +4,9 @@ import { commit, setInstanceQuat } from '../render/instance';
 import { createSky } from '../render/sky';
 import { toonInstances, toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
+import { addDress } from './dress';
 import { WORLD_SEED, unit } from './hash';
+import { addTowns, nearTown, onTownGround } from './towns';
 import {
   BIOMES,
   PATH_COLOR,
@@ -44,7 +46,9 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
 
   const blockers: Blocker[] = [];
   addBeacon(scene, gradient, blockers);
+  addTowns(scene, gradient, blockers);
   scatter(scene, gradient);
+  addDress(scene, gradient);
   addCourse(scene, gradient, blockers);
 
   return { blockers, sky };
@@ -78,9 +82,9 @@ function buildSurface(gradient: THREE.Texture): THREE.Mesh {
 }
 
 function facetColor(x: number, y: number, z: number, index: number): number {
-  if (onPath(x, y, z)) return PATH_COLOR;
+  if (onPath(x, y, z) || onTownGround(x, y, z)) return PATH_COLOR;
   const parallel = Math.hypot(x, z);
-  if (parallel > 22 && edgeMeters(x, y, z) < 3.2) return SEAM_COLOR;
+  if (parallel > 22 && edgeMeters(x, y, z) < 4.6) return SEAM_COLOR;
   const biome = BIOMES[biomeIndex(x, z)] ?? BIOMES[0];
   const roll = unit(index, 3, WORLD_SEED);
   if (roll > 0.86) return biome.deep;
@@ -213,7 +217,7 @@ function point(colat: number, az: number): { x: number; y: number; z: number } {
 
 function tooClose(x: number, y: number, z: number): boolean {
   const pole = Math.abs(y) > PLANET_R * Math.cos(0.11);
-  if (pole) return true;
+  if (pole || nearTown(x, y, z, 6)) return true;
   for (const challenge of CHALLENGES) {
     const dx = x - challenge.x;
     const dy = y - challenge.y;
