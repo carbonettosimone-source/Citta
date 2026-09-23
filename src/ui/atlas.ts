@@ -182,14 +182,22 @@ function paint(
   for (const place of MAP_PLACES) {
     const at = project(place.colat, place.az, cx, cy, radius);
     const hot = place.id === selected;
+    ctx.fillStyle = '#10241c';
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, place.kind === 'biome' ? 4 : 8, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = hot ? '#ffffff' : KIND_COLOR[place.kind];
     ctx.beginPath();
-    ctx.arc(at.x, at.y, place.kind === 'biome' ? 3.5 : 6, 0, Math.PI * 2);
+    ctx.arc(at.x, at.y, place.kind === 'biome' ? 2.5 : 5.5, 0, Math.PI * 2);
     ctx.fill();
-    if (place.kind === 'biome') {
-      ctx.fillStyle = 'rgba(16, 36, 28, 0.82)';
-      ctx.fillText(place.name, at.x, at.y + 16);
-    }
+    const label = mapLabel(place);
+    if (!label) continue;
+    ctx.font = '700 12px Outfit, sans-serif';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(16, 36, 28, 0.9)';
+    ctx.fillStyle = '#f6f1e6';
+    ctx.strokeText(label, at.x, at.y - 12);
+    ctx.fillText(label, at.x, at.y - 12);
   }
 
   const here = angles(px, py, pz);
@@ -212,6 +220,19 @@ function paint(
   ctx.beginPath();
   ctx.arc(you.x, you.y, 4, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function mapLabel(place: MapPlace): string | null {
+  if (place.kind === 'biome' || place.kind === 'pole') return null;
+  if (place.kind === 'hub') return 'Città';
+  if (place.kind === 'games') return 'Giochi';
+  if (place.kind === 'venue') return 'Ostacoli';
+  if (place.kind === 'lookout') return 'Belvedere';
+  if (place.id === 'mint') return 'Menta';
+  if (place.id === 'violet') return 'Viola';
+  if (place.id === 'crystal-town') return 'Cristallo';
+  if (place.id === 'lantern') return 'Lanterne';
+  return place.name;
 }
 
 function project(colat: number, az: number, cx: number, cy: number, radius: number): { x: number; y: number } {

@@ -17,9 +17,11 @@ import {
   biomeIndex,
   edgeMeters,
   frameQuaternion,
+  northTangent,
   onPath,
   pathBlend,
   quatAxisY,
+  shift,
 } from './planet';
 
 export type Hub = {
@@ -49,6 +51,7 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
   const blockers: Blocker[] = [];
   addBeacon(scene, gradient, blockers);
   addTowns(scene, gradient, blockers);
+  addApproach(scene, gradient);
   scatter(scene, gradient);
   addDress(scene, gradient);
   addCourse(scene, gradient, blockers);
@@ -91,11 +94,16 @@ function vertexColor(x: number, y: number, z: number): number {
   const nz = z / len;
   const colat = Math.acos(Math.min(1, Math.max(-1, (y / len))));
   const az = Math.atan2(x, z);
-  const flat = Math.max(pathBlend(x, y, z), townBlend(x, y, z));
-  if (flat > 0.82) return PATH_COLOR;
-  const biome = BIOMES[biomeIndex(x, z)] ?? BIOMES[0];
   const qx = Math.round(az * 9);
   const qy = Math.round(colat * 11);
+  const flat = Math.max(pathBlend(x, y, z), townBlend(x, y, z));
+  if (flat > 0.82) {
+    const pave = unit(qx, qy, WORLD_SEED ^ 9);
+    if (pave > 0.86) return mixHex(PATH_COLOR, 0xd9c4a2, 0.45);
+    if (pave > 0.72) return mixHex(PATH_COLOR, 0xfff8ea, 0.55);
+    return PATH_COLOR;
+  }
+  const biome = BIOMES[biomeIndex(x, z)] ?? BIOMES[0];
   const roll = unit(qx, qy, WORLD_SEED);
   let hex = biome.ground;
   if (roll > 0.84) hex = biome.deep;
@@ -124,6 +132,49 @@ function mixHex(a: number, b: number, t: number): number {
   const g = Math.round(ag + (bg - ag) * k);
   const bl = Math.round(ab + (bb - ab) * k);
   return (r << 16) | (g << 8) | bl;
+}
+
+/** Filare lungo la via dello spawn: sta nel cono stretto del ritratto. */
+function addApproach(scene: THREE.Scene, gradient: THREE.Texture): void {
+  const az = biomeAzimuth(0);
+  const colat = 0.2;
+  const border: Plant[] = [];
+  const stems: Plant[] = [];
+  const crowns: Plant[] = [];
+  const plantAt = (list: Plant[], north: number, east: number, scale: number, color: number) => {
+    const raw = shift(colat, az, north, east);
+    const p = seat(raw.x, raw.y, raw.z);
+    const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
+    list.push({ ...p, qx: q.x, qy: q.y, qz: q.z, qw: q.w, s: scale, color });
+  };
+  for (let n = -15.4; n <= -2.2; n += 1.55) {
+    const scale = 0.95 + ((Math.abs(Math.round(n * 10)) % 3) * 0.18);
+    plantAt(border, n, -0.72, scale, 0xf26d86);
+    plantAt(border, n, 0.72, scale * 0.9, 0xd45a62);
+  }
+  for (let n = -14.2; n <= -3.2; n += 3.3) {
+    plantAt(stems, n, -1.48, 1, 0xd45a62);
+    plantAt(stems, n, 1.48, 1, 0xd45a62);
+    plantAt(crowns, n, -1.48, 1, 0xf26d86);
+    plantAt(crowns, n, 1.48, 1, 0xf6c2b4);
+  }
+  const crownGeo = new THREE.CylinderGeometry(0.78, 0.78, 0.2, 6);
+  crownGeo.translate(0, 2.2, 0);
+  paint(scene, cone(0.42, 0.95, 5, 0.48), gradient, border, false, true);
+  paint(scene, cylinder(0.07, 0.1, 2.15, 5), gradient, stems, false, true);
+  paint(scene, crownGeo, gradient, crowns, false, true);
+
+  const gateAt = shift(colat, az, -12.6, 0);
+  const face = northTangent(colat, az);
+  const gate = new THREE.Mesh(
+    new THREE.TorusGeometry(1.55, 0.11, 6, 16),
+    toonMaterial(gradient, 0xf0a03a),
+  );
+  gate.position.set(gateAt.x, gateAt.y, gateAt.z);
+  gate.quaternion.copy(frameQuaternion(gateAt.x, gateAt.y, gateAt.z, face.x, face.y, face.z));
+  const up = new THREE.Vector3(gateAt.x, gateAt.y, gateAt.z).normalize();
+  gate.position.addScaledVector(up, 1.55);
+  scene.add(gate);
 }
 
 function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
