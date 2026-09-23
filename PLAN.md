@@ -1,32 +1,38 @@
-# Pianta di Mondo-1
+# Mondo-1, sul guscio
 
-Un solo sistema: griglia ortogonale. Il cardo e il decumano si incrociano nella piazza civica. Tutto il resto è un multiplo di 16 m.
+Il piano non è una griglia piana incollata sulla palla. I luoghi stanno in coordinate sferiche: colatitudine dal polo nord, azimut intorno all’asse. Le strade sono meridiani e paralleli.
 
-Coordinate locali dell’hub: **+nord** verso il faro, **+est** verso la menta. L’ovest scende verso le lanterne e le dune.
+Raggio 160 m. Un grado di meridiano è circa 2,8 m. I sei biomi sono spicchi di longitudine, larghi 60°. Una calotta lilla-blu copre il polo (`colat < 0,4`); sotto, il colore dello spicchio.
 
-## Modulo
+## Capitale
 
-- Modulo **16 m** da asse ad asse.
-- Cardo (`e = 0`) e decumano (`n = 0`): strade primarie, larghe **6 m**.
-- Strade secondarie su `n = ±16` e `e = ±16`, larghe **4 m**, lunghe un modulo e mezzo oltre l’incrocio.
-- Vicoli solo dentro i quattro blocchi interni, sempre nord-sud, sull’asse `e = ±8`. Non tagliano le piazze.
-- Facciate sul filo a **5,2 m** dall’asse primario e a **10 m** sull’altro lato del blocco, così gli angoli coincidono.
-- I vuoti sono piazze, non avanzi: ogni incrocio del modulo è un nodo, il centro del blocco è cortile o vicolo.
+Centro sulla mesa corallo, non sul polo.
+
+| | |
+| --- | --- |
+| Parallelo civico | colatitudine **0,64** (circa 102 m di meridiano dal faro) |
+| Meridiano | azimut del centro corallo, `biomeAzimuth(0)` |
+| Spawn | colat **0,80**, stesso meridiano, faccia a nord |
+
+- **Meridiano** (via del faro): da colat 0,30 a 1,02. È un arco di cerchio massimo. A nord si entra nella calotta e si vede il faro; a sud si scende verso l’anello dei biomi.
+- **Parallelo** (via delle porte): dallo stesso centro, circa ±0,5 rad di longitudine (una novantina di metri). La strada piega con l’orizzonte.
+- **Parallelo alto** a colat 0,46: dal Corallo ai Giochi, un arco breve verso est.
+- I vicoli sono pezzi di meridiano, a ±0,18 rad dal centro, solo fra le facciate. Non tagliano le piazze.
+
+Le piazze sono calotte piccole (raggio 5–9 m), non isolati infiniti. Le facciate seguono la curva, a circa 6 m dall’asse della via.
 
 ## Nodi
 
-| Nodo | Posizione | Ruolo |
+| Nodo | Colat, azimut | Ruolo |
 | --- | --- | --- |
-| Piazza civica | (0, 0) | Incrocio monumentale. Colonnato quadrato a 6 m, assi liberi. |
-| Corallo | (16, 0) | Corte residenziale sul cardo, prima del faro. |
-| Mercato | (0, 16) | Piazza sul decumano, verso est. |
-| Botteghe | (0, −16) | Piazza sul decumano, verso ovest. |
-| Giochi | (16, 16) | Corte d’angolo: incrocio nord-est delle secondarie. La bacheca è al centro. |
-| Terrazza | (26, 0) | Fine del cardo. Il faro, a circa 32 m, chiude la visuale. |
-| Porta sud | (−32, 0) | Uscita sul cardo, verso lo spicchio corallo. Lo spawn è sull’asse, a n ≈ −16. |
-| Porta est | (0, 32) | Uscita verso la menta. |
-| Porta ovest | (0, −32) | Uscita verso lanterne e dune. |
+| Piazza civica | 0,64 · 0 | Incrocio di meridiano e parallelo. Colonnato su un cerchio, assi liberi. |
+| Corallo | 0,46 · 0 | Corte sul meridiano, verso il polo. |
+| Mercato | 0,64 · +0,30 | Sul parallelo, verso la menta. |
+| Botteghe | 0,64 · −0,30 | Sul parallelo, verso le lanterne. |
+| Giochi | 0,46 · +0,26 | Sul parallelo alto. La bacheca è al centro. |
+| Terrazza | 0,34 · 0 | Ultimo approdo prima della calotta. Il faro chiude la visuale. |
+| Porta sud | 0,96 · 0 | Il meridiano continua verso l’anello e gli altri paesi. |
+| Porta est | 0,64 · +0,48 | Sbocco sul confine con la menta. |
+| Porta ovest | 0,64 · −0,46 | Sbocco verso le lanterne; le dune si raggiungono girando il pianeta. |
 
-Non c’è una porta nord: il cardo non si chiude, arriva al faro.
-
-Oltre le tre porte il pianeta resta spicchio e paese. La griglia non insegue i borghi.
+I paesi (menta, viola, cristallo, lanterne, dune) restano nei loro spicchi, collegati dai meridiani dei biomi e dall’anello a colat 1,02. Non c’è un centro quadrato che ignora la curvatura.

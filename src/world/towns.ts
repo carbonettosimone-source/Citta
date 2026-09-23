@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
 import { toonInstances, toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
-import { addCity, addCityPads, GAMES_PLAZA } from './city';
+import { addCity, addCityPads, CAPITAL_COLAT, CORALLO, GAMES_PLAZA, inCapital } from './city';
 import { bandFalloff, biomeAzimuth, frameQuaternion, onSphere, shift } from './planet';
 
 type Kind = 'house' | 'tower' | 'pavilion' | 'stall' | 'kiosk';
@@ -27,7 +27,7 @@ const TOWNS: readonly Town[] = [
   {
     id: 'hub',
     biome: 0,
-    colat: 0.2,
+    colat: CAPITAL_COLAT,
     az: homeAz,
     plaza: 8,
     east: [0, 0],
@@ -163,8 +163,8 @@ for (const town of TOWNS) {
   }
 }
 
-/** Corte del corallo: nodo nord del cardo, un modulo sopra la piazza. */
-export const QUARTER_PLAZA = shift(hub.colat, hub.az, 16, 0);
+/** Corte del corallo: sul meridiano, verso il polo, non su una griglia piana. */
+export const QUARTER_PLAZA = CORALLO;
 addCityPads(pads);
 
 /** 1 al centro di piazza, strada o lotto; scende a 0 sulla spalla. */
@@ -203,14 +203,7 @@ export function nearTown(x: number, y: number, z: number, margin: number): boole
     const reach = town.plaza + margin;
     if (dx * dx + dy * dy + dz * dz < reach * reach) return true;
   }
-  const dx = x - QUARTER_PLAZA.x;
-  const dy = y - QUARTER_PLAZA.y;
-  const dz = z - QUARTER_PLAZA.z;
-  if (dx * dx + dy * dy + dz * dz < (12 + margin) * (12 + margin)) return true;
-  const hx = x - HUB_PLAZA.x;
-  const hy = y - HUB_PLAZA.y;
-  const hz = z - HUB_PLAZA.z;
-  return hx * hx + hy * hy + hz * hz < (42 + margin) * (42 + margin);
+  return inCapital(x, y, z, margin);
 }
 
 type Stamp = {

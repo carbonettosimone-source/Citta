@@ -1,15 +1,15 @@
 import { BIOMES, angles, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
-import { BOTTEGHE_PLAZA, DUNE_GATE, EAST_GATE, MARKET_PLAZA, SOUTH_PLAZA, TERRACE } from '../world/city';
+import { BOTTEGHE_PLAZA, CAPITAL_AZ, DUNE_GATE, EAST_GATE, MARKET_PLAZA, SOUTH_PLAZA, SPAWN_COLAT, TERRACE } from '../world/city';
 import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN_PLAZA, MINT_PLAZA, QUARTER_PLAZA, VIOLET_PLAZA } from '../world/towns';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 10;
+export const PROTO = 11;
 
-const homeAz = biomeAzimuth(0);
-const home = onSphere(0.3, homeAz);
-const homeFace = northTangent(0.3, homeAz);
+const homeAz = CAPITAL_AZ;
+const home = onSphere(SPAWN_COLAT, homeAz);
+const homeFace = northTangent(SPAWN_COLAT, homeAz);
 
 export const SPAWN = home;
 export const SPAWN_FACE = homeFace;

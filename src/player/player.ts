@@ -28,6 +28,7 @@ export type Player = {
   consumeInteract(): boolean;
   syncCamera(camera: THREE.PerspectiveCamera, dt: number): void;
   teleport(x: number, y: number, z: number, faceX: number, faceY: number, faceZ: number): void;
+  lookToward(x: number, y: number, z: number): void;
   aim(): { x: number; y: number; z: number };
 };
 
@@ -163,6 +164,15 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       controls.setYaw(0, 0.4);
       follow.copy(up);
       place();
+    },
+    lookToward(tx, ty, tz) {
+      up.set(x, y, z).normalize();
+      basis.set(tx - x, ty - y, tz - z);
+      basis.addScaledVector(up, -basis.dot(up));
+      if (basis.lengthSq() < 1e-8) return;
+      basis.normalize();
+      face.copy(basis);
+      controls.setYaw(0, 0.42);
     },
   };
 

@@ -1,6 +1,8 @@
 import './style.css';
+import * as THREE from 'three';
 import { createChallenges } from './game/challenges';
 import { FINISH, type EventMode } from './game/content';
+import { clearMark, getMark, type Mark } from './game/guide';
 import { createMatch } from './game/match';
 import { createPickups } from './game/pickups';
 import { createSession } from './game/session';
@@ -10,6 +12,8 @@ import { createPipeline } from './render/pipeline';
 import { createGradientMap, windTime } from './render/toon';
 import { createHud } from './ui/hud';
 import { createHub } from './world/hub';
+import { frameQuaternion, PLANET_R } from './world/planet';
+import { shellLift } from './world/relief';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view');
 const hudRoot = document.querySelector<HTMLElement>('#hud');
@@ -44,6 +48,14 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
   const match = createMatch(pipeline.scene, gradient, session, hud, player);
   startDemo = (mode) => match.start(mode);
 
+  const guideGeo = new THREE.TorusGeometry(1.15, 0.07, 6, 20);
+  guideGeo.rotateX(Math.PI / 2);
+  const guideRing = new THREE.Mesh(guideGeo, new THREE.MeshBasicMaterial({ color: 0xffc43a }));
+  guideRing.visible = false;
+  guideRing.frustumCulled = false;
+  pipeline.scene.add(guideRing);
+  let aimed: Mark | null = null;
+
   let courseTold = false;
   let last = performance.now();
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -51,6 +63,28 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
   const frame = (now: number) => {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    const mark = getMark();
+    if (mark && mark !== aimed) {
+      player.lookToward(mark.x, mark.y, mark.z);
+      aimed = mark;
+      hud.toast(`Verso ${mark.name}`);
+    }
+    if (mark) {
+      const dx = player.x - mark.x;
+      const dy = player.y - mark.y;
+      const dz = player.z - mark.z;
+      if (dx * dx + dy * dy + dz * dz < 6 * 6) {
+        clearMark();
+        guideRing.visible = false;
+        if (aimed === mark) hud.toast(`${mark.name} è qui.`);
+      } else {
+        const up = Math.hypot(mark.x, mark.y, mark.z) || 1;
+        const lift = shellLift(mark.x / up, mark.y / up, mark.z / up) + 0.16;
+        guideRing.visible = true;
+        guideRing.position.set((mark.x / up) * (PLANET_R + lift), (mark.y / up) * (PLANET_R + lift), (mark.z / up) * (PLANET_R + lift));
+        guideRing.quaternion.copy(frameQuaternion(mark.x, mark.y, mark.z, 1, 0, 0));
+      }
+    } else guideRing.visible = false;
     const frozen = hud.blocksPlay();
     if (!reduceMotion) windTime.value = now / 1000;
     player.update(dt, hub.blockers, frozen);

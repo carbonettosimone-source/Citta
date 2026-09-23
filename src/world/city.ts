@@ -2,33 +2,33 @@ import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
 import { toonInstances, toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
-import { biomeAzimuth, eastTangent, frameQuaternion, northTangent, shift } from './planet';
+import { angleDiff, biomeAzimuth, eastTangent, frameQuaternion, northTangent, onSphere, PLANET_R, shift } from './planet';
 
 /**
- * Pianta ortogonale. Vedi PLAN.md.
- * Modulo 16 m. Cardo e = 0 (nord = faro). Decumano n = 0 (est = menta).
- * I nodi stanno sugli incroci. I vicoli stanno nei blocchi, sempre nord-sud.
+ * Capitale sul guscio. Vedi PLAN.md.
+ * Il meridiano è l'azimut del corallo. Il parallelo civico è colat 0.64.
+ * Le facciate seguono quelle due curve. Le piazze sono calotte.
  */
-const COLAT = 0.2;
-const AZ = biomeAzimuth(0);
+export const CAPITAL_COLAT = 0.64;
+export const CAPITAL_AZ = biomeAzimuth(0);
+export const SPAWN_COLAT = 0.8;
+const CORAL_COLAT = 0.46;
+const GAMES_AZ = 0.26;
+const MARKET_AZ = 0.3;
+const SETBACK = 6.2;
 
-export const PLAN_MODULE = 16;
+export const MARKET_PLAZA = onSphere(CAPITAL_COLAT, CAPITAL_AZ + MARKET_AZ);
+export const BOTTEGHE_PLAZA = onSphere(CAPITAL_COLAT, CAPITAL_AZ - MARKET_AZ);
+export const GAMES_PLAZA = onSphere(CORAL_COLAT, CAPITAL_AZ + GAMES_AZ);
+export const SOUTH_PLAZA = onSphere(0.96, CAPITAL_AZ);
+export const EAST_GATE = onSphere(CAPITAL_COLAT, CAPITAL_AZ + 0.48);
+export const DUNE_GATE = onSphere(CAPITAL_COLAT, CAPITAL_AZ - 0.46);
+export const TERRACE = onSphere(0.34, CAPITAL_AZ);
+export const CORALLO = onSphere(CORAL_COLAT, CAPITAL_AZ);
 
 const NAVY = 0x2c2640;
 const INK = 0x241c22;
 const AMBER = 0xffb22e;
-const SETBACK = 5.2;
-const BAY = 10;
-const HOUSE_SX = 0.88;
-const HOUSE_SZ = 0.8;
-
-export const MARKET_PLAZA = shift(COLAT, AZ, 0, PLAN_MODULE);
-export const BOTTEGHE_PLAZA = shift(COLAT, AZ, 0, -PLAN_MODULE);
-export const GAMES_PLAZA = shift(COLAT, AZ, PLAN_MODULE, PLAN_MODULE);
-export const SOUTH_PLAZA = shift(COLAT, AZ, -PLAN_MODULE * 2, 0);
-export const EAST_GATE = shift(COLAT, AZ, 0, PLAN_MODULE * 2);
-export const DUNE_GATE = shift(COLAT, AZ, 0, -PLAN_MODULE * 2);
-export const TERRACE = shift(COLAT, AZ, 26, 0);
 
 type Pad = { x: number; y: number; z: number; r2: number };
 type Stamp = {
@@ -44,124 +44,113 @@ type Stamp = {
   sz: number;
   color: number;
 };
+
 type Home = {
-  n: number;
-  e: number;
-  spin: number;
-  sx: number;
+  colat: number;
+  az: number;
+  north: number;
+  east: number;
+  face: 'north' | 'south' | 'east' | 'west';
   sy: number;
-  sz: number;
   hip: boolean;
   wall: number;
   roof: number;
 };
 
-/** Due facciate per blocco interno, più una fila esterna oltre ogni strada da 16 m. */
-function planHomes(): Home[] {
+function homes(): Home[] {
   const list: Home[] = [];
-  for (const sn of [1, -1] as const) {
-    for (const se of [1, -1] as const) {
-      const wall = sn > 0 ? 0xfff2f6 : 0xeef6ff;
-      const roof = se > 0 ? 0xff4d86 : 0x7c4dff;
-      list.push({
-        n: sn * SETBACK,
-        e: se * BAY,
-        spin: sn > 0 ? 0 : Math.PI,
-        sx: HOUSE_SX,
-        sy: 1,
-        sz: HOUSE_SZ,
-        hip: true,
-        wall,
-        roof,
-      });
-      list.push({
-        n: sn * BAY,
-        e: se * SETBACK,
-        spin: se > 0 ? -Math.PI / 2 : Math.PI / 2,
-        sx: HOUSE_SX,
-        sy: 1,
-        sz: HOUSE_SZ,
-        hip: false,
-        wall,
-        roof,
-      });
-    }
+  const along = [ -0.36, -0.24, -0.12, 0.12, 0.24, 0.36 ];
+  for (const daz of along) {
+    const east = daz > 0;
+    const wall = east ? 0xfff2f6 : 0xeef6ff;
+    const roof = east ? 0xff4d86 : 0x7c4dff;
+    list.push({ colat: CAPITAL_COLAT, az: CAPITAL_AZ + daz, north: SETBACK, east: 0, face: 'south', sy: 1, hip: true, wall, roof });
+    list.push({ colat: CAPITAL_COLAT, az: CAPITAL_AZ + daz, north: -SETBACK, east: 0, face: 'north', sy: 1, hip: false, wall, roof });
   }
-  const outer: readonly { n: number; e: number; spin: number; roof: number; sy: number }[] = [
-    { n: 20.8, e: 8, spin: 0, roof: 0x22c8ee, sy: 1.16 },
-    { n: 20.8, e: -8, spin: 0, roof: 0x22c8ee, sy: 1.16 },
-    { n: -20.8, e: 8, spin: Math.PI, roof: 0xff7a3a, sy: 1 },
-    { n: -20.8, e: -8, spin: Math.PI, roof: 0xff7a3a, sy: 1 },
-    { n: 8, e: 21.2, spin: -Math.PI / 2, roof: 0xff4d86, sy: 1 },
-    { n: -8, e: 21.2, spin: -Math.PI / 2, roof: 0xff4d86, sy: 1 },
-    { n: 8, e: -21.2, spin: Math.PI / 2, roof: 0x7c4dff, sy: 1 },
-    { n: -8, e: -21.2, spin: Math.PI / 2, roof: 0x7c4dff, sy: 1 },
-  ];
-  for (const item of outer) {
+  const meridian = [0.4, 0.54, 0.74];
+  for (const colat of meridian) {
     list.push({
-      n: item.n,
-      e: item.e,
-      spin: item.spin,
-      sx: HOUSE_SX,
-      sy: item.sy,
-      sz: HOUSE_SZ,
+      colat,
+      az: CAPITAL_AZ,
+      north: 0,
+      east: SETBACK,
+      face: 'west',
+      sy: colat < 0.5 ? 1.12 : 1,
       hip: true,
       wall: 0xf4eeff,
-      roof: item.roof,
+      roof: 0x22c8ee,
+    });
+    list.push({
+      colat,
+      az: CAPITAL_AZ,
+      north: 0,
+      east: -SETBACK,
+      face: 'east',
+      sy: 1,
+      hip: false,
+      wall: 0xeefcf8,
+      roof: 0xff7a3a,
     });
   }
+  list.push({ colat: CORAL_COLAT, az: CAPITAL_AZ, north: 0, east: 8, face: 'west', sy: 1.16, hip: true, wall: 0xfff2f6, roof: 0xff4d86 });
+  list.push({ colat: CORAL_COLAT, az: CAPITAL_AZ, north: 0, east: -8, face: 'east', sy: 1.16, hip: true, wall: 0xfff2f6, roof: 0xff4d86 });
   return list;
 }
 
-const HOMES = planHomes();
+const HOMES = homes();
 
-/** Bancarelle agli angoli dei nodi, fuori dagli assi. */
-const STALLS: readonly { n: number; e: number; spin: number; cloth: number }[] = [
-  { n: 5.4, e: 13.6, spin: 0, cloth: 0xff4d86 },
-  { n: -5.4, e: 13.6, spin: Math.PI, cloth: 0x22c8ee },
-  { n: 5.4, e: 19.6, spin: 0, cloth: 0xffc43a },
-  { n: -5.4, e: 19.6, spin: Math.PI, cloth: 0x7c4dff },
-  { n: 5.4, e: -13.6, spin: 0, cloth: 0x2ad4a0 },
-  { n: -5.4, e: -13.6, spin: Math.PI, cloth: 0xff4d86 },
-  { n: 5.4, e: -19.6, spin: 0, cloth: 0x7c4dff },
-  { n: -5.4, e: -19.6, spin: Math.PI, cloth: 0x22c8ee },
-  { n: 12, e: 22, spin: -Math.PI / 2, cloth: 0xff4d86 },
-  { n: 22, e: 12, spin: Math.PI, cloth: 0xffc43a },
-  { n: 22, e: 22, spin: -Math.PI / 2, cloth: 0x7c4dff },
+const STALLS: readonly { colat: number; az: number; north: number; east: number; face: Home['face']; cloth: number }[] = [
+  { colat: CAPITAL_COLAT, az: CAPITAL_AZ + MARKET_AZ, north: 5.1, east: 0, face: 'south', cloth: 0xff4d86 },
+  { colat: CAPITAL_COLAT, az: CAPITAL_AZ + MARKET_AZ, north: -5.1, east: 0, face: 'north', cloth: 0x22c8ee },
+  { colat: CAPITAL_COLAT, az: CAPITAL_AZ - MARKET_AZ, north: 5.1, east: 0, face: 'south', cloth: 0x7c4dff },
+  { colat: CAPITAL_COLAT, az: CAPITAL_AZ - MARKET_AZ, north: -5.1, east: 0, face: 'north', cloth: 0x2ad4a0 },
+  { colat: CORAL_COLAT, az: CAPITAL_AZ + GAMES_AZ, north: 4.6, east: 3.2, face: 'south', cloth: 0xffc43a },
+  { colat: CORAL_COLAT, az: CAPITAL_AZ + GAMES_AZ, north: -4.2, east: -3.4, face: 'north', cloth: 0xff4d86 },
 ];
 
+/** Vero se il punto è sulla striscia della capitale (meridiano, parallelo, vicoli), non su un disco quadrato. */
+export function inCapital(x: number, y: number, z: number, margin: number): boolean {
+  const len = Math.hypot(x, y, z) || 1;
+  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
+  const az = Math.atan2(x, z);
+  const daz = angleDiff(az, CAPITAL_AZ);
+  const lateral = daz * Math.sin(Math.max(0.25, colat)) * PLANET_R;
+  if (colat > 0.26 && colat < 1.08 && lateral < 14 + margin) return true;
+  const along = Math.abs(colat - CAPITAL_COLAT) * PLANET_R;
+  if (daz < 0.62 && along < 14 + margin) return true;
+  const upper = Math.abs(colat - CORAL_COLAT) * PLANET_R;
+  if (daz < 0.36 && upper < 12 + margin) return true;
+  return false;
+}
+
 export function addCityPads(pads: Pad[]): void {
-  const put = (n: number, e: number, r: number) => {
-    pads.push({ ...shift(COLAT, AZ, n, e), r2: r * r });
+  const put = (colat: number, az: number, r: number) => {
+    pads.push({ ...onSphere(colat, az), r2: r * r });
   };
-  const run = (n0: number, n1: number, e0: number, e1: number, r: number, step: number) => {
-    if (n0 === n1) {
-      for (let e = e0; e <= e1; e += step) put(n0, e, r);
-      return;
-    }
-    for (let n = n0; n <= n1; n += step) put(n, e0, r);
-  };
-  put(0, 0, 7.5);
-  put(0, PLAN_MODULE, 5);
-  put(0, -PLAN_MODULE, 5);
-  put(PLAN_MODULE, 0, 5);
-  put(PLAN_MODULE, PLAN_MODULE, 5);
-  put(26, 0, 3.2);
-  run(-40, 28, 0, 0, 3, 2.2);
-  run(0, 0, -40, 40, 3, 2.2);
-  run(PLAN_MODULE, PLAN_MODULE, -24, 24, 2, 2);
-  run(-PLAN_MODULE, -PLAN_MODULE, -24, 24, 2, 2);
-  run(-24, 24, PLAN_MODULE, PLAN_MODULE, 2, 2);
-  run(-24, 24, -PLAN_MODULE, -PLAN_MODULE, 2, 2);
-  for (const sn of [1, -1]) {
-    for (const se of [1, -1]) {
-      const n0 = sn > 0 ? 7.4 : -13.2;
-      const n1 = sn > 0 ? 13.2 : -7.4;
-      for (let n = n0; n <= n1; n += 1.4) put(n, se * 8, 0.85);
+  for (let colat = 0.3; colat <= 1.02; colat += 2.5 / PLANET_R) put(colat, CAPITAL_AZ, 3.3);
+  const rho = Math.sin(CAPITAL_COLAT) * PLANET_R;
+  for (let daz = -0.5; daz <= 0.52; daz += 2.5 / rho) put(CAPITAL_COLAT, CAPITAL_AZ + daz, 3.3);
+  const rhoHi = Math.sin(CORAL_COLAT) * PLANET_R;
+  for (let daz = 0; daz <= 0.3; daz += 2.5 / rhoHi) put(CORAL_COLAT, CAPITAL_AZ + daz, 2.6);
+  for (const side of [-1, 1]) {
+    for (let colat = CAPITAL_COLAT; colat <= CAPITAL_COLAT + 0.055; colat += 1.4 / PLANET_R) {
+      put(colat, CAPITAL_AZ + side * 0.18, 0.9);
     }
   }
-  for (const home of HOMES) put(home.n, home.e, 1.7);
-  for (const stall of STALLS) put(stall.n, stall.e, 1.55);
+  put(CAPITAL_COLAT, CAPITAL_AZ, 9);
+  put(CAPITAL_COLAT, CAPITAL_AZ + MARKET_AZ, 5.2);
+  put(CAPITAL_COLAT, CAPITAL_AZ - MARKET_AZ, 5.2);
+  put(CORAL_COLAT, CAPITAL_AZ, 5.6);
+  put(CORAL_COLAT, CAPITAL_AZ + GAMES_AZ, 5.2);
+  put(0.34, CAPITAL_AZ, 3.4);
+  for (const home of HOMES) {
+    const at = shift(home.colat, home.az, home.north, home.east);
+    pads.push({ ...at, r2: 1.7 * 1.7 });
+  }
+  for (const stall of STALLS) {
+    const at = shift(stall.colat, stall.az, stall.north, stall.east);
+    pads.push({ ...at, r2: 1.55 * 1.55 });
+  }
 }
 
 export function addCity(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
@@ -188,14 +177,16 @@ export function addCity(scene: THREE.Scene, gradient: THREE.Texture, blockers: B
   const put = (list: Stamp[], p: { x: number; y: number; z: number }, q: THREE.Quaternion, sx: number, sy: number, sz: number, color: number) => {
     list.push({ x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, sx, sy, sz, color });
   };
-  const pose = (n: number, e: number, spin: number) => {
-    const p = shift(COLAT, AZ, n, e);
-    const q = frameQuaternion(p.x, p.y, p.z, Math.sin(AZ), 0, Math.cos(AZ));
-    q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), spin));
+  const faced = (colat: number, az: number, north: number, east: number, face: Home['face']) => {
+    const p = shift(colat, az, north, east);
+    const n = northTangent(colat, az);
+    const e = eastTangent(az);
+    const dir = face === 'north' ? n : face === 'south' ? { x: -n.x, y: -n.y, z: -n.z } : face === 'east' ? e : { x: -e.x, y: -e.y, z: -e.z };
+    const q = frameQuaternion(p.x, p.y, p.z, dir.x, dir.y, dir.z);
     return { p, q };
   };
-  const lamp = (n: number, e: number) => {
-    const at = pose(n, e, 0);
+  const lamp = (colat: number, az: number, north: number, east: number) => {
+    const at = faced(colat, az, north, east, 'north');
     put(posts, at.p, at.q, 0.55, 0.9, 0.55, NAVY);
     const len = Math.hypot(at.p.x, at.p.y, at.p.z) || 1;
     const h = 2.1;
@@ -215,84 +206,62 @@ export function addCity(scene: THREE.Scene, gradient: THREE.Texture, blockers: B
     blockers.push({ ...at.p, r: 0.16, h: 2.15 });
   };
 
-  const columnAt: readonly (readonly [number, number])[] = [
-    [6, 2.6],
-    [6, -2.6],
-    [-6, 2.6],
-    [-6, -2.6],
-    [2.6, 6],
-    [2.6, -6],
-    [-2.6, 6],
-    [-2.6, -6],
-  ];
   const caps = [0xff4d86, 0x22c8ee, 0x7c4dff, 0xffc43a] as const;
-  columnAt.forEach(([n, e], index) => {
-    const at = pose(n, e, 0);
+  for (let i = 0; i < 8; i += 1) {
+    const ang = Math.PI / 8 + i * (Math.PI / 4);
+    const at = faced(CAPITAL_COLAT, CAPITAL_AZ, Math.cos(ang) * 7.4, Math.sin(ang) * 7.4, 'north');
     put(columns, at.p, at.q, 1, 1, 1, NAVY);
-    put(capitals, at.p, at.q, 1, 1, 1, caps[index % caps.length] ?? AMBER);
+    put(capitals, at.p, at.q, 1, 1, 1, caps[i % caps.length] ?? AMBER);
     blockers.push({ ...at.p, r: 0.34, h: 3.45 });
-  });
+  }
 
-  const crossings: readonly (readonly [number, number])[] = [
-    [0, 16],
-    [0, -16],
-    [0, 32],
-    [0, -32],
-    [16, 0],
-    [-16, 0],
-    [16, 16],
-    [16, -16],
-    [-16, 16],
-    [-16, -16],
-  ];
-  for (const [n, e] of crossings) {
-    for (const sn of [-1, 1]) {
-      for (const se of [-1, 1]) lamp(n + sn * 3.6, e + se * 3.6);
+  for (const spot of [
+    [CAPITAL_COLAT, CAPITAL_AZ + MARKET_AZ],
+    [CAPITAL_COLAT, CAPITAL_AZ - MARKET_AZ],
+    [CORAL_COLAT, CAPITAL_AZ],
+    [CORAL_COLAT, CAPITAL_AZ + GAMES_AZ],
+  ] as const) {
+    for (const north of [-1, 1]) {
+      for (const east of [-1, 1]) lamp(spot[0], spot[1], north * 4.4, east * 4.4);
     }
   }
 
   for (const home of HOMES) {
-    const { p, q } = pose(home.n, home.e, home.spin);
-    put(walls, p, q, home.sx, home.sy, home.sz, home.wall);
-    put(home.hip ? hips : roofs, p, q, home.sx, home.sy, home.sz, home.roof);
-    put(doors, p, q, home.sx, home.sy, home.sz, INK);
-    put(windows, p, q, home.sx, home.sy, home.sz, 0x3aa0ff);
-    put(frames, p, q, home.sx, home.sy, home.sz, home.roof);
-    put(lintels, p, q, home.sx, home.sy, home.sz, home.roof);
-    put(eaves, p, q, home.sx, home.sy, home.sz, home.roof);
-    put(steps, p, q, home.sx, home.sy, home.sz, 0xc8c4dc);
-    put(plaques, p, q, home.sx, home.sy, home.sz, 0xffe14a);
-    if (home.hip) put(porches, p, q, home.sx, home.sy, home.sz, AMBER);
-    else put(chimneys, p, q, home.sx, home.sy, home.sz, 0xe04848);
-    blockers.push({ ...p, r: Math.hypot(1.25 * home.sx, 1.15 * home.sz) + 0.04, h: 3.4 * home.sy });
+    const { p, q } = faced(home.colat, home.az, home.north, home.east, home.face);
+    put(walls, p, q, 0.88, home.sy, 0.8, home.wall);
+    put(home.hip ? hips : roofs, p, q, 0.88, home.sy, 0.8, home.roof);
+    put(doors, p, q, 0.88, home.sy, 0.8, INK);
+    put(windows, p, q, 0.88, home.sy, 0.8, 0x3aa0ff);
+    put(frames, p, q, 0.88, home.sy, 0.8, home.roof);
+    put(lintels, p, q, 0.88, home.sy, 0.8, home.roof);
+    put(eaves, p, q, 0.88, home.sy, 0.8, home.roof);
+    put(steps, p, q, 0.88, home.sy, 0.8, 0xc8c4dc);
+    put(plaques, p, q, 0.88, home.sy, 0.8, 0xffe14a);
+    if (home.hip) put(porches, p, q, 0.88, home.sy, 0.8, AMBER);
+    else put(chimneys, p, q, 0.88, home.sy, 0.8, 0xe04848);
+    blockers.push({ ...p, r: Math.hypot(1.25 * 0.88, 1.15 * 0.8) + 0.04, h: 3.4 * home.sy });
   }
 
   for (const stall of STALLS) {
-    const at = pose(stall.n, stall.e, stall.spin);
-    const wall = stall.n > 0 ? 0xfff2f6 : 0xeef6ff;
-    put(stalls, at.p, at.q, 1, 1, 1, wall);
+    const at = faced(stall.colat, stall.az, stall.north, stall.east, stall.face);
+    put(stalls, at.p, at.q, 1, 1, 1, stall.north > 0 ? 0xfff2f6 : 0xeef6ff);
     put(awnings, at.p, at.q, 1, 1, 1, stall.cloth);
     blockers.push({ ...at.p, r: 1.16, h: 1.7 });
   }
 
-  for (const rail of [
-    [25.2, 3.8],
-    [25.2, -3.8],
-    [27.2, 3.8],
-    [27.2, -3.8],
-  ] as const) {
-    const at = pose(rail[0], rail[1], 0);
+  for (const rail of [3.6, -3.6]) {
+    const at = faced(0.34, CAPITAL_AZ, 0, rail, 'north');
     put(rails, at.p, at.q, 1, 1, 1, NAVY);
     blockers.push({ ...at.p, r: 0.16, h: 0.95 });
   }
 
-  arch(scene, gradient, blockers, -32, 0, 'north', 0x7c4dff);
-  arch(scene, gradient, blockers, 0, 32, 'east', 0xff4d86);
-  arch(scene, gradient, blockers, 0, -32, 'east', 0x22c8ee);
-  inlay(scene, 0, 16, 3.3, 0x22c8ee);
-  inlay(scene, 0, -16, 3.3, 0x7c4dff);
-  inlay(scene, 16, 0, 3.3, 0xff4d86);
-  inlay(scene, 16, 16, 3.1, 0xffc43a);
+  arch(scene, gradient, blockers, 0.96, CAPITAL_AZ, 'north', 0x7c4dff);
+  arch(scene, gradient, blockers, CAPITAL_COLAT, CAPITAL_AZ + 0.48, 'east', 0xff4d86);
+  arch(scene, gradient, blockers, CAPITAL_COLAT, CAPITAL_AZ - 0.46, 'east', 0x22c8ee);
+  inlay(scene, CAPITAL_COLAT, CAPITAL_AZ + MARKET_AZ, 3.2, 0x22c8ee);
+  inlay(scene, CAPITAL_COLAT, CAPITAL_AZ - MARKET_AZ, 3.2, 0x7c4dff);
+  inlay(scene, CORAL_COLAT, CAPITAL_AZ, 3.3, 0xff4d86);
+  inlay(scene, CORAL_COLAT, CAPITAL_AZ + GAMES_AZ, 3.1, 0xffc43a);
 
   const paint = (geo: THREE.BufferGeometry, list: readonly Stamp[], flat = false) => {
     if (list.length === 0) return;
@@ -332,13 +301,13 @@ function arch(
   scene: THREE.Scene,
   gradient: THREE.Texture,
   blockers: Blocker[],
-  n: number,
-  e: number,
+  colat: number,
+  az: number,
   facing: 'north' | 'east',
   color: number,
 ): void {
-  const at = shift(COLAT, AZ, n, e);
-  const face = facing === 'north' ? northTangent(COLAT, AZ) : eastTangent(AZ);
+  const at = onSphere(colat, az);
+  const face = facing === 'north' ? northTangent(colat, az) : eastTangent(az);
   const gate = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.14, 8, 18), toonMaterial(gradient, color));
   gate.position.set(at.x, at.y, at.z);
   gate.quaternion.copy(frameQuaternion(at.x, at.y, at.z, face.x, face.y, face.z));
@@ -355,16 +324,16 @@ function arch(
   scene.add(gate);
   const leg = 2.2;
   if (facing === 'north') {
-    blockers.push({ ...shift(COLAT, AZ, n, e - leg), r: 0.34, h: 2.35 });
-    blockers.push({ ...shift(COLAT, AZ, n, e + leg), r: 0.34, h: 2.35 });
+    blockers.push({ ...shift(colat, az, 0, -leg), r: 0.34, h: 2.35 });
+    blockers.push({ ...shift(colat, az, 0, leg), r: 0.34, h: 2.35 });
   } else {
-    blockers.push({ ...shift(COLAT, AZ, n - leg, e), r: 0.34, h: 2.35 });
-    blockers.push({ ...shift(COLAT, AZ, n + leg, e), r: 0.34, h: 2.35 });
+    blockers.push({ ...shift(colat, az, -leg, 0), r: 0.34, h: 2.35 });
+    blockers.push({ ...shift(colat, az, leg, 0), r: 0.34, h: 2.35 });
   }
 }
 
-function inlay(scene: THREE.Scene, n: number, e: number, radius: number, color: number): void {
-  const at = shift(COLAT, AZ, n, e);
+function inlay(scene: THREE.Scene, colat: number, az: number, radius: number, color: number): void {
+  const at = onSphere(colat, az);
   const geo = new THREE.TorusGeometry(radius, 0.07, 5, 20);
   geo.rotateX(Math.PI / 2);
   const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));

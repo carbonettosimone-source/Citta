@@ -4,6 +4,7 @@ import type { Player } from '../player/player';
 import type { Hud } from '../ui/hud';
 import { CHALLENGES, FINISH } from './content';
 import { grant, type Session } from './session';
+import { CAPITAL_AZ, CAPITAL_COLAT } from '../world/city';
 import { biomeAzimuth, frameQuaternion, shift } from '../world/planet';
 import { nearTown, onTownGround } from '../world/towns';
 import { seat } from '../world/relief';
@@ -64,22 +65,22 @@ export function createPickups(scene: THREE.Scene): Pickups {
 }
 
 function welcome(): Coin {
-  const az = biomeAzimuth(0);
-  const raw = shift(0.26, az, 0, 0.85);
+  const az = CAPITAL_AZ;
+  const raw = shift(0.72, az, 0, 0.45);
   const p = seat(raw.x, raw.y, raw.z);
   const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
   return { id: 'moneta-via', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, taken: false };
 }
 
 function alleys(): Coin[] {
-  const az = biomeAzimuth(0);
+  const az = CAPITAL_AZ;
   const spots = [
-    { id: 'moneta-vicolo', n: 10, e: 8 },
-    { id: 'moneta-mercato', n: -10, e: 8 },
-    { id: 'moneta-bottega', n: -10, e: -8 },
+    { id: 'moneta-vicolo', colat: CAPITAL_COLAT + 0.04, daz: 0.18 },
+    { id: 'moneta-mercato', colat: CAPITAL_COLAT + 0.04, daz: -0.18 },
+    { id: 'moneta-bottega', colat: 0.5, daz: 0 },
   ] as const;
   return spots.map((spot) => {
-    const raw = shift(0.2, az, spot.n, spot.e);
+    const raw = shift(spot.colat, az + spot.daz, 0, spot.daz === 0 ? 2.2 : 0);
     const p = seat(raw.x, raw.y, raw.z);
     const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
     return { id: spot.id, x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, taken: false };

@@ -109,6 +109,8 @@ function vertexColor(x: number, y: number, z: number): number {
       if (edge < 1.25) hex = mixHex(hex, 0xefe6ff, (1 - edge / 1.25) ** 2);
     }
   }
+  if (flat < 0.45 && colat < 0.4) hex = mixHex(hex, 0x8eb0ff, (1 - colat / 0.4) * 0.62);
+  if (flat < 0.45 && colat > 2.55) hex = mixHex(hex, 0x6a4ec8, Math.min(1, (colat - 2.55) / 0.5) * 0.45);
   if (flat > 0.04) hex = mixHex(hex, stone, flat);
   return hex;
 }
