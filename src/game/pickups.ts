@@ -74,9 +74,9 @@ function welcome(): Coin {
 function alleys(): Coin[] {
   const az = biomeAzimuth(0);
   const spots = [
-    { id: 'moneta-vicolo', n: 27.55, e: -12.5 },
-    { id: 'moneta-mercato', n: 6.8, e: 35.2 },
-    { id: 'moneta-bottega', n: -6.6, e: -35.4 },
+    { id: 'moneta-vicolo', n: 10, e: 8 },
+    { id: 'moneta-mercato', n: -10, e: 8 },
+    { id: 'moneta-bottega', n: -10, e: -8 },
   ] as const;
   return spots.map((spot) => {
     const raw = shift(0.2, az, spot.n, spot.e);

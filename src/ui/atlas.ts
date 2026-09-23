@@ -1,5 +1,6 @@
-import { BIOMES, PLANET_R, angles, biomeAzimuth } from '../world/planet';
+import { BIOMES, PLANET_R, angles, biomeAzimuth, eastTangent, northTangent } from '../world/planet';
 import { MAP_PLACES, type MapPlace } from '../game/content';
+import { HUB_PLAZA } from '../world/towns';
 
 export type Atlas = {
   readonly button: HTMLButtonElement;
@@ -42,8 +43,8 @@ export function createAtlas(root: HTMLElement): Atlas {
         </div>
         <button type="button" class="ghost" id="map-close">Chiudi</button>
       </header>
-      <canvas class="map-canvas" width="640" height="640" aria-label="Pianeta con i luoghi"></canvas>
-      <p class="map-caption" id="map-caption">Il faro è il centro. Il triangolo sei tu.</p>
+      <canvas class="map-canvas" width="640" height="820" aria-label="Pianeta e pianta della città"></canvas>
+      <p class="map-caption" id="map-caption">In alto il pianeta. In basso la pianta: cardo e decumano.</p>
       <ul class="map-list"></ul>
     </div>
   `;
@@ -102,12 +103,14 @@ export function createAtlas(root: HTMLElement): Atlas {
     },
     draw(px, py, pz, fx, fy, fz) {
       if (!open) return;
-      const size = Math.min(640, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.92));
-      if (canvas.width !== size) {
-        canvas.width = size;
-        canvas.height = size;
+      const size = 640;
+      const width = size;
+      const height = Math.round(size * 1.28);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
       }
-      paint(context, size, px, py, pz, fx, fy, fz, selected);
+      paint(context, width, height, px, py, pz, fx, fy, fz, selected);
       if (selected) {
         const place = MAP_PLACES.find((item) => item.id === selected);
         if (place) {
@@ -123,7 +126,8 @@ export function createAtlas(root: HTMLElement): Atlas {
 
 function paint(
   ctx: CanvasRenderingContext2D,
-  size: number,
+  width: number,
+  height: number,
   px: number,
   py: number,
   pz: number,
@@ -132,10 +136,10 @@ function paint(
   fz: number,
   selected: string,
 ): void {
-  const cx = size / 2;
-  const cy = size / 2;
-  const radius = size * 0.4;
-  ctx.clearRect(0, 0, size, size);
+  const cx = width / 2;
+  const cy = height * 0.3;
+  const radius = Math.min(width, height) * 0.26;
+  ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = '#10241c';
   ctx.beginPath();
   ctx.arc(cx, cy, radius + 8, 0, Math.PI * 2);
@@ -180,6 +184,7 @@ function paint(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const place of MAP_PLACES) {
+    if (isCity(place.id)) continue;
     const at = project(place.colat, place.az, cx, cy, radius);
     const hot = place.id === selected;
     ctx.fillStyle = '#10241c';
@@ -221,6 +226,111 @@ function paint(
   ctx.beginPath();
   ctx.arc(you.x, you.y, 4, 0, Math.PI * 2);
   ctx.fill();
+  paintPlan(ctx, width, height, px, py, pz, fx, fy, fz);
+}
+
+function isCity(id: string): boolean {
+  return id === 'hub' || id === 'quarter' || id === 'mercato' || id === 'games' || id === 'botteghe' || id === 'porta' || id === 'east-gate' || id === 'dune-gate' || id === 'terrazza';
+}
+
+const HOME_AZ = biomeAzimuth(0);
+const HOME_NORTH = northTangent(0.2, HOME_AZ);
+const HOME_EAST = eastTangent(HOME_AZ);
+
+function cityLocal(x: number, y: number, z: number): { n: number; e: number } {
+  const dx = x - HUB_PLAZA.x;
+  const dy = y - HUB_PLAZA.y;
+  const dz = z - HUB_PLAZA.z;
+  return {
+    n: dx * HOME_NORTH.x + dy * HOME_NORTH.y + dz * HOME_NORTH.z,
+    e: dx * HOME_EAST.x + dy * HOME_EAST.y + dz * HOME_EAST.z,
+  };
+}
+
+/** Pianta della griglia: cardo verticale, decumano orizzontale, nodi ogni 16 m. */
+function paintPlan(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  px: number,
+  py: number,
+  pz: number,
+  fx: number,
+  fy: number,
+  fz: number,
+): void {
+  const bandTop = height * 0.56;
+  ctx.fillStyle = '#1a1030';
+  ctx.fillRect(12, bandTop, width - 24, height - bandTop - 10);
+  ctx.strokeStyle = 'rgba(255, 77, 134, 0.85)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(12, bandTop, width - 24, height - bandTop - 10);
+  ctx.font = '700 13px Outfit, sans-serif';
+  ctx.fillStyle = '#ffe4f2';
+  ctx.textAlign = 'left';
+  ctx.fillText('Pianta · modulo 16 m', 22, bandTop + 18);
+
+  const originX = width / 2;
+  const originY = bandTop + (height - bandTop) * 0.56;
+  const scale = (width * 0.42) / 40;
+  const pt = (n: number, e: number) => ({ x: originX + e * scale, y: originY - n * scale });
+  const line = (n0: number, e0: number, n1: number, e1: number, widthPx: number, color: string) => {
+    const a = pt(n0, e0);
+    const b = pt(n1, e1);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = widthPx;
+    ctx.lineCap = 'square';
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  };
+  line(-36, 0, 28, 0, 7, '#f070a8');
+  line(0, -36, 0, 36, 7, '#f070a8');
+  line(16, -24, 16, 24, 4, '#d4d0ee');
+  line(-16, -24, -16, 24, 4, '#d4d0ee');
+  line(-24, 16, 24, 16, 4, '#d4d0ee');
+  line(-24, -16, 24, -16, 4, '#d4d0ee');
+  line(7.4, 8, 13.2, 8, 2, '#9ad7c4');
+  line(-13.2, 8, -7.4, 8, 2, '#9ad7c4');
+  line(7.4, -8, 13.2, -8, 2, '#9ad7c4');
+  line(-13.2, -8, -7.4, -8, 2, '#9ad7c4');
+
+  const node = (n: number, e: number, label: string, fill: string) => {
+    const at = pt(n, e);
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '700 11px Outfit, sans-serif';
+    ctx.fillStyle = '#ffe4f2';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, at.x, at.y - 10);
+  };
+  node(0, 0, 'Piazza', '#ff4d86');
+  node(16, 0, 'Corallo', '#ff4d86');
+  node(0, 16, 'Mercato', '#22c8ee');
+  node(0, -16, 'Botteghe', '#7c4dff');
+  node(16, 16, 'Giochi', '#ffc43a');
+  node(26, 0, 'Terrazza', '#7ec8ee');
+  node(-32, 0, 'Sud', '#c9b6ff');
+  node(0, 32, 'Est', '#c9b6ff');
+  node(0, -32, 'Ovest', '#c9b6ff');
+
+  const here = cityLocal(px, py, pz);
+  const face = cityLocal(px + fx, py + fy, pz + fz);
+  const you = pt(here.n, here.e);
+  const ahead = pt(here.n + (face.n - here.n) * 6, here.e + (face.e - here.e) * 6);
+  ctx.strokeStyle = '#f0a03a';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(you.x, you.y);
+  ctx.lineTo(ahead.x, ahead.y);
+  ctx.stroke();
+  ctx.fillStyle = '#f0a03a';
+  ctx.beginPath();
+  ctx.arc(you.x, you.y, 4, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function mapLabel(place: MapPlace): string | null {
@@ -231,6 +341,7 @@ function mapLabel(place: MapPlace): string | null {
   if (place.kind === 'games') return 'Giochi';
   if (place.id === 'botteghe') return 'Botteghe';
   if (place.id === 'porta') return 'Porta';
+  if (place.id === 'east-gate') return 'Est';
   if (place.id === 'dune-gate') return 'Dune';
   if (place.id === 'terrazza') return 'Terrazza';
   if (place.kind === 'venue') return 'Ostacoli';

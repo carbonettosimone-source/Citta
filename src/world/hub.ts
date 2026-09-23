@@ -16,11 +16,9 @@ import {
   biomeIndex,
   edgeMeters,
   frameQuaternion,
-  northTangent,
   onPath,
   pathBlend,
   quatAxisY,
-  shift,
   type Biome,
 } from './planet';
 
@@ -51,7 +49,6 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
   const blockers: Blocker[] = [];
   addBeacon(scene, gradient, blockers);
   addTowns(scene, gradient, blockers);
-  addApproach(scene, gradient, blockers);
   scatter(scene, gradient, blockers);
   addDress(scene, gradient, blockers);
   addCourse(scene, gradient, blockers);
@@ -156,69 +153,6 @@ function mixHex(a: number, b: number, t: number): number {
   const g = Math.round(ag + (bg - ag) * k);
   const bl = Math.round(ab + (bb - ab) * k);
   return (r << 16) | (g << 8) | bl;
-}
-
-/** Filare lungo la via dello spawn: sta nel cono stretto del ritratto. */
-function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
-  const az = biomeAzimuth(0);
-  const colat = 0.2;
-  const border: Plant[] = [];
-  const pots: Plant[] = [];
-  const stems: Plant[] = [];
-  const crowns: Plant[] = [];
-  const fruit: Plant[] = [];
-  const plantAt = (list: Plant[], north: number, east: number, scale: number, color: number) => {
-    const raw = shift(colat, az, north, east);
-    const p = seat(raw.x, raw.y, raw.z);
-    const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
-    list.push({ ...p, qx: q.x, qy: q.y, qz: q.z, qw: q.w, s: scale, color });
-  };
-  for (let n = -15.4; n <= -2.2; n += 1.55) {
-    const scale = 0.95 + ((Math.abs(Math.round(n * 10)) % 3) * 0.18);
-    plantAt(border, n, -0.72, scale, 0xff4d86);
-    plantAt(border, n, 0.72, scale * 0.9, 0x7c4dff);
-    plantAt(pots, n, -0.72, scale, 0x2c2640);
-    plantAt(pots, n, 0.72, scale * 0.9, 0x22c8ee);
-  }
-  for (let n = -14.2; n <= -3.2; n += 3.3) {
-    plantAt(stems, n, -1.48, 1, 0xd42858);
-    plantAt(stems, n, 1.48, 1, 0x6a28c0);
-    blockers.push({ ...shift(colat, az, n, -1.48), r: 0.22, h: 2.2 });
-    blockers.push({ ...shift(colat, az, n, 1.48), r: 0.22, h: 2.2 });
-    plantAt(crowns, n, -1.48, 1, 0xff4d86);
-    plantAt(crowns, n, 1.48, 1, 0x22d4f0);
-    plantAt(fruit, n, -1.48, 1, 0xffe14a);
-    plantAt(fruit, n, 1.48, 1, 0xffe14a);
-  }
-  paint(scene, planterLeaf(), gradient, border, false, true);
-  paint(scene, planterPot(), gradient, pots, false, false);
-  paint(scene, cylinder(0.07, 0.1, 2.15, 5), gradient, stems, false, true);
-  paint(scene, layeredCrown(), gradient, crowns, false, true);
-  paint(scene, crownFruit(), gradient, fruit, true, true);
-
-  const gateAt = shift(colat, az, -12.6, 0);
-  const face = northTangent(colat, az);
-  const gate = new THREE.Mesh(
-    new THREE.TorusGeometry(1.55, 0.16, 8, 18),
-    toonMaterial(gradient, 0xff4d86),
-  );
-  gate.position.set(gateAt.x, gateAt.y, gateAt.z);
-  gate.quaternion.copy(frameQuaternion(gateAt.x, gateAt.y, gateAt.z, face.x, face.y, face.z));
-  const up = new THREE.Vector3(gateAt.x, gateAt.y, gateAt.z).normalize();
-  gate.position.addScaledVector(up, 1.55);
-  const keystone = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 8, 6),
-    new THREE.MeshBasicMaterial({ color: 0xffe14a }),
-  );
-  keystone.position.y = 1.52;
-  const bannerA = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0xff4d86));
-  bannerA.position.set(-0.46, 0.95, 0.02);
-  const bannerB = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0x22c8ee));
-  bannerB.position.set(0.46, 0.88, 0.02);
-  gate.add(keystone, bannerA, bannerB);
-  scene.add(gate);
-  blockers.push({ ...shift(colat, az, -12.6, -1.5), r: 0.38, h: 1.7 });
-  blockers.push({ ...shift(colat, az, -12.6, 1.5), r: 0.38, h: 1.7 });
 }
 
 function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
@@ -401,43 +335,6 @@ function paint(
   }
   commit(mesh);
   scene.add(mesh);
-}
-
-function layeredCrown(): THREE.BufferGeometry {
-  const low = new THREE.CylinderGeometry(0.95, 0.72, 0.22, 7);
-  low.translate(0, 1.78, 0);
-  const mid = new THREE.CylinderGeometry(0.64, 0.5, 0.18, 6);
-  mid.translate(0.06, 2.22, 0.04);
-  const top = new THREE.CylinderGeometry(0.34, 0.26, 0.14, 5);
-  top.translate(-0.04, 2.58, -0.03);
-  return mergeFlat([low, mid, top]);
-}
-
-function crownFruit(): THREE.BufferGeometry {
-  const geo = new THREE.SphereGeometry(0.14, 6, 5);
-  geo.translate(0.18, 2.28, 0.08);
-  return geo;
-}
-
-function planterLeaf(): THREE.BufferGeometry {
-  const leaf = new THREE.ConeGeometry(0.4, 0.82, 5);
-  leaf.translate(0, 0.72, 0);
-  const bud = new THREE.SphereGeometry(0.12, 6, 5);
-  bud.translate(0, 1.12, 0);
-  return mergeFlat([leaf, bud]);
-}
-
-function planterPot(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(0.3, 0.22, 0.24, 6);
-  geo.translate(0, 0.12, 0);
-  return geo;
-}
-
-function bannerGeo(): THREE.BufferGeometry {
-  const cloth = new THREE.BoxGeometry(0.38, 0.92, 0.045);
-  const hem = new THREE.BoxGeometry(0.42, 0.08, 0.05);
-  hem.translate(0, -0.46, 0);
-  return mergeFlat([cloth, hem]);
 }
 
 function coralGrove(): THREE.BufferGeometry {
