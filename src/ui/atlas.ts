@@ -293,7 +293,7 @@ function paintGlobe(
   const drawn: { x: number; y: number }[] = [];
   const label = (x: number, y: number, text: string) => {
     for (const prev of drawn) {
-      if ((prev.x - x) ** 2 + (prev.y - y) ** 2 < 26 * 26) return;
+      if ((prev.x - x) ** 2 + (prev.y - y) ** 2 < 34 * 34) return;
     }
     drawn.push({ x, y });
     ctx.font = '700 12px Outfit, sans-serif';

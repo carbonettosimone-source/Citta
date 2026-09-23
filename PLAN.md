@@ -37,7 +37,7 @@ Le piazze sono calotte piccole (raggio 5–9 m), non isolati infiniti. Le faccia
 
 I paesi (menta, viola, cristallo, lanterne, dune) restano nei loro spicchi, collegati dai meridiani dei biomi e dall’anello a colat 1,02. Non c’è un centro quadrato che ignora la curvatura.
 
-Il parallelo civico non si ferma alle porte. Continua, più stretto, fino al meridiano della menta (est, +π/3) e a quello delle lanterne (ovest, −π/3). Sulla spalla, a circa 7,6 m dall’asse, stanno le case di borgo; i pali e le bandiere stanno a 3,3 m, così il centro resta libero. I meridiani dei biomi hanno pali dalla spalla a partire da colat 0,70, e un incrocio coperto dove incontrano l’anello.
+Il parallelo civico non si ferma alle porte. Continua, più stretto, fino al meridiano della menta (est, +π/3) e a quello delle lanterne (ovest, −π/3). Sulla spalla, a circa 7,6 m dall’asse, stanno le case di borgo; i pali e le bandiere stanno a 3,3 m, così il centro resta libero. I meridiani dei biomi hanno pali dalla spalla a partire da colat 0,70, e un incrocio coperto dove incontrano l’anello. L’anello stesso ha un cippo ogni ventina di metri. Il paese di menta ha una via a nord, con case, lampioni e un arco, dalla parte da cui si arriva.
 
 ## Freccia
 

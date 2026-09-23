@@ -3,7 +3,7 @@ import { commit, setInstanceQuat } from '../render/instance';
 import { toonInstances, toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
 import { addCity, addCityPads, CAPITAL_COLAT, CORALLO, GAMES_PLAZA, inCapital } from './city';
-import { bandFalloff, biomeAzimuth, frameQuaternion, onSphere, shift } from './planet';
+import { bandFalloff, biomeAzimuth, frameQuaternion, northTangent, onSphere, shift } from './planet';
 
 type Kind = 'house' | 'tower' | 'pavilion' | 'stall' | 'kiosk';
 
@@ -41,7 +41,7 @@ const TOWNS: readonly Town[] = [
     az: biomeAzimuth(1) + 0.09,
     plaza: 4.4,
     east: [-18, 8],
-    north: [-8, 8],
+    north: [-8, 24],
     lots: [
       { n: 6, e: 5, kind: 'house', spin: 0.5 },
       { n: 6, e: -5, kind: 'house', spin: -0.5 },
@@ -56,6 +56,12 @@ const TOWNS: readonly Town[] = [
       { n: -6.4, e: -12, kind: 'house', spin: 2.4 },
       { n: 6.2, e: -16.4, kind: 'pavilion', spin: 0.5 },
       { n: -6, e: -16.2, kind: 'house', spin: -2.2 },
+      { n: 12.2, e: 6.3, kind: 'house', spin: 1.4 },
+      { n: 12.2, e: -6.3, kind: 'house', spin: -1.4 },
+      { n: 17, e: 6.3, kind: 'house', spin: 1.6 },
+      { n: 17, e: -6.3, kind: 'stall', spin: -1.2 },
+      { n: 21.6, e: 6.5, kind: 'pavilion', spin: 0.8 },
+      { n: 21.6, e: -6.5, kind: 'house', spin: -0.8 },
     ],
   },
   {
@@ -315,10 +321,9 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
     }
     if (town.id !== 'hub') {
     const center = onSphere(town.colat, town.az);
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(town.plaza * 0.72, 0.08, 5, 18),
-      new THREE.MeshBasicMaterial({ color: AMBER }),
-    );
+    const ringGeo = new THREE.TorusGeometry(town.plaza * 0.72, 0.08, 5, 18);
+    ringGeo.rotateX(Math.PI / 2);
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: AMBER }));
     ring.position.set(center.x, center.y, center.z);
     ring.quaternion.copy(frameQuaternion(center.x, center.y, center.z, 1, 0, 0));
     const lift = new THREE.Vector3(center.x, center.y, center.z).normalize();
@@ -347,6 +352,31 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
       });
       lampAt(lamps, postAt, facingLamp, 2.05, 0.38);
     }
+    }
+    if (town.id === 'mint') {
+      const gateAt = shift(town.colat, town.az, 9.2, 0);
+      const face = northTangent(town.colat, town.az);
+      const gate = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.16, 8, 16), toonMaterial(gradient, 0x2ad4a0));
+      gate.position.set(gateAt.x, gateAt.y, gateAt.z);
+      gate.quaternion.copy(frameQuaternion(gateAt.x, gateAt.y, gateAt.z, face.x, face.y, face.z));
+      const gateUp = new THREE.Vector3(gateAt.x, gateAt.y, gateAt.z).normalize();
+      gate.position.addScaledVector(gateUp, 2.15);
+      scene.add(gate);
+      blockers.push({ ...shift(town.colat, town.az, 9.2, -2.15), r: 0.32, h: 2.3 });
+      blockers.push({ ...shift(town.colat, town.az, 9.2, 2.15), r: 0.32, h: 2.3 });
+      for (const north of [13.5, 19]) {
+        for (const east of [-3.5, 3.5]) {
+          const postAt = shift(town.colat, town.az, north, east);
+          const facingLamp = frameQuaternion(postAt.x, postAt.y, postAt.z, face.x, face.y, face.z);
+          posts.push({
+            x: postAt.x, y: postAt.y, z: postAt.z,
+            qx: facingLamp.x, qy: facingLamp.y, qz: facingLamp.z, qw: facingLamp.w,
+            sx: 0.55, sy: 0.85, sz: 0.55, color: NAVY,
+          });
+          lampAt(lamps, postAt, facingLamp, 2.05, 0.36);
+          blockers.push({ ...postAt, r: 0.16, h: 2.1 });
+        }
+      }
     }
     if (town.id === 'dune') {
       const gateAt = shift(town.colat, town.az, -6.4, 3.2);

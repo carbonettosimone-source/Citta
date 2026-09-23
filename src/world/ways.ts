@@ -3,7 +3,7 @@ import { commit, setInstanceQuat } from '../render/instance';
 import { toonInstances } from '../render/toon';
 import type { Blocker } from './collide';
 import { CAPITAL_AZ, CAPITAL_COLAT } from './city';
-import { BIOMES, biomeAzimuth, frameQuaternion, northTangent, onSphere, PLANET_R, shift } from './planet';
+import { BIOMES, biomeAzimuth, biomeIndex, frameQuaternion, northTangent, onSphere, PLANET_R, shift } from './planet';
 import { nearTown, onTownGround } from './towns';
 
 type Stamp = {
@@ -68,6 +68,17 @@ export function addWays(scene: THREE.Scene, gradient: THREE.Texture, blockers: B
       }
       stamp(crowns, cross, color, 1, 1, 1);
     }
+  }
+
+  const ringRho = Math.sin(1.02) * PLANET_R;
+  for (let az = -Math.PI; az < Math.PI - 0.01; az += 22 / ringRho) {
+    const p = shift(1.02, az, 3.6, 0);
+    if (!open(p)) continue;
+    const color = BIOMES[biomeIndex(p.x, p.z)]?.plant ?? 0xff4d86;
+    stamp(posts, p, 0x2c2640);
+    const len = Math.hypot(p.x, p.y, p.z) || 1;
+    stamp(caps, { x: p.x + (p.x / len) * 1.7, y: p.y + (p.y / len) * 1.7, z: p.z + (p.z / len) * 1.7 }, color, 0.22, 0.22, 0.22);
+    blockers.push({ ...p, r: 0.16, h: 1.7 });
   }
 
   const rho = Math.sin(CAPITAL_COLAT) * PLANET_R;
