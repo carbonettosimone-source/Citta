@@ -1,10 +1,10 @@
 # Minimondo
 
-**Apri sul telefono:** [https://narrow-recommends-connected-london.trycloudflare.com/](https://narrow-recommends-connected-london.trycloudflare.com/)
+**Apri sul telefono:** [https://folks-nerve-differently-mesh.trycloudflare.com/](https://folks-nerve-differently-mesh.trycloudflare.com/)
 
 È la build di produzione, servita da un tunnel Cloudflare perché l’API di questo ambiente non può accendere GitHub Pages (403 su `POST /pages`, e il workflow di deploy risponde 404 finché Pages non è abilitato). Il ramo `gh-pages` è già pronto: in Settings → Pages → Deploy from a branch → `gh-pages` / `/` il sito stabile diventa [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/). Il tunnel non ha garanzia di uptime: se il link non risponde, quel passo in Settings lo rimpiazza.
 
-Hub nel browser, pensato per il pollice: un pianeta sferico di raggio 160 m, dieci volte il giro del guscio precedente. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi grandi si incontrano su un incastro di pietra chiara. L’ora è fissa e dorata: selciato a lastre, chiome inventate a strati, case con gronda e una fontana in piazza. Raccogli le sfide sparse negli spicchi, poi entra nella demo di Ostacoli sulle dune. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
+Hub nel browser, pensato per il pollice: un pianeta sferico di raggio 160 m, dieci volte il giro del guscio precedente. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi grandi si incontrano su un incastro di pietra chiara. L’ora è fissa e dorata: selciato a lastre, chiome inventate a strati, case con gronda e una fontana in piazza. A nord della piazza, sulla linea del faro, c’è il quartiere: case di sagome diverse, un cortile, lampioni, panchine e stendardi. Raccogli le sfide sparse negli spicchi, poi entra nella demo di Ostacoli sulle dune. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
 English: mobile-first spherical hub, radius 160. Six large wedge biomes, invented plants, slender avatar, double jump, touch stick, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 
