@@ -1,9 +1,16 @@
+import { BIOMES, biomeAzimuth, northTangent, onSphere, shift, type Biome } from '../world/planet';
+
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 3;
+export const PROTO = 4;
 
-export const SPAWN = { x: 0, z: 2.8, yaw: 0 };
+const homeAz = biomeAzimuth(0);
+const home = onSphere(0.78, homeAz);
+const homeFace = northTangent(0.78, homeAz);
+
+export const SPAWN = home;
+export const SPAWN_FACE = homeFace;
 
 export type ChallengeKind = 'race' | 'logic' | 'precision' | 'explore' | 'obstacle';
 
@@ -13,59 +20,72 @@ export type ChallengeDef = {
   kind: ChallengeKind;
   coins: number;
   line: string;
+  biome: number;
   x: number;
+  y: number;
   z: number;
   needsCourse?: boolean;
 };
 
+const faro = onSphere(0.2, homeAz);
+const anello = onSphere(1.05, biomeAzimuth(1));
+const pietre = onSphere(1.42, biomeAzimuth(2));
+const belvedere = onSphere(1.7, biomeAzimuth(3));
+const dune = biomeAzimuth(4);
+const cancello = onSphere(1.02, dune - 0.52);
+
 export const CHALLENGES: readonly ChallengeDef[] = [
   {
     id: 'faro',
-    name: 'Corsa del faro',
+    name: 'Faro del polo',
     kind: 'race',
     coins: 20,
-    line: 'Il faro ti segna come esploratore.',
-    x: 0,
-    z: -7.6,
+    biome: 0,
+    line: 'Il faro del polo ti segna come esploratore.',
+    ...faro,
   },
   {
     id: 'anello',
-    name: 'Anello di precisione',
+    name: 'Anello di menta',
     kind: 'precision',
     coins: 12,
-    line: 'Centro. La precisione paga poco, ma paga.',
-    x: 14,
-    z: 0,
+    biome: 1,
+    line: 'Centro della prateria. Paga poco, ma paga.',
+    ...anello,
   },
   {
     id: 'pietre',
-    name: 'Pietre logiche',
+    name: 'Petali logici',
     kind: 'logic',
     coins: 30,
-    line: 'L’enigma, per ora, è una moneta grossa.',
-    x: -13,
-    z: 11,
+    biome: 2,
+    line: 'L’enigma viola, per ora, è una moneta grossa.',
+    ...pietre,
   },
   {
     id: 'belvedere',
-    name: 'Belvedere',
+    name: 'Belvedere di cristallo',
     kind: 'explore',
     coins: 16,
-    line: 'Sei arrivato al bordo del mondo.',
-    x: -13,
-    z: -11,
+    biome: 3,
+    line: 'Sei arrivato dove il pianeta curva via.',
+    ...belvedere,
   },
   {
     id: 'cancello',
-    name: 'Cancello ostacoli',
+    name: 'Cancello delle dune',
     kind: 'obstacle',
     coins: 18,
+    biome: 4,
     line: 'Il cancello si ricorda di chi ha corso.',
-    x: 4.2,
-    z: 10.6,
+    ...cancello,
     needsCourse: true,
   },
 ];
+
+export function biomeOf(def: ChallengeDef): Biome {
+  return BIOMES[def.biome] ?? BIOMES[0];
+}
 
 export const KIND_COLOR: Record<ChallengeKind, number> = {
   race: 0xf0a03a,
@@ -126,7 +146,7 @@ export const EVENTS: readonly EventMode[] = [
     max: 100,
     demoStake: 20,
     playable: true,
-    blurb: 'Parcours breve. In anteprima correte in quattro.',
+    blurb: 'Giro breve sulle dune. In anteprima correte in quattro.',
   },
 ];
 
@@ -135,35 +155,36 @@ export const PAYOUT_MULT = [2.4, 1.2, 0.4, 0] as const;
 
 export const RANK_FOR_PLACE = [9, 26, 47, 70] as const;
 
-export type RacePoint = { x: number; z: number };
+export type RacePoint = { x: number; y: number; z: number };
 
-export const RACE_PATH: readonly RacePoint[] = [
-  { x: 6.2, z: 13.85 },
-  { x: 10.3, z: 13.85 },
-  { x: 11.15, z: 9.85 },
-  { x: 14.85, z: 9.85 },
-  { x: 15.7, z: 13.85 },
-  { x: 18.7, z: 12.35 },
+const raceSamples: readonly { c: number; a: number }[] = [
+  { c: 1.02, a: dune - 0.34 },
+  { c: 1.02, a: dune - 0.16 },
+  { c: 1.3, a: dune - 0.02 },
+  { c: 1.3, a: dune + 0.16 },
+  { c: 0.98, a: dune + 0.3 },
+  { c: 1.14, a: dune + 0.42 },
 ];
 
-export const RACE_BARS: readonly { x: number; minZ: number; maxZ: number }[] = [
-  { x: 9.15, minZ: 9.15, maxZ: 12.05 },
-  { x: 12.55, minZ: 11.95, maxZ: 14.85 },
-  { x: 16.05, minZ: 9.15, maxZ: 12.05 },
+export const RACE_PATH: readonly RacePoint[] = raceSamples.map((sample) => onSphere(sample.c, sample.a));
+
+export const RACE_BARS: readonly RacePoint[] = [
+  shift(1.02, dune + 0.0, 0, 0),
+  shift(1.34, dune + 0.34, 0, 0),
+  shift(1.02, dune + 0.05, 0, 1.6),
 ];
 
-/** Tempi pensati per il pollice: una corsa pulita batte Rami, una lenta prende il terzo. */
 export const RACE_GHOSTS: readonly { name: string; seconds: number; color: number }[] = [
   { name: 'Rami', seconds: 5.6, color: 0xf0a03a },
   { name: 'Lea', seconds: 7.6, color: 0x7c6cff },
   { name: 'Nico', seconds: 10.5, color: 0x3dcf78 },
 ];
 
-export const RACE_YAW = -Math.PI / 2;
 export const RACE_LIMIT = 24;
 
 const finish = RACE_PATH[RACE_PATH.length - 1];
-export const FINISH = { x: finish?.x ?? 19, z: finish?.z ?? 12.2, r: 1.45 };
+if (!finish) throw new Error('percorso senza traguardo');
+export const FINISH = { x: finish.x, y: finish.y, z: finish.z, r: 1.55 };
 
 export function payoutFor(place: number, stake: number): number {
   const mult = PAYOUT_MULT[place - 1] ?? 0;

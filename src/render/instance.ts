@@ -29,6 +29,29 @@ export function setInstance(
   if (hex !== undefined) mesh.setColorAt(index, color.setHex(hex));
 }
 
+export function setInstanceQuat(
+  mesh: THREE.InstancedMesh,
+  index: number,
+  x: number,
+  y: number,
+  z: number,
+  sx: number,
+  sy: number,
+  sz: number,
+  qx: number,
+  qy: number,
+  qz: number,
+  qw: number,
+  hex?: number,
+): void {
+  position.set(x, y, z);
+  quaternion.set(qx, qy, qz, qw);
+  scale.set(sx, sy, sz);
+  matrix.compose(position, quaternion, scale);
+  mesh.setMatrixAt(index, matrix);
+  if (hex !== undefined) mesh.setColorAt(index, color.setHex(hex));
+}
+
 export function commit(mesh: THREE.InstancedMesh): void {
   mesh.instanceMatrix.needsUpdate = true;
   mesh.computeBoundingSphere();

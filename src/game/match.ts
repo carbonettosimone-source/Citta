@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import type { Player } from '../player/player';
 import { toonMaterial } from '../render/toon';
+import { frameQuaternion, PLANET_R } from '../world/planet';
 import {
   RANK_FOR_PLACE,
   RACE_GHOSTS,
   RACE_LIMIT,
   RACE_PATH,
-  RACE_YAW,
   SPAWN,
+  SPAWN_FACE,
   payoutFor,
   type EventMode,
   type RacePoint,
@@ -56,17 +57,21 @@ export function createMatch(
   hud.onResultClose(() => {
     phase = 'idle';
     hideGhosts();
-    player.teleport(SPAWN.x, SPAWN.z, SPAWN.yaw);
+    home();
     hud.showRace(null);
     hud.showResult(null);
   });
+
+  function home(): void {
+    player.teleport(SPAWN.x, SPAWN.y, SPAWN.z, SPAWN_FACE.x, SPAWN_FACE.y, SPAWN_FACE.z);
+  }
 
   function abort(message: string): void {
     phase = 'idle';
     hideGhosts();
     hud.showRace(null);
     hud.toast(message);
-    player.teleport(SPAWN.x, SPAWN.z, SPAWN.yaw);
+    home();
   }
 
   function hideGhosts(): void {
@@ -79,10 +84,17 @@ export function createMatch(
       const at = pointAt(RACE_PATH, dist);
       const lane = ghost.mesh.userData['lane'];
       const side = typeof lane === 'number' ? lane : 0;
-      const lateral = Math.hypot(at.dz, at.dx) || 1;
+      const up = new THREE.Vector3(at.x, at.y, at.z).normalize();
+      const fwd = new THREE.Vector3(at.dx, at.dy, at.dz);
+      fwd.addScaledVector(up, -fwd.dot(up));
+      if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1);
+      fwd.normalize();
+      const lateral = new THREE.Vector3().crossVectors(up, fwd).normalize();
+      const pos = up.multiplyScalar(PLANET_R).addScaledVector(lateral, side);
+      pos.normalize().multiplyScalar(PLANET_R);
       ghost.mesh.visible = true;
-      ghost.mesh.position.set(at.x + (-at.dz / lateral) * side, 0, at.z + (at.dx / lateral) * side);
-      ghost.mesh.rotation.y = Math.atan2(at.dx, at.dz);
+      ghost.mesh.position.copy(pos);
+      ghost.mesh.quaternion.copy(frameQuaternion(pos.x, pos.y, pos.z, fwd.x, fwd.y, fwd.z));
     }
   }
 
@@ -127,7 +139,11 @@ export function createMatch(
       countdown = 3;
       elapsed = 0;
       phase = 'countdown';
-      player.teleport(RACE_PATH[0]?.x ?? 6.5, RACE_PATH[0]?.z ?? 13.6, RACE_YAW);
+      const start = RACE_PATH[0];
+      const next = RACE_PATH[1] ?? start;
+      if (start && next) {
+        player.teleport(start.x, start.y, start.z, next.x - start.x, next.y - start.y, next.z - start.z);
+      }
       placeGhosts(0);
       hud.showResult(null);
       hud.showRace({
@@ -172,9 +188,11 @@ export function createMatch(
         canQuit: true,
         lock: false,
       });
-      const dx = player.x - (RACE_PATH[RACE_PATH.length - 1]?.x ?? 19);
-      const dz = player.z - (RACE_PATH[RACE_PATH.length - 1]?.z ?? 12);
-      if (dx * dx + dz * dz <= 1.45 * 1.45) finish(true, elapsed);
+      const end = RACE_PATH[RACE_PATH.length - 1];
+      const dx = player.x - (end?.x ?? 0);
+      const dy = player.y - (end?.y ?? 0);
+      const dz = player.z - (end?.z ?? 0);
+      if (dx * dx + dy * dy + dz * dz <= 1.55 * 1.55) finish(true, elapsed);
       else if (elapsed >= RACE_LIMIT) finish(false, elapsed);
     },
   };
@@ -206,28 +224,32 @@ function pathLength(points: readonly RacePoint[]): number {
     const a = points[i - 1];
     const b = points[i];
     if (!a || !b) continue;
-    total += Math.hypot(b.x - a.x, b.z - a.z);
+    total += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
   }
   return total;
 }
 
-function pointAt(points: readonly RacePoint[], distance: number): { x: number; z: number; dx: number; dz: number } {
+function pointAt(
+  points: readonly RacePoint[],
+  distance: number,
+): { x: number; y: number; z: number; dx: number; dy: number; dz: number } {
   let left = distance;
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1];
     const b = points[i];
     if (!a || !b) continue;
     const dx = b.x - a.x;
+    const dy = b.y - a.y;
     const dz = b.z - a.z;
-    const len = Math.hypot(dx, dz) || 0.0001;
+    const len = Math.hypot(dx, dy, dz) || 0.0001;
     if (left <= len || i === points.length - 1) {
       const t = Math.min(1, left / len);
-      return { x: a.x + dx * t, z: a.z + dz * t, dx, dz };
+      return { x: a.x + dx * t, y: a.y + dy * t, z: a.z + dz * t, dx, dy, dz };
     }
     left -= len;
   }
-  const last = points[points.length - 1] ?? { x: 0, z: 0 };
-  return { x: last.x, z: last.z, dx: 1, dz: 0 };
+  const last = points[points.length - 1] ?? { x: 0, y: PLANET_R, z: 0 };
+  return { x: last.x, y: last.y, z: last.z, dx: 1, dy: 0, dz: 0 };
 }
 
 function runner(gradient: THREE.Texture, color: number): THREE.Group {

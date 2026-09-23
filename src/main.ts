@@ -57,8 +57,9 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
     } else {
       if (!session.courseClear) {
         const dx = player.x - FINISH.x;
+        const dy = player.y - FINISH.y;
         const dz = player.z - FINISH.z;
-        if (dx * dx + dz * dz <= FINISH.r * FINISH.r) {
+        if (dx * dx + dy * dy + dz * dz <= FINISH.r * FINISH.r) {
           session.courseClear = true;
           if (!courseTold) {
             courseTold = true;
@@ -77,8 +78,13 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
     const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (local) {
       view.dataset['px'] = player.x.toFixed(2);
+      view.dataset['py'] = player.y.toFixed(2);
       view.dataset['pz'] = player.z.toFixed(2);
       view.dataset['yaw'] = controls.yaw.toFixed(3);
+      const aim = player.aim();
+      view.dataset['hx'] = aim.x.toFixed(3);
+      view.dataset['hy'] = aim.y.toFixed(3);
+      view.dataset['hz'] = aim.z.toFixed(3);
     }
     requestAnimationFrame(frame);
   };

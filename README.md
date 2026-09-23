@@ -4,9 +4,9 @@
 
 È la build di produzione, servita da un tunnel Cloudflare perché l’API di questo ambiente non può accendere GitHub Pages (403 su `POST /pages`, e il workflow di deploy risponde 404 finché Pages non è abilitato). Il ramo `gh-pages` è già pronto: in Settings → Pages → Deploy from a branch → `gh-pages` / `/` il sito stabile diventa [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/). Il tunnel non ha garanzia di uptime: se il link non risponde, quel passo in Settings lo rimpiazza.
 
-Hub nel browser, pensato per il pollice: un mondo piccolo, piatto, low-poly, da girare a piedi. Raccogli le sfide, poi entra nella demo di Ostacoli. Le monete restano nel gioco. Niente cashout, niente soldi veri.
+Hub nel browser, pensato per il pollice: un mini-pianeta sferico, low-poly, da girare a piedi. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi di colore si incontrano su cuciture nette. Raccogli le sfide, poi entra nella demo di Ostacoli sulle dune. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
-English: mobile-first local hub. Touch stick, drag to look, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
+English: mobile-first spherical hub. Six wedge biomes, invented plants, touch stick, drag to look, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 
 ## Come si gioca
 
@@ -50,22 +50,23 @@ npm install
 npm run dev
 ```
 
-Vite stampa un indirizzo (di solito `http://localhost:5173`). Build: `npm run build`. Anteprima della build: `npm run preview`.
+Vite stampa un indirizzo (di solito `http://localhost:5173`). Build di produzione: `npm run build`, poi `npm run preview` (di solito `http://localhost:4173`).
 
-La base degli asset è `/` in locale. Il sito GitHub Pages usa `VITE_BASE=/Citta/` (`npm run build:pages`).
+La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VITE_BASE=/Citta/` (`npm run build:pages`).
 
 ## Cosa c'è in questa versione
 
-- Isola-hub a tasselli. I chunk da 8 m sono solo la tinta dell'erba, non un motore voxel
+- Mini-pianeta di raggio 16. Si cammina sul guscio: il passo è nel piano tangente, la gravità è radiale, la camera tiene l’alto verso il centro
+- Sei spicchi: mesa corallo, prateria menta, giardino viola, campo di cristalli, dune pesca, bosco di lanterne. Tinte diverse, cuciture visibili
+- Piante inventate, una famiglia per spicchio (ventagli, stelle su stelo, torri di petali, cristalli, nastri, lanterne). Niente pini, querce o palme. Quasi tutte in `InstancedMesh`
+- Faro-palo sul polo nord, sentiero chiaro che avvolge la sfera, sfide colorate come il proprio spicchio
 - Mondo rigenerato da seme (`hash32`, niente `Math.random`)
 - WebGL2: scena a metà risoluzione, upscale nearest
 - Nebbia corta, stesso colore del cielo
 - Toon a quattro fasce, niente PBR. Gemme e segnali piatti, così restano leggibili nella nebbia
-- Alberi, rocce, barriere e frecce in `InstancedMesh`
-- Faro, anello, pietre, belvedere e cancello: sagome diverse, ricompense diverse
-- Arco in piazza come punto di riferimento
-- HUD: monete, Mondo-1, rango di sessione, toast, Eventi
-- Mini-gara ostacoli completabile, con avversari finti e saldo monete
+- Faro, anello, petali, belvedere e cancello: sagome diverse, ricompense diverse
+- HUD: monete, Mondo-1, rango di sessione, toast, Eventi, levetta e Salta
+- Mini-gara ostacoli sulle dune, completabile, con avversari finti e saldo monete
 
 ## Architettura prevista
 
@@ -108,7 +109,7 @@ src/
   input/controls.ts       levetta, salto, trascinamento
   player/player.ts
   render/                 metà risoluzione, toon, cielo
-  world/                  isola, collisione, hash
+  world/                  pianeta, biomi, collisione, hash
   ui/hud.ts
 ```
 

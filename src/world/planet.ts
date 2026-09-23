@@ -1,0 +1,130 @@
+import * as THREE from 'three';
+
+/** Raggio del mini-pianeta. Camminarci sopra è un giro corto, con orizzonte curvo. */
+export const PLANET_R = 16;
+
+export const BIOME_COUNT = 6;
+
+export type Biome = {
+  id: string;
+  name: string;
+  ground: number;
+  patch: number;
+  deep: number;
+  plant: number;
+};
+
+/** Sei spicchi. Nessuna pianta terrestre: ogni famiglia è inventata. */
+export const BIOMES: readonly Biome[] = [
+  { id: 'coral', name: 'Mesa corallo', ground: 0xef8f86, patch: 0xf6c2b4, deep: 0xd45a62, plant: 0xf26d86 },
+  { id: 'mint', name: 'Prateria menta', ground: 0x8edfb2, patch: 0xc8f2d8, deep: 0x4eae84, plant: 0x2fce8c },
+  { id: 'violet', name: 'Giardino viola', ground: 0xc9a2ee, patch: 0xe4d0fa, deep: 0x7a52c0, plant: 0x9a62e0 },
+  { id: 'crystal', name: 'Campo di cristalli', ground: 0x6ed0d4, patch: 0xb4eef0, deep: 0x2e96ae, plant: 0x3ec8ee },
+  { id: 'dune', name: 'Dune pesca', ground: 0xf2c06e, patch: 0xf8dba6, deep: 0xe08a3e, plant: 0xf09a48 },
+  { id: 'lantern', name: 'Bosco di lanterne', ground: 0xee86b8, patch: 0xf7b6d6, deep: 0xd24e90, plant: 0xf2c14e },
+];
+
+export const PATH_COLOR = 0xfff4e4;
+const RING = 1.05;
+
+export function biomeAzimuth(index: number): number {
+  return -Math.PI + (index + 0.5) * ((Math.PI * 2) / BIOME_COUNT);
+}
+
+export function biomeIndex(x: number, z: number): number {
+  const u = (Math.atan2(x, z) + Math.PI) / (Math.PI * 2);
+  return Math.min(BIOME_COUNT - 1, Math.max(0, Math.floor(u * BIOME_COUNT)));
+}
+
+export function onSphere(colatitude: number, azimuth: number, radius = PLANET_R): { x: number; y: number; z: number } {
+  const s = Math.sin(colatitude);
+  return {
+    x: s * Math.sin(azimuth) * radius,
+    y: Math.cos(colatitude) * radius,
+    z: s * Math.cos(azimuth) * radius,
+  };
+}
+
+/** Tangente verso il polo nord (+Y). */
+export function northTangent(colatitude: number, azimuth: number): { x: number; y: number; z: number } {
+  const s = Math.sin(colatitude);
+  const c = Math.cos(colatitude);
+  return { x: -c * Math.sin(azimuth), y: s, z: -c * Math.cos(azimuth) };
+}
+
+export function eastTangent(azimuth: number): { x: number; y: number; z: number } {
+  return { x: Math.cos(azimuth), y: 0, z: -Math.sin(azimuth) };
+}
+
+export function project(x: number, y: number, z: number, radius = PLANET_R): { x: number; y: number; z: number } {
+  const len = Math.hypot(x, y, z) || 1;
+  const s = radius / len;
+  return { x: x * s, y: y * s, z: z * s };
+}
+
+export function shift(colatitude: number, azimuth: number, northM: number, eastM: number): { x: number; y: number; z: number } {
+  const p = onSphere(colatitude, azimuth);
+  const n = northTangent(colatitude, azimuth);
+  const e = eastTangent(azimuth);
+  return project(p.x + n.x * northM + e.x * eastM, p.y + n.y * northM + e.y * eastM, p.z + n.z * northM + e.z * eastM);
+}
+
+export function onPath(x: number, y: number, z: number): boolean {
+  const len = Math.hypot(x, y, z) || 1;
+  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
+  const az = Math.atan2(x, z);
+  if (Math.abs(colat - RING) < 0.09) return true;
+  if (Math.abs(colat - (Math.PI - RING)) < 0.07) return true;
+  if (colat < 0.16 || colat > 2.7) return false;
+  let best = Math.PI;
+  for (let i = 0; i < BIOME_COUNT; i++) {
+    const d = angleDiff(az, biomeAzimuth(i));
+    if (d < best) best = d;
+  }
+  const meters = best * Math.max(0.42, Math.sin(colat)) * PLANET_R;
+  return meters < 1.25;
+}
+
+export function angleDiff(a: number, b: number): number {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return Math.abs(d);
+}
+
+const up = new THREE.Vector3();
+const fwd = new THREE.Vector3();
+const right = new THREE.Vector3();
+const basis = new THREE.Matrix4();
+const quat = new THREE.Quaternion();
+
+/** +Y locale verso la normale, +Z lungo la tangente. */
+export function frameQuaternion(px: number, py: number, pz: number, fx: number, fy: number, fz: number): THREE.Quaternion {
+  up.set(px, py, pz);
+  if (up.lengthSq() < 1e-8) up.set(0, 1, 0);
+  up.normalize();
+  fwd.set(fx, fy, fz);
+  if (fwd.lengthSq() < 1e-8) fwd.set(0, 0, 1);
+  fwd.addScaledVector(up, -fwd.dot(up));
+  if (fwd.lengthSq() < 1e-6) {
+    fwd.set(1, 0, 0).addScaledVector(up, -up.x);
+  }
+  fwd.normalize();
+  right.crossVectors(up, fwd).normalize();
+  basis.makeBasis(right, up, fwd);
+  return quat.setFromRotationMatrix(basis).clone();
+}
+
+/** +Y locale verso un asse qualunque (frecce lungo il sentiero). */
+export function quatAxisY(yx: number, yy: number, yz: number, hintX: number, hintY: number, hintZ: number): THREE.Quaternion {
+  up.set(yx, yy, yz);
+  if (up.lengthSq() < 1e-8) up.set(0, 1, 0);
+  up.normalize();
+  fwd.set(hintX, hintY, hintZ);
+  fwd.addScaledVector(up, -fwd.dot(up));
+  if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, 1).addScaledVector(up, -up.z);
+  fwd.normalize();
+  right.crossVectors(up, fwd).normalize();
+  basis.makeBasis(right, up, fwd);
+  return quat.setFromRotationMatrix(basis).clone();
+}

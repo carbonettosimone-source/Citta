@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { toonMaterial } from '../render/toon';
-import { CHALLENGES, KIND_COLOR, type ChallengeDef } from './content';
+import { CHALLENGES, biomeOf, type ChallengeDef } from './content';
+import { frameQuaternion } from '../world/planet';
 import type { Player } from '../player/player';
 import { grant, type Session } from './session';
 import type { Hud } from '../ui/hud';
@@ -27,7 +28,7 @@ export function createChallenges(scene: THREE.Scene, gradient: THREE.Texture): C
     update(time, player, interact, session, hud) {
       markers.forEach((marker, index) => {
         const taken = session.claimed.has(marker.def.id);
-        const tint = taken ? CLAIMED : KIND_COLOR[marker.def.kind];
+        const tint = taken ? CLAIMED : biomeOf(marker.def).plant;
         for (const material of marker.accents) paint(material, tint);
         const wave = taken ? 0 : Math.sin(time * 2.3 + index * 0.8) * 0.1;
         marker.bob.position.y = marker.baseY + wave;
@@ -35,7 +36,7 @@ export function createChallenges(scene: THREE.Scene, gradient: THREE.Texture): C
         marker.ring.scale.setScalar(pulse);
       });
 
-      const near = nearest(player.x, player.z);
+      const near = nearest(player.x, player.y, player.z);
       if (!near) {
         hud.setPrompt(null);
         return;
@@ -51,12 +52,12 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
   const group = new THREE.Group();
   group.position.set(def.x, 0, def.z);
   const accents: THREE.Material[] = [];
+  const tint = biomeOf(def).plant;
   const glow = () => {
-    const material = new THREE.MeshBasicMaterial({ color: KIND_COLOR[def.kind] });
+    const material = new THREE.MeshBasicMaterial({ color: tint });
     accents.push(material);
     return material;
   };
-  const stone = toonMaterial(gradient, 0xf7f1e6);
   const ink = toonMaterial(gradient, 0x8a5738);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.07, 6, 18), glow());
   ring.rotation.x = Math.PI / 2;
@@ -67,19 +68,11 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
   let baseY = 0;
 
   if (def.id === 'faro') {
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.96, 0.32, 8), stone);
-    foot.position.y = 0.16;
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.52, 2.55, 8), stone);
-    tower.position.y = 1.55;
-    const lamp = new THREE.Group();
-    lamp.position.y = 2.92;
-    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.46, 8), glow());
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.68, 0.5, 8), toonMaterial(gradient, 0xc4553a));
-    cap.position.y = 0.46;
-    lamp.add(glass, cap);
-    group.add(foot, tower, lamp);
-    bob = lamp;
-    baseY = 2.92;
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), glow());
+    gem.position.y = 0.85;
+    group.add(gem);
+    bob = gem;
+    baseY = 0.85;
   } else if (def.id === 'anello') {
     const hoop = new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.1, 8, 18), glow());
     hoop.position.y = 1.2;
@@ -89,8 +82,8 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
     bob = gem;
     baseY = 1.2;
   } else if (def.id === 'pietre') {
-    const low = new THREE.Mesh(new THREE.DodecahedronGeometry(0.46, 0), toonMaterial(gradient, KIND_COLOR[def.kind]));
-    const mid = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), toonMaterial(gradient, 0x5a4fd4));
+    const low = new THREE.Mesh(new THREE.DodecahedronGeometry(0.46, 0), toonMaterial(gradient, tint));
+    const mid = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), toonMaterial(gradient, 0x6a4ec4));
     const top = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 0), glow());
     low.position.y = 0.4;
     mid.position.y = 1.02;
@@ -121,6 +114,9 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
     baseY = 1.45;
   }
 
+  const stand = frameQuaternion(def.x, def.y, def.z, 1, 0, 0);
+  group.position.set(def.x, def.y, def.z);
+  group.quaternion.copy(stand);
   scene.add(group);
   return { def, bob, baseY, accents, ring };
 }
@@ -131,13 +127,14 @@ function paint(material: THREE.Material, hex: number): void {
   }
 }
 
-function nearest(x: number, z: number): ChallengeDef | null {
+function nearest(x: number, y: number, z: number): ChallengeDef | null {
   let best: ChallengeDef | null = null;
   let bestD = REACH * REACH;
   for (const def of CHALLENGES) {
     const dx = x - def.x;
+    const dy = y - def.y;
     const dz = z - def.z;
-    const d2 = dx * dx + dz * dz;
+    const d2 = dx * dx + dy * dy + dz * dz;
     if (d2 <= bestD) {
       best = def;
       bestD = d2;

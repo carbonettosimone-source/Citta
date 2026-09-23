@@ -53,7 +53,7 @@ export function createHud(
 
   const coach = el('div', 'coach');
   coach.innerHTML = `
-    <p>Il faro è davanti a te.</p>
+    <p>Il faro è sul polo, davanti a te.</p>
     <strong>${coarse ? 'Pollice sinistro per camminare, dito sul mondo per girarti.' : 'WASD per camminare, trascina per girarti.'}</strong>
   `;
 

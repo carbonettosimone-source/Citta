@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { Controls } from '../input/controls';
-import { SPAWN } from '../game/content';
+import { SPAWN, SPAWN_FACE } from '../game/content';
 import { toonMaterial } from '../render/toon';
 import { resolve, type Blocker } from '../world/collide';
+import { frameQuaternion, PLANET_R } from '../world/planet';
 
 const SPEED = 5.4;
 const GRAVITY = 26;
@@ -18,41 +19,48 @@ export type Player = {
   update(dt: number, blockers: readonly Blocker[], frozen: boolean): void;
   consumeInteract(): boolean;
   syncCamera(camera: THREE.PerspectiveCamera, dt: number): void;
-  teleport(x: number, z: number, yaw: number): void;
+  teleport(x: number, y: number, z: number, faceX: number, faceY: number, faceZ: number): void;
+  aim(): { x: number; y: number; z: number };
 };
 
-export function createPlayer(
-  scene: THREE.Scene,
-  gradient: THREE.Texture,
-  controls: Controls,
-): Player {
+const up = new THREE.Vector3();
+const head = new THREE.Vector3();
+const right = new THREE.Vector3();
+const spin = new THREE.Quaternion();
+const look = new THREE.Vector3();
+
+export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, controls: Controls): Player {
   let x = SPAWN.x;
-  let y = 0;
+  let y = SPAWN.y;
   let z = SPAWN.z;
+  let alt = 0;
   let vy = 0;
-  let faceX = 0;
-  let faceZ = -1;
   let phase = 0;
   let grounded = true;
   let jumpLatch = false;
   let interactEdge = false;
-  const follow = new THREE.Vector3(x, y, z);
+  const basis = new THREE.Vector3(SPAWN_FACE.x, SPAWN_FACE.y, SPAWN_FACE.z).normalize();
+  const face = basis.clone();
+  const follow = new THREE.Vector3(x, y, z).normalize();
 
   const body = buildAvatar(scene, gradient);
   const shadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.46, 14),
-    new THREE.MeshBasicMaterial({ color: 0x163024, transparent: true, opacity: 0.32, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0x1a2430, transparent: true, opacity: 0.28, depthWrite: false }),
   );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.035;
   scene.add(shadow);
 
-  const pose = () => {
-    body.position.set(x, y, z);
-    body.rotation.y = Math.atan2(faceX, faceZ);
-    shadow.position.set(x, 0.035, z);
+  const place = (bob = 0) => {
+    up.set(x, y, z).normalize();
+    const lift = PLANET_R + alt + bob;
+    body.position.copy(up).multiplyScalar(lift);
+    body.quaternion.copy(frameQuaternion(up.x, up.y, up.z, face.x, face.y, face.z));
+    shadow.position.copy(up).multiplyScalar(PLANET_R + 0.05);
+    spin.setFromUnitVectors(look.set(0, 0, 1), up);
+    shadow.quaternion.copy(spin);
+    shadow.scale.setScalar(1 - Math.min(0.45, alt * 0.28));
   };
-  pose();
+  place();
 
   const api: Player = {
     get x() {
@@ -75,18 +83,15 @@ export function createPlayer(
         left -= h;
         integrate(h, blockers, frozen ? 0 : input.strafe, frozen ? 0 : input.forward, wantJump);
       }
-      const moving = !frozen && grounded && (Math.abs(input.strafe) + Math.abs(input.forward) > 0.08);
+      const moving = !frozen && grounded && Math.abs(input.strafe) + Math.abs(input.forward) > 0.08;
       if (moving) phase += dt * 8;
       const bob = moving ? Math.sin(phase) * 0.045 : 0;
-      body.position.set(x, y + bob, z);
-      body.rotation.y = Math.atan2(faceX, faceZ);
+      place(bob);
       const swing = moving ? Math.sin(phase) * 0.7 : 0;
       const leftLeg = body.getObjectByName('legL');
       const rightLeg = body.getObjectByName('legR');
       if (leftLeg) leftLeg.rotation.x = swing;
       if (rightLeg) rightLeg.rotation.x = -swing;
-      shadow.position.set(x, 0.035, z);
-      shadow.scale.setScalar(1 - Math.min(0.45, y * 0.3));
     },
     consumeInteract() {
       const hit = interactEdge;
@@ -95,69 +100,97 @@ export function createPlayer(
     },
     syncCamera(camera, dt) {
       const k = 1 - Math.exp(-dt * FOLLOW);
-      follow.x += (x - follow.x) * k;
-      follow.y += (y - follow.y) * k;
-      follow.z += (z - follow.z) * k;
+      up.set(x, y, z).normalize();
+      follow.lerp(up, k).normalize();
+      heading(head);
       const portrait = window.innerHeight > window.innerWidth;
-      const dist = portrait ? 5.15 : 6.15;
+      const dist = portrait ? 5.35 : 6.35;
       const horiz = Math.cos(controls.pitch) * dist;
-      const yaw = controls.yaw;
-      camera.position.set(
-        follow.x + Math.sin(yaw) * horiz,
-        follow.y + 1.45 + Math.sin(controls.pitch) * dist,
-        follow.z + Math.cos(yaw) * horiz,
-      );
-      const fx = -Math.sin(yaw);
-      const fz = -Math.cos(yaw);
-      camera.lookAt(follow.x + fx * 0.3, follow.y + 1.2, follow.z + fz * 0.3);
+      const anchor = PLANET_R + alt;
+      camera.position
+        .copy(follow)
+        .multiplyScalar(anchor)
+        .addScaledVector(follow, 1.2 + Math.sin(controls.pitch) * dist)
+        .addScaledVector(head, -horiz);
+      camera.up.copy(follow);
+      look.copy(follow).multiplyScalar(anchor).addScaledVector(follow, 1.05).addScaledVector(head, 0.45);
+      camera.lookAt(look);
     },
-    teleport(nx, nz, faceYaw) {
-      x = nx;
-      z = nz;
-      y = 0;
+    aim() {
+      heading(head);
+      return { x: head.x, y: head.y, z: head.z };
+    },
+    teleport(nx, ny, nz, faceX, faceY, faceZ) {
+      up.set(nx, ny, nz).normalize();
+      alt = 0;
       vy = 0;
       grounded = true;
-      controls.setYaw(faceYaw, 0.42);
-      faceX = -Math.sin(faceYaw);
-      faceZ = -Math.cos(faceYaw);
-      follow.set(nx, 0, nz);
-      pose();
+      x = up.x * PLANET_R;
+      y = up.y * PLANET_R;
+      z = up.z * PLANET_R;
+      basis.set(faceX, faceY, faceZ);
+      basis.addScaledVector(up, -basis.dot(up));
+      if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
+      basis.normalize();
+      face.copy(basis);
+      controls.setYaw(0, 0.5);
+      follow.copy(up);
+      place();
     },
   };
 
+  function heading(out: THREE.Vector3): void {
+    up.set(x, y, z).normalize();
+    spin.setFromAxisAngle(up, controls.yaw);
+    out.copy(basis).applyQuaternion(spin);
+    out.addScaledVector(up, -out.dot(up));
+    if (out.lengthSq() < 1e-6) out.set(0, 0, 1);
+    out.normalize();
+  }
+
   function integrate(h: number, blockers: readonly Blocker[], strafe: number, forward: number, wantJump: boolean): void {
-    const yaw = controls.yaw;
-    const fx = -Math.sin(yaw);
-    const fz = -Math.cos(yaw);
-    const rx = Math.cos(yaw);
-    const rz = -Math.sin(yaw);
+    up.set(x, y, z).normalize();
+    heading(head);
+    right.crossVectors(head, up).normalize();
     if (strafe !== 0 || forward !== 0) {
-      faceX = rx * strafe + fx * forward;
-      faceZ = rz * strafe + fz * forward;
-      const mag = Math.hypot(faceX, faceZ) || 1;
-      faceX /= mag;
-      faceZ /= mag;
-      x += faceX * SPEED * h * Math.min(1, Math.hypot(strafe, forward));
-      z += faceZ * SPEED * h * Math.min(1, Math.hypot(strafe, forward));
+      face.copy(right).multiplyScalar(strafe).addScaledVector(head, forward);
+      const mag = Math.min(1, face.length());
+      face.normalize();
+      x += face.x * SPEED * h * mag;
+      y += face.y * SPEED * h * mag;
+      z += face.z * SPEED * h * mag;
     }
-    const solved = resolve(x, z, y, RADIUS, blockers);
+    const solved = resolve(x, y, z, alt, RADIUS, blockers);
     x = solved.x;
+    y = solved.y;
     z = solved.z;
+    up.set(x, y, z).normalize();
+    basis.addScaledVector(up, -basis.dot(up));
+    if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
+    basis.normalize();
+    face.addScaledVector(up, -face.dot(up));
+    if (face.lengthSq() < 1e-6) face.copy(basis);
+    else face.normalize();
     if (grounded && wantJump && !jumpLatch) {
       vy = JUMP;
-      y = 0.02;
+      alt = 0.02;
       grounded = false;
       jumpLatch = true;
     }
     vy -= GRAVITY * h;
-    y += vy * h;
-    if (y <= 0) {
-      y = 0;
+    alt += vy * h;
+    if (alt <= 0) {
+      alt = 0;
       vy = 0;
       grounded = true;
     } else {
       grounded = false;
     }
+    up.set(x, y, z).normalize();
+    const shell = PLANET_R + alt;
+    x = up.x * shell;
+    y = up.y * shell;
+    z = up.z * shell;
   }
 
   return api;
