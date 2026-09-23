@@ -1,5 +1,6 @@
 import { EVENTS, PAYOUT_MULT, PROTO, WORLD_ID, payoutFor, type EventMode } from '../game/content';
 import type { Session } from '../game/session';
+import { createAtlas } from './atlas';
 
 export type RaceView = {
   title: string;
@@ -24,6 +25,8 @@ export type Hud = {
   toast(message: string): void;
   setPrompt(text: string | null): void;
   sync(): void;
+  openBoard(): void;
+  paintMap(px: number, py: number, pz: number, fx: number, fy: number, fz: number): void;
   showRace(view: RaceView | null): void;
   showResult(view: ResultView | null): void;
   onAbandon(cb: () => void): void;
@@ -46,21 +49,22 @@ export function createHud(
     <p class="rank">settimana ${isoWeek(new Date())} · rango <strong id="rank">—</strong></p>
   `;
 
+  const atlas = createAtlas(root);
   const tools = el('div', 'tools');
-  const eventsBtn = button('Eventi', 'primary');
+  const eventsBtn = button('Giochi', 'primary');
   eventsBtn.setAttribute('aria-expanded', 'false');
-  tools.append(eventsBtn);
+  tools.append(atlas.button, eventsBtn);
 
   const coach = el('div', 'coach');
   coach.innerHTML = `
-    <p>La città è avanti, verso il palo. I paesi stanno negli spicchi.</p>
-    <strong>${coarse ? 'Pollice sinistro per camminare, dito sul mondo per girarti.' : 'WASD per camminare, trascina per girarti.'}</strong>
+    <p>La città è avanti, verso il palo. Levetta a fondo per correre.</p>
+    <strong>${coarse ? 'Mappa in alto a destra. I paesi stanno negli spicchi.' : 'Shift corre. M apre la mappa. I paesi stanno negli spicchi.'}</strong>
   `;
 
   const hint = el('p', 'hint');
   hint.textContent = coarse
-    ? 'Levetta a sinistra · dito sul mondo per girare · Salta due volte'
-    : 'WASD o levetta · trascina per guardare · E raccoglie · spazio, due salti';
+    ? 'Levetta a fondo per correre · dito sul mondo per girare · Salta due volte'
+    : 'WASD cammina · Shift corre · M mappa · E raccoglie · spazio, due salti';
 
   const prompt = button('', 'prompt');
   prompt.hidden = true;
@@ -98,8 +102,8 @@ export function createHud(
       <header class="sheet-head">
         <div>
           <p class="eyebrow">${WORLD_ID} · proto ${PROTO}</p>
-          <h2 id="events-title">Eventi</h2>
-          <p>Scegli un modo, guarda la puntata, entra se ti basta.</p>
+          <h2 id="events-title">Giochi</h2>
+          <p>Ostacoli è aperto. Il giro degli spicchi paga quando visiti le mete.</p>
         </div>
         <button type="button" class="ghost" id="events-close">Chiudi</button>
       </header>
@@ -170,7 +174,13 @@ export function createHud(
     if (open) showList();
   };
 
-  eventsBtn.addEventListener('click', () => setOpen(panel.hidden));
+  eventsBtn.addEventListener('click', () => {
+    if (panel.hidden) atlas.close();
+    setOpen(panel.hidden);
+  });
+  atlas.button.addEventListener('click', () => {
+    if (atlas.isOpen()) setOpen(false);
+  });
   closeBtn.addEventListener('click', () => setOpen(false));
   panel.addEventListener('click', (event) => {
     if (event.target === panel) setOpen(false);
@@ -183,7 +193,7 @@ export function createHud(
       return;
     }
     if (!selected.playable) {
-      toast(`${selected.name} arriva dopo. Oggi si corre Ostacoli.`);
+      toast(selected.id === 'giro' ? 'Il giro non si punta: visita le sei mete.' : `${selected.name} arriva dopo. Oggi si corre Ostacoli.`);
       return;
     }
     const mode = selected;
@@ -197,7 +207,12 @@ export function createHud(
     resultClose();
   });
   window.addEventListener('keydown', (event) => {
-    if (event.code === 'Escape' && result.hidden) setOpen(false);
+    if (event.repeat) return;
+    if (event.code === 'KeyM') atlas.toggle();
+    if (event.code === 'Escape' && result.hidden) {
+      atlas.close();
+      setOpen(false);
+    }
   });
 
   prompt.addEventListener('click', () => {
@@ -260,7 +275,14 @@ export function createHud(
   }
 
   return {
-    blocksPlay: () => !panel.hidden || resultOpen || raceLock,
+    blocksPlay: () => atlas.isOpen() || !panel.hidden || resultOpen || raceLock,
+    openBoard() {
+      atlas.close();
+      setOpen(true);
+    },
+    paintMap(px, py, pz, fx, fy, fz) {
+      atlas.draw(px, py, pz, fx, fy, fz);
+    },
     toast,
     setPrompt(textValue) {
       const next = textValue ?? '';
@@ -275,11 +297,14 @@ export function createHud(
         race.hidden = true;
         raceLock = false;
         eventsBtn.disabled = resultOpen;
+        atlas.setEnabled(!resultOpen);
         return;
       }
       race.hidden = false;
       raceLock = view.lock;
       eventsBtn.disabled = true;
+      atlas.close();
+      atlas.setEnabled(false);
       raceKicker.textContent = view.title;
       raceTime.textContent = view.time;
       raceHint.textContent = view.hint;
@@ -290,10 +315,13 @@ export function createHud(
         result.hidden = true;
         resultOpen = false;
         eventsBtn.disabled = false;
+        atlas.setEnabled(true);
         return;
       }
       resultOpen = true;
       result.hidden = false;
+      atlas.close();
+      atlas.setEnabled(false);
       race.hidden = true;
       raceLock = false;
       eventsBtn.disabled = true;

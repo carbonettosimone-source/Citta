@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
-import { toonInstances } from '../render/toon';
+import { toonInstances, withWind } from '../render/toon';
 import { WORLD_SEED, unit } from './hash';
 import { biomeAzimuth, frameQuaternion, onPath, onSphere, shift } from './planet';
+import { seat } from './relief';
 import { nearTown, onTownGround } from './towns';
 
 type Bit = {
@@ -32,11 +33,19 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture): void {
   for (let biome = 0; biome < 6; biome += 1) {
     const center = biomeAzimuth(biome);
     const cover: Bit[] = [];
-    for (let n = 0; n < 110; n += 1) {
-      const az = center + (unit(biome, n, WORLD_SEED) - 0.5) * 0.86;
-      const colat = 0.28 + unit(n, biome, WORLD_SEED ^ 17) * 2.35;
-      if (drop(colat, az, 0.4)) continue;
-      cover.push(bit(colat, az, 0.75 + unit(biome, n, 4) * 0.7, tint(biome, n)));
+    for (let n = 0; n < 168; n += 1) {
+      const az = center + (unit(biome, n, WORLD_SEED) - 0.5) * 0.9;
+      const colat = 0.26 + unit(n, biome, WORLD_SEED ^ 17) * 2.4;
+      if (drop(colat, az, 0.35)) continue;
+      const scale = 0.85 + unit(biome, n, 4) * 0.85;
+      cover.push(bit(colat, az, scale, tint(biome, n)));
+      if (n % 4 === 0) {
+        const extra = shift(colat, az, (unit(n, biome, 21) - 0.5) * 1.6, (unit(biome, n, 27) - 0.5) * 1.6);
+        const len = Math.hypot(extra.x, extra.y, extra.z) || 1;
+        const colat2 = Math.acos(Math.min(1, Math.max(-1, extra.y / len)));
+        const az2 = Math.atan2(extra.x, extra.z);
+        if (!drop(colat2, az2, 0.35)) cover.push(bit(colat2, az2, scale * 0.72, tint(biome, n + 9)));
+      }
     }
     for (let n = 0; n < 18; n += 1) {
       const az = center + (unit(biome + 20, n, WORLD_SEED) - 0.5) * 0.8;
@@ -61,13 +70,13 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture): void {
     else moss.push(...cover);
   }
 
-  paint(scene, gradient, fan(), fans, false);
-  paint(scene, gradient, blade(), blades, false);
-  paint(scene, gradient, stalk(), stalks, false);
-  paint(scene, gradient, shard(), shards, true);
-  paint(scene, gradient, tuft(), scrub, false);
-  paint(scene, gradient, tuft(), moss, false);
-  paint(scene, gradient, boulder(), rocks, false);
+  paint(scene, gradient, fan(), fans, false, true);
+  paint(scene, gradient, blade(), blades, false, true);
+  paint(scene, gradient, stalk(), stalks, false, true);
+  paint(scene, gradient, shard(), shards, true, true);
+  paint(scene, gradient, tuft(), scrub, false, true);
+  paint(scene, gradient, tuft(), moss, false, true);
+  paint(scene, gradient, boulder(), rocks, false, false);
 }
 
 function tint(biome: number, n: number): number {
@@ -84,8 +93,9 @@ function drop(colat: number, az: number, townMargin: number): boolean {
 }
 
 function bit(colat: number, az: number, scale: number, color: number): Bit {
-  const p = onSphere(colat, az);
-  const q = frameQuaternion(p.x, p.y, p.z, Math.cos(az), 0, -Math.sin(az));
+  const raw = onSphere(colat, az);
+  const p = seat(raw.x, raw.y, raw.z);
+  const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
   return { ...p, qx: q.x, qy: q.y, qz: q.z, qw: q.w, s: scale, color };
 }
 
@@ -95,9 +105,11 @@ function paint(
   geometry: THREE.BufferGeometry,
   list: readonly Bit[],
   flat: boolean,
+  wind: boolean,
 ): void {
   if (list.length === 0) return;
   const material = flat ? new THREE.MeshBasicMaterial({ color: 0xffffff }) : toonInstances(gradient);
+  if (wind) withWind(material);
   const mesh = new THREE.InstancedMesh(geometry, material, list.length);
   mesh.frustumCulled = false;
   for (let i = 0; i < list.length; i += 1) {

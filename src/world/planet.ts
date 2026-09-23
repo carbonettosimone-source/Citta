@@ -75,6 +75,42 @@ export function shift(colatitude: number, azimuth: number, northM: number, eastM
   return project(p.x + n.x * northM + e.x * eastM, p.y + n.y * northM + e.y * eastM, p.z + n.z * northM + e.z * eastM);
 }
 
+/** 1 sul selciato, 0 fuori dalla spalla. I piedi e il guscio usano la stessa curva. */
+export function pathBlend(x: number, y: number, z: number): number {
+  const len = Math.hypot(x, y, z) || 1;
+  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
+  const az = Math.atan2(x, z);
+  const ringM = Math.abs(colat - RING) * PLANET_R;
+  const southM = Math.abs(colat - (Math.PI - RING)) * PLANET_R;
+  let w = bandFalloff(ringM, 3.1, 5.6);
+  w = Math.max(w, bandFalloff(southM, 2.6, 4.8));
+  if (colat > 0.1 && colat < 2.9) {
+    let best = Math.PI;
+    for (let i = 0; i < BIOME_COUNT; i += 1) {
+      const d = angleDiff(az, biomeAzimuth(i));
+      if (d < best) best = d;
+    }
+    const spokeM = best * Math.sin(colat) * PLANET_R;
+    w = Math.max(w, bandFalloff(spokeM, SPOKE_HALF, SPOKE_HALF + 2.4));
+  }
+  return w;
+}
+
+export function bandFalloff(dist: number, inner: number, outer: number): number {
+  if (dist <= inner) return 1;
+  if (dist >= outer) return 0;
+  const t = (dist - inner) / (outer - inner);
+  return 1 - t * t * (3 - 2 * t);
+}
+
+export function angles(x: number, y: number, z: number): { colat: number; az: number } {
+  const len = Math.hypot(x, y, z) || 1;
+  return {
+    colat: Math.acos(Math.min(1, Math.max(-1, y / len))),
+    az: Math.atan2(x, z),
+  };
+}
+
 export function onPath(x: number, y: number, z: number): boolean {
   const len = Math.hypot(x, y, z) || 1;
   const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));

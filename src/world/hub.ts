@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import { CHALLENGES, FINISH, RACE_BARS, RACE_PATH } from '../game/content';
 import { commit, setInstanceQuat } from '../render/instance';
 import { createSky } from '../render/sky';
-import { toonInstances, toonMaterial } from '../render/toon';
+import { toonInstances, toonMaterial, withWind } from '../render/toon';
 import type { Blocker } from './collide';
 import { addDress } from './dress';
 import { WORLD_SEED, unit } from './hash';
-import { addTowns, nearTown, onTownGround } from './towns';
+import { seat } from './relief';
+import { addTowns, nearTown, townBlend } from './towns';
 import {
   BIOMES,
   PATH_COLOR,
@@ -17,6 +18,7 @@ import {
   edgeMeters,
   frameQuaternion,
   onPath,
+  pathBlend,
   quatAxisY,
 } from './planet';
 
@@ -55,23 +57,25 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
 }
 
 function buildSurface(gradient: THREE.Texture): THREE.Mesh {
-  const source = new THREE.SphereGeometry(PLANET_R, 160, 96);
+  const source = new THREE.SphereGeometry(PLANET_R, 192, 112);
   const geo = source.toNonIndexed();
   source.dispose();
   const pos = geo.getAttribute('position');
   const colors = new Float32Array(pos.count * 3);
   const color = new THREE.Color();
-  for (let i = 0; i < pos.count; i += 3) {
-    const x = (pos.getX(i) + pos.getX(i + 1) + pos.getX(i + 2)) / 3;
-    const y = (pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3;
-    const z = (pos.getZ(i) + pos.getZ(i + 1) + pos.getZ(i + 2)) / 3;
-    color.setHex(facetColor(x, y, z, i));
-    for (let k = 0; k < 3; k++) {
-      colors[(i + k) * 3] = color.r;
-      colors[(i + k) * 3 + 1] = color.g;
-      colors[(i + k) * 3 + 2] = color.b;
-    }
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const lifted = seat(x, y, z);
+    pos.setXYZ(i, lifted.x, lifted.y, lifted.z);
+    color.setHex(vertexColor(x, y, z));
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
   }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   const mesh = new THREE.Mesh(
     geo,
@@ -81,15 +85,45 @@ function buildSurface(gradient: THREE.Texture): THREE.Mesh {
   return mesh;
 }
 
-function facetColor(x: number, y: number, z: number, index: number): number {
-  if (onPath(x, y, z) || onTownGround(x, y, z)) return PATH_COLOR;
-  const parallel = Math.hypot(x, z);
-  if (parallel > 22 && edgeMeters(x, y, z) < 4.6) return SEAM_COLOR;
+function vertexColor(x: number, y: number, z: number): number {
+  const len = Math.hypot(x, y, z) || 1;
+  const nx = x / len;
+  const nz = z / len;
+  const colat = Math.acos(Math.min(1, Math.max(-1, (y / len))));
+  const az = Math.atan2(x, z);
+  const flat = Math.max(pathBlend(x, y, z), townBlend(x, y, z));
+  if (flat > 0.82) return PATH_COLOR;
   const biome = BIOMES[biomeIndex(x, z)] ?? BIOMES[0];
-  const roll = unit(index, 3, WORLD_SEED);
-  if (roll > 0.86) return biome.deep;
-  if (roll > 0.62) return biome.patch;
-  return biome.ground;
+  const qx = Math.round(az * 9);
+  const qy = Math.round(colat * 11);
+  const roll = unit(qx, qy, WORLD_SEED);
+  let hex = biome.ground;
+  if (roll > 0.84) hex = biome.deep;
+  else if (roll > 0.58) hex = biome.patch;
+  const parallel = Math.hypot(nx, nz) * PLANET_R;
+  if (parallel > 22) {
+    const edge = edgeMeters(x, y, z);
+    if (edge < 8) {
+      const t = edge < 1.15 ? 1 : 1 - (edge - 1.15) / 6.85;
+      hex = mixHex(hex, SEAM_COLOR, t * t);
+    }
+  }
+  if (flat > 0.04) hex = mixHex(hex, PATH_COLOR, flat);
+  return hex;
+}
+
+function mixHex(a: number, b: number, t: number): number {
+  const k = Math.min(1, Math.max(0, t));
+  const ar = (a >> 16) & 255;
+  const ag = (a >> 8) & 255;
+  const ab = a & 255;
+  const br = (b >> 16) & 255;
+  const bg = (b >> 8) & 255;
+  const bb = b & 255;
+  const r = Math.round(ar + (br - ar) * k);
+  const g = Math.round(ag + (bg - ag) * k);
+  const bl = Math.round(ab + (bb - ab) * k);
+  return (r << 16) | (g << 8) | bl;
 }
 
 function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
@@ -132,9 +166,10 @@ function scatter(scene: THREE.Scene, gradient: THREE.Texture): void {
     if (!info) continue;
     const spots = floraSpots(biome);
     for (const spot of spots) {
-      const p = point(spot.colat, spot.az);
-      if (onPath(p.x, p.y, p.z) || tooClose(p.x, p.y, p.z)) continue;
-      const q = frameQuaternion(p.x, p.y, p.z, Math.cos(spot.az), 0, -Math.sin(spot.az));
+      const raw = point(spot.colat, spot.az);
+      if (onPath(raw.x, raw.y, raw.z) || tooClose(raw.x, raw.y, raw.z)) continue;
+      const p = seat(raw.x, raw.y, raw.z);
+      const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(spot.az), 0, -Math.sin(spot.az));
       const plant: Plant = {
         ...p,
         qx: q.x,
@@ -160,15 +195,15 @@ function scatter(scene: THREE.Scene, gradient: THREE.Texture): void {
     }
   }
 
-  paint(scene, cone(1.55, 0.72, 6, 0.36), gradient, coral, false);
-  paint(scene, cylinder(1.15, 1.15, 0.32, 6), gradient, discs, false);
-  paint(scene, cylinder(0.09, 0.12, 2.5, 5), gradient, mintStem, false);
-  paint(scene, star(), gradient, mintStar, false);
-  paint(scene, cone(0.72, 3.3, 5, 1.65), gradient, petals, false);
-  paint(scene, cone(0.38, 3.6, 4, 1.8), gradient, spikes, true);
-  paint(scene, ribbon(), gradient, ribbons, false);
-  paint(scene, cylinder(0.08, 0.11, 3.3, 5), gradient, poles, false);
-  paint(scene, bulb(), gradient, bulbs, true);
+  paint(scene, cone(1.55, 0.72, 6, 0.36), gradient, coral, false, true);
+  paint(scene, cylinder(1.15, 1.15, 0.32, 6), gradient, discs, false, true);
+  paint(scene, cylinder(0.09, 0.12, 2.5, 5), gradient, mintStem, false, true);
+  paint(scene, star(), gradient, mintStar, false, true);
+  paint(scene, cone(0.72, 3.3, 5, 1.65), gradient, petals, false, true);
+  paint(scene, cone(0.38, 3.6, 4, 1.8), gradient, spikes, true, true);
+  paint(scene, ribbon(), gradient, ribbons, false, true);
+  paint(scene, cylinder(0.08, 0.11, 3.3, 5), gradient, poles, false, true);
+  paint(scene, bulb(), gradient, bulbs, true, true);
   addTotems(scene, gradient);
 }
 
@@ -178,9 +213,9 @@ function floraSpots(biome: number): Spot[] {
   const center = biomeAzimuth(biome);
   const spots: Spot[] = [];
   const bands = [
-    { n: 16, c0: 0.4, c1: 0.92, spread: 0.72 },
-    { n: 18, c0: 1.02, c1: 1.78, spread: 0.84 },
-    { n: 14, c0: 1.9, c1: 2.58, spread: 0.72 },
+    { n: 28, c0: 0.38, c1: 0.95, spread: 0.78 },
+    { n: 34, c0: 1.0, c1: 1.82, spread: 0.9 },
+    { n: 24, c0: 1.88, c1: 2.62, spread: 0.78 },
   ];
   let k = 0;
   for (const band of bands) {
@@ -194,14 +229,19 @@ function floraSpots(biome: number): Spot[] {
       });
     }
   }
-  for (let n = 0; n < 8; n += 1, k += 1) {
-    spots.push({
-      az: center + (unit(biome, k, 11) - 0.5) * 0.14,
-      colat: 1.55 + (unit(biome, k, 19) - 0.5) * 0.18,
-      scale: 1.45 + unit(biome, k, 4) * 0.55,
-      roll: unit(biome, k, 8),
-      grove: true,
-    });
+  for (let n = 0; n < 10; n += 1) {
+    const baseAz = center + (unit(biome, k, 11) - 0.5) * 0.2;
+    const baseC = 1.22 + unit(biome, k, 19) * 0.7;
+    k += 1;
+    for (let j = 0; j < 4; j += 1, k += 1) {
+      spots.push({
+        az: baseAz + (unit(biome, k, 3) - 0.5) * 0.028,
+        colat: baseC + (unit(biome, k, 5) - 0.5) * 0.026,
+        scale: (j === 0 ? 1.55 : 1.05) + unit(biome, k, 4) * 0.45,
+        roll: unit(biome, k, 8),
+        grove: true,
+      });
+    }
   }
   return spots;
 }
@@ -236,11 +276,13 @@ function paint(
   gradient: THREE.Texture,
   plants: readonly Plant[],
   flat: boolean,
+  wind = false,
 ): void {
   if (plants.length === 0) return;
   const material = flat
     ? new THREE.MeshBasicMaterial({ color: 0xffffff })
     : toonInstances(gradient);
+  if (wind) withWind(material);
   const mesh = new THREE.InstancedMesh(geometry, material, plants.length);
   mesh.frustumCulled = false;
   for (let i = 0; i < plants.length; i++) {
@@ -303,8 +345,9 @@ function addTotems(scene: THREE.Scene, gradient: THREE.Texture): void {
     if (!info) continue;
     const az = biomeAzimuth(biome) + 0.07;
     const colat = 1.62;
-    const p = point(colat, az);
-    const q = frameQuaternion(p.x, p.y, p.z, Math.cos(az), 0, -Math.sin(az));
+    const raw = point(colat, az);
+    const p = seat(raw.x, raw.y, raw.z);
+    const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
     const group = totem(biome, gradient, info.plant, info.deep);
     group.position.set(p.x, p.y, p.z);
     group.quaternion.copy(q);

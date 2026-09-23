@@ -1,6 +1,8 @@
 export type InputFrame = {
   strafe: number;
   forward: number;
+  /** Levetta quasi a fondo, oppure Shift mentre si cammina da tastiera. */
+  run: boolean;
   jump: boolean;
   interact: boolean;
 };
@@ -30,7 +32,8 @@ export function createControls(canvas: HTMLCanvasElement, root: HTMLElement): Co
   stick.className = 'stick';
   stick.innerHTML = '<div class="stick-knob"></div><span>cammina</span>';
   const knob = stick.querySelector<HTMLElement>('.stick-knob');
-  if (!knob) throw new Error('levetta incompleta');
+  const stickLabel = stick.querySelector('span');
+  if (!knob || !stickLabel) throw new Error('levetta incompleta');
 
   const jump = document.createElement('button');
   jump.type = 'button';
@@ -119,7 +122,7 @@ export function createControls(canvas: HTMLCanvasElement, root: HTMLElement): Co
   const armLook = (event: PointerEvent) => {
     if (event.button !== 0) return;
     const target = event.target;
-    if (target instanceof Element && target.closest('button, .stick, .sheet, .panel')) return;
+    if (target instanceof Element && target.closest('button, .stick, .sheet, .panel, .atlas')) return;
     looking = true;
     lastX = event.clientX;
     lastY = event.clientY;
@@ -162,8 +165,18 @@ export function createControls(canvas: HTMLCanvasElement, root: HTMLElement): Co
       lookX = 0;
       lookY = 0;
 
+      const stickMag = Math.hypot(stickX, stickY) / 46;
       let strafe = stickX / 46;
       let forward = -stickY / 46;
+      const keyMove =
+        down.has('KeyA') ||
+        down.has('ArrowLeft') ||
+        down.has('KeyD') ||
+        down.has('ArrowRight') ||
+        down.has('KeyW') ||
+        down.has('ArrowUp') ||
+        down.has('KeyS') ||
+        down.has('ArrowDown');
       if (down.has('KeyA') || down.has('ArrowLeft')) strafe -= 1;
       if (down.has('KeyD') || down.has('ArrowRight')) strafe += 1;
       if (down.has('KeyW') || down.has('ArrowUp')) forward += 1;
@@ -173,11 +186,15 @@ export function createControls(canvas: HTMLCanvasElement, root: HTMLElement): Co
         strafe /= mag;
         forward /= mag;
       }
+      const shift = down.has('ShiftLeft') || down.has('ShiftRight');
+      const run = stickMag >= 0.82 || (shift && keyMove);
+      stick.classList.toggle('run', stickMag >= 0.82);
+      stickLabel.textContent = stickMag >= 0.82 ? 'corri' : 'cammina';
       const jump = jumpEdge;
       const interact = interactEdge;
       jumpEdge = false;
       interactEdge = false;
-      return { strafe, forward, jump, interact };
+      return { strafe, forward, run, jump, interact };
     },
     pokeInteract() {
       interactEdge = true;

@@ -4,8 +4,10 @@ import { SPAWN, SPAWN_FACE } from '../game/content';
 import { toonMaterial } from '../render/toon';
 import { resolve, type Blocker } from '../world/collide';
 import { frameQuaternion, PLANET_R } from '../world/planet';
+import { shellLift } from '../world/relief';
 
-const SPEED = 2.6;
+const WALK = 2.35;
+const RUN = 4.7;
 const GRAVITY = 27;
 const JUMP = 5.15;
 const JUMP2 = 3.85;
@@ -13,10 +15,13 @@ const RADIUS = 0.09;
 const STEP = 1 / 90;
 const FOLLOW = 9;
 
+export type Gait = 'idle' | 'walk' | 'run' | 'air';
+
 export type Player = {
   readonly x: number;
   readonly y: number;
   readonly z: number;
+  readonly gait: Gait;
   update(dt: number, blockers: readonly Blocker[], frozen: boolean): void;
   consumeInteract(): boolean;
   syncCamera(camera: THREE.PerspectiveCamera, dt: number): void;
@@ -42,6 +47,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
   let extraJump = true;
   let hopCue = 0;
   let interactEdge = false;
+  let gait: Gait = 'idle';
   const basis = new THREE.Vector3(SPAWN_FACE.x, SPAWN_FACE.y, SPAWN_FACE.z).normalize();
   const face = basis.clone();
   const follow = new THREE.Vector3(x, y, z).normalize();
@@ -58,7 +64,8 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     const lift = PLANET_R + alt + bob;
     body.position.copy(up).multiplyScalar(lift);
     body.quaternion.copy(frameQuaternion(up.x, up.y, up.z, face.x, face.y, face.z));
-    shadow.position.copy(up).multiplyScalar(PLANET_R + 0.05);
+    const ground = shellLift(x, y, z);
+    shadow.position.copy(up).multiplyScalar(PLANET_R + ground + 0.04);
     spin.setFromUnitVectors(look.set(0, 0, 1), up);
     shadow.quaternion.copy(spin);
     shadow.scale.setScalar(1 - Math.min(0.45, alt * 0.28));
@@ -75,23 +82,32 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     get z() {
       return z;
     },
+    get gait() {
+      return gait;
+    },
     update(dt, blockers, frozen) {
       const input = controls.sample(Math.min(dt, 0.05));
       if (!frozen && input.interact) interactEdge = true;
       const wantJump = !frozen && input.jump;
       if (!wantJump) jumpLatch = false;
+      const run = !frozen && input.run;
       let left = Math.min(dt, 0.05);
       while (left > 0) {
         const h = Math.min(STEP, left);
         left -= h;
-        integrate(h, blockers, frozen ? 0 : input.strafe, frozen ? 0 : input.forward, wantJump);
+        integrate(h, blockers, frozen ? 0 : input.strafe, frozen ? 0 : input.forward, wantJump, run);
       }
       const moving = !frozen && grounded && Math.abs(input.strafe) + Math.abs(input.forward) > 0.08;
-      if (moving) phase += dt * 9.5;
-      const bob = moving ? Math.sin(phase * 2) * 0.012 : 0;
+      const running = moving && run;
+      if (moving) phase += dt * (running ? 15.5 : 7.6);
+      const bob = moving ? Math.sin(phase * 2) * (running ? 0.02 : 0.01) : 0;
+      if (!grounded && alt > 0.08) gait = 'air';
+      else if (running) gait = 'run';
+      else if (moving) gait = 'walk';
+      else gait = 'idle';
       place(bob);
       hopCue = Math.max(0, hopCue - dt * 2.6);
-      pose(moving, hopCue);
+      pose(gait, hopCue);
     },
     consumeInteract() {
       const hit = interactEdge;
@@ -152,7 +168,14 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     out.normalize();
   }
 
-  function integrate(h: number, blockers: readonly Blocker[], strafe: number, forward: number, wantJump: boolean): void {
+  function integrate(
+    h: number,
+    blockers: readonly Blocker[],
+    strafe: number,
+    forward: number,
+    wantJump: boolean,
+    run: boolean,
+  ): void {
     up.set(x, y, z).normalize();
     heading(head);
     right.crossVectors(head, up).normalize();
@@ -160,9 +183,10 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       face.copy(right).multiplyScalar(strafe).addScaledVector(head, forward);
       const mag = Math.min(1, face.length());
       face.normalize();
-      x += face.x * SPEED * h * mag;
-      y += face.y * SPEED * h * mag;
-      z += face.z * SPEED * h * mag;
+      const pace = run ? RUN : WALK;
+      x += face.x * pace * h * mag;
+      y += face.y * pace * h * mag;
+      z += face.z * pace * h * mag;
     }
     const solved = resolve(x, y, z, alt, RADIUS, blockers);
     x = solved.x;
@@ -200,7 +224,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       grounded = false;
     }
     up.set(x, y, z).normalize();
-    const shell = PLANET_R + alt;
+    const shell = PLANET_R + shellLift(up.x, up.y, up.z) + alt;
     x = up.x * shell;
     y = up.y * shell;
     z = up.z * shell;
@@ -208,9 +232,11 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
 
   return api;
 
-  function pose(moving: boolean, cue: number): void {
-    const swing = moving ? Math.sin(phase) * 1.05 : 0;
-    const airborne = alt > 0.08;
+  function pose(step: Gait, cue: number): void {
+    const air = step === 'air';
+    const run = step === 'run';
+    const walk = step === 'walk';
+    const swing = run ? Math.sin(phase) * 1.5 : walk ? Math.sin(phase) * 0.72 : 0;
     const legL = body.getObjectByName('legL');
     const legR = body.getObjectByName('legR');
     const armL = body.getObjectByName('armL');
@@ -219,16 +245,22 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     const cape = body.getObjectByName('cape');
     const puff = body.getObjectByName('puff');
     if (legL && legR) {
-      legL.rotation.x = airborne ? 0.55 : swing;
-      legR.rotation.x = airborne ? -0.35 : -swing;
+      legL.rotation.x = air ? 0.7 : swing;
+      legR.rotation.x = air ? -0.45 : -swing;
     }
     if (armL && armR) {
-      const lift = airborne ? (cue > 0.05 ? -1.35 : -0.7) : -swing * 0.9;
-      armL.rotation.x = airborne ? lift : -swing * 0.9;
-      armR.rotation.x = airborne ? lift : swing * 0.9;
+      const pump = run ? 1.2 : 0.62;
+      const lift = air ? (cue > 0.05 ? -1.45 : -0.85) : 0;
+      armL.rotation.x = air ? lift : swing * pump;
+      armR.rotation.x = air ? lift : -swing * pump;
+      armL.rotation.z = run ? 0.35 : 0.08;
+      armR.rotation.z = run ? -0.35 : -0.08;
     }
-    if (torso) torso.rotation.x = airborne ? -0.18 : moving ? 0.16 : 0;
-    if (cape) cape.rotation.x = airborne ? 0.7 : moving ? 0.25 + Math.sin(phase) * 0.35 : 0.12;
+    if (torso) torso.rotation.x = air ? -0.22 : run ? 0.42 : walk ? 0.14 : 0;
+    if (cape) {
+      const stream = run ? 1.05 + Math.sin(phase * 2) * 0.22 : walk ? 0.28 + Math.sin(phase) * 0.16 : 0.1;
+      cape.rotation.x = air ? 0.85 : stream;
+    }
     if (puff instanceof THREE.Mesh && puff.material instanceof THREE.MeshBasicMaterial) {
       puff.material.opacity = cue * 0.9;
       puff.scale.setScalar(0.55 + (1 - cue) * 1.7);

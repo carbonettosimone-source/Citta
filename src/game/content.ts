@@ -1,10 +1,10 @@
-import { BIOMES, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
-import { CRYSTAL_LOOK, DUNE_CAMP, HUB_PLAZA, MINT_PLAZA, VIOLET_PLAZA } from '../world/towns';
+import { BIOMES, angles, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
+import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN_PLAZA, MINT_PLAZA, VIOLET_PLAZA } from '../world/towns';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 6;
+export const PROTO = 7;
 
 const homeAz = biomeAzimuth(0);
 const home = onSphere(0.3, homeAz);
@@ -26,6 +26,8 @@ export type ChallengeDef = {
   y: number;
   z: number;
   needsCourse?: boolean;
+  /** Apre la bacheca dei giochi, anche se la moneta è già presa. */
+  opensBoard?: boolean;
 };
 
 const faro = HUB_PLAZA;
@@ -81,6 +83,25 @@ export const CHALLENGES: readonly ChallengeDef[] = [
     line: 'Il campo ricorda chi ha corso il sentiero.',
     ...cancello,
     needsCourse: true,
+  },
+  {
+    id: 'lanterne',
+    name: 'Piazza delle lanterne',
+    kind: 'explore',
+    coins: 14,
+    biome: 5,
+    line: 'Il paese rosa, sotto le lampade.',
+    ...LANTERN_PLAZA,
+  },
+  {
+    id: 'bacheca',
+    name: 'Bacheca dei giochi',
+    kind: 'explore',
+    coins: 8,
+    biome: 0,
+    line: 'Da qui si entra in Ostacoli. Il giro degli spicchi paga a parte.',
+    ...GAMES_BOARD,
+    opensBoard: true,
   },
 ];
 
@@ -147,7 +168,17 @@ export const EVENTS: readonly EventMode[] = [
     max: 100,
     demoStake: 20,
     playable: true,
-    blurb: 'Giro breve sulle dune. In anteprima correte in quattro.',
+    blurb: 'Giro breve sulle dune. In anteprima correte in quattro. Si entra anche dalla bacheca in città.',
+  },
+  {
+    id: 'giro',
+    name: 'Giro degli spicchi',
+    players: '1',
+    min: 0,
+    max: 0,
+    demoStake: 0,
+    playable: false,
+    blurb: 'Visita le sei mete del pianeta. Quando le hai tutte, la bacheca aggiunge 25 monete. Nessuna puntata.',
   },
 ];
 
@@ -194,3 +225,40 @@ export function payoutFor(place: number, stake: number): number {
   const mult = PAYOUT_MULT[place - 1] ?? 0;
   return Math.round(stake * mult);
 }
+
+export type MapKind = 'pole' | 'hub' | 'village' | 'biome' | 'games' | 'venue' | 'lookout';
+
+export type MapPlace = {
+  id: string;
+  name: string;
+  kind: MapKind;
+  colat: number;
+  az: number;
+};
+
+function place(id: string, name: string, kind: MapKind, point: { x: number; y: number; z: number }): MapPlace {
+  const pose = angles(point.x, point.y, point.z);
+  return { id, name, kind, colat: pose.colat, az: pose.az };
+}
+
+export const MAP_PLACES: readonly MapPlace[] = [
+  { id: 'pole', name: 'Faro del polo', kind: 'pole', colat: 0.04, az: homeAz },
+  place('hub', 'Città del polo', 'hub', HUB_PLAZA),
+  place('games', 'Bacheca dei giochi', 'games', GAMES_BOARD),
+  place('mint', 'Paese di menta', 'village', MINT_PLAZA),
+  place('violet', 'Paese viola', 'village', VIOLET_PLAZA),
+  place('crystal-town', 'Borgo di cristallo', 'village', CRYSTAL_PLAZA),
+  place('look', 'Belvedere', 'lookout', CRYSTAL_LOOK),
+  place('dune', 'Campo ostacoli', 'venue', DUNE_CAMP),
+  place('lantern', 'Piazza lanterne', 'village', LANTERN_PLAZA),
+  ...BIOMES.map((biome, index) => ({
+    id: `biome-${biome.id}`,
+    name: biome.name,
+    kind: 'biome' as const,
+    colat: 0.86,
+    az: biomeAzimuth(index),
+  })),
+];
+
+export const GIRO_IDS = ['faro', 'anello', 'pietre', 'belvedere', 'cancello', 'lanterne'] as const;
+export const GIRO_BONUS = 25;

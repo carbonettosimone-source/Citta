@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
-import { toonInstances } from '../render/toon';
+import { toonInstances, toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
-import { biomeAzimuth, frameQuaternion, onSphere, shift } from './planet';
+import { bandFalloff, biomeAzimuth, frameQuaternion, onSphere, shift } from './planet';
 
-type Kind = 'house' | 'tower' | 'pavilion' | 'stall';
+type Kind = 'house' | 'tower' | 'pavilion' | 'stall' | 'kiosk';
 
 type Lot = { n: number; e: number; kind: Kind; spin: number };
 
@@ -51,6 +51,11 @@ const TOWNS: readonly Town[] = [
       { n: -6, e: -13, kind: 'house', spin: -1.8 },
       { n: 15, e: 12, kind: 'stall', spin: 0.6 },
       { n: 15, e: -12, kind: 'stall', spin: -0.6 },
+      { n: 11, e: 4.4, kind: 'house', spin: 0.15 },
+      { n: 11, e: -4.4, kind: 'house', spin: -0.15 },
+      { n: 2.35, e: 5.7, kind: 'kiosk', spin: -0.85 },
+      { n: -2.2, e: 8.2, kind: 'stall', spin: 1.1 },
+      { n: -2.2, e: -8.2, kind: 'house', spin: -1.1 },
     ],
   },
   {
@@ -68,6 +73,9 @@ const TOWNS: readonly Town[] = [
       { n: -6, e: -5, kind: 'house', spin: -2 },
       { n: 5.5, e: 7, kind: 'tower', spin: 1.2 },
       { n: 8, e: 4, kind: 'pavilion', spin: 0 },
+      { n: -8, e: 2.6, kind: 'house', spin: 2.4 },
+      { n: 2, e: -7.2, kind: 'stall', spin: -1.2 },
+      { n: -3, e: 7.6, kind: 'house', spin: 0.9 },
     ],
   },
   {
@@ -85,6 +93,9 @@ const TOWNS: readonly Town[] = [
       { n: -5, e: -6, kind: 'pavilion', spin: 1 },
       { n: 5.5, e: -7, kind: 'tower', spin: -1 },
       { n: 9, e: 2, kind: 'house', spin: 0.8 },
+      { n: -8.2, e: 3.2, kind: 'house', spin: 2.5 },
+      { n: 2.2, e: 8.2, kind: 'stall', spin: 0.7 },
+      { n: -2.4, e: -7.4, kind: 'house', spin: -1.6 },
     ],
   },
   {
@@ -101,6 +112,9 @@ const TOWNS: readonly Town[] = [
       { n: 5.5, e: -4.5, kind: 'house', spin: -0.5 },
       { n: -5, e: -5, kind: 'pavilion', spin: 0.2 },
       { n: 6.5, e: 6, kind: 'tower', spin: 1.5 },
+      { n: -8, e: 2.4, kind: 'house', spin: 2.2 },
+      { n: 2.2, e: -7.2, kind: 'stall', spin: -1.1 },
+      { n: 9, e: -2.4, kind: 'pavilion', spin: 0.4 },
     ],
   },
   {
@@ -116,6 +130,25 @@ const TOWNS: readonly Town[] = [
       { n: -4.5, e: 3.5, kind: 'house', spin: 2 },
       { n: 4, e: -4, kind: 'stall', spin: -0.8 },
       { n: -1, e: -5.5, kind: 'tower', spin: -1.4 },
+      { n: -5.2, e: 4.6, kind: 'pavilion', spin: 1.7 },
+      { n: 6.4, e: 3.4, kind: 'house', spin: 0.3 },
+      { n: 1.2, e: 6.4, kind: 'stall', spin: 1.2 },
+    ],
+  },
+  {
+    id: 'crystal',
+    biome: 3,
+    colat: 1.5,
+    az: biomeAzimuth(3) - 0.11,
+    plaza: 4,
+    east: [-12, 12],
+    north: [-6, 6],
+    lots: [
+      { n: 5.2, e: 4.6, kind: 'house', spin: 0.4 },
+      { n: -5.2, e: 4.4, kind: 'pavilion', spin: 2.2 },
+      { n: 5.2, e: -4.8, kind: 'stall', spin: -0.5 },
+      { n: -4.6, e: -5, kind: 'house', spin: -2 },
+      { n: 6.6, e: 6.2, kind: 'tower', spin: 1.1 },
     ],
   },
 ];
@@ -125,14 +158,18 @@ const mint = TOWNS[1];
 const violet = TOWNS[2];
 const lantern = TOWNS[3];
 const dune = TOWNS[4];
-if (!hub || !mint || !violet || !lantern || !dune) throw new Error('paesi incompleti');
+const crystal = TOWNS[5];
+if (!hub || !mint || !violet || !lantern || !dune || !crystal) throw new Error('paesi incompleti');
 
 export const HUB_PLAZA = onSphere(hub.colat, hub.az);
 export const MINT_PLAZA = onSphere(mint.colat, mint.az);
 export const VIOLET_PLAZA = onSphere(violet.colat, violet.az);
 export const LANTERN_PLAZA = onSphere(lantern.colat, lantern.az);
 export const DUNE_CAMP = onSphere(dune.colat, dune.az);
+export const CRYSTAL_PLAZA = onSphere(crystal.colat, crystal.az);
 export const CRYSTAL_LOOK = shift(1.62, biomeAzimuth(3) + 0.07, 0, 4.5);
+/** Bacheca accanto al chiosco, fuori dal raggio del lotto così ci si può stare davanti. */
+export const GAMES_BOARD = shift(hub.colat, hub.az, 4.15, 5.55);
 
 type Pad = { x: number; y: number; z: number; r2: number };
 const pads: Pad[] = [];
@@ -144,6 +181,25 @@ for (const town of TOWNS) {
   const [n0, n1] = town.north;
   for (let e = e0; e <= e1; e += 2.4) pads.push({ ...shift(town.colat, town.az, 0, e), r2: 2.15 * 2.15 });
   for (let n = n0; n <= n1; n += 2.4) pads.push({ ...shift(town.colat, town.az, n, 0), r2: 2.15 * 2.15 });
+  for (const lot of town.lots) {
+    const r = lot.kind === 'tower' ? 2.15 : lot.kind === 'pavilion' ? 1.75 : lot.kind === 'stall' ? 1.95 : lot.kind === 'kiosk' ? 2.3 : 2.55;
+    pads.push({ ...shift(town.colat, town.az, lot.n, lot.e), r2: r * r });
+  }
+}
+
+/** 1 al centro di piazza, strada o lotto; scende a 0 sulla spalla. */
+export function townBlend(x: number, y: number, z: number): number {
+  let best = 0;
+  for (let i = 0; i < pads.length; i += 1) {
+    const pad = pads[i];
+    if (!pad) continue;
+    const dist = Math.hypot(x - pad.x, y - pad.y, z - pad.z);
+    const inner = Math.sqrt(pad.r2);
+    const w = bandFalloff(dist, inner, inner + 2.2);
+    if (w > best) best = w;
+    if (best >= 1) return 1;
+  }
+  return best;
 }
 
 export function onTownGround(x: number, y: number, z: number): boolean {
@@ -198,6 +254,12 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   const discs: Stamp[] = [];
   const stalls: Stamp[] = [];
   const awnings: Stamp[] = [];
+  const hips: Stamp[] = [];
+  const windows: Stamp[] = [];
+  const chimneys: Stamp[] = [];
+  const signs: Stamp[] = [];
+  const crowns: Stamp[] = [];
+  const lamps: Stamp[] = [];
 
   for (const town of TOWNS) {
     const tint = roofTint(town.biome);
@@ -221,18 +283,27 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
         });
       };
       if (lot.kind === 'house') {
+        const hip = Math.round(Math.abs(lot.e) + Math.abs(lot.n)) % 2 === 0;
         stamp(walls, 1, 1, 1, WALL);
-        stamp(roofs, 1, 1, 1, tint);
+        stamp(hip ? hips : roofs, 1, 1, 1, tint);
         stamp(doors, 1, 1, 1, INK);
+        stamp(windows, 1, 1, 1, 0x163044);
+        if (!hip) stamp(chimneys, 1, 1, 1, 0xc46a52);
         blockers.push({ ...p, r: 1.45, h: 3.4 });
       } else if (lot.kind === 'tower') {
         stamp(towers, 1, 1, 1, 0xe7dfd2);
         stamp(caps, 1, 1, 1, tint);
+        stamp(crowns, 1, 1, 1, AMBER);
         blockers.push({ ...p, r: 1.15, h: 7.4 });
       } else if (lot.kind === 'pavilion') {
         stamp(posts, 1, 1, 1, 0xe7dfd2);
         stamp(discs, 1, 1, 1, tint);
         blockers.push({ ...p, r: 0.55, h: 2.8 });
+      } else if (lot.kind === 'kiosk') {
+        stamp(stalls, 1.15, 1.05, 1.05, WALL);
+        stamp(signs, 1, 1, 1, 0x143028);
+        lampAt(lamps, p, facing, 3.15, 0.42);
+        blockers.push({ ...p, r: 1.15, h: 2.5 });
       } else {
         stamp(stalls, 1, 1, 1, WALL);
         stamp(awnings, 1, 1, 1, AMBER);
@@ -249,6 +320,41 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
     const lift = new THREE.Vector3(center.x, center.y, center.z).normalize();
     ring.position.addScaledVector(lift, 0.08);
     scene.add(ring);
+    for (const [north, east] of [
+      [town.plaza * 0.82, 1.85],
+      [town.plaza * 0.82, -1.85],
+      [-town.plaza * 0.82, 1.85],
+      [-town.plaza * 0.82, -1.85],
+    ] as const) {
+      const postAt = shift(town.colat, town.az, north, east);
+      const facingLamp = frameQuaternion(postAt.x, postAt.y, postAt.z, Math.sin(town.az), 0, Math.cos(town.az));
+      posts.push({
+        x: postAt.x,
+        y: postAt.y,
+        z: postAt.z,
+        qx: facingLamp.x,
+        qy: facingLamp.y,
+        qz: facingLamp.z,
+        qw: facingLamp.w,
+        sx: 0.55,
+        sy: 0.85,
+        sz: 0.55,
+        color: 0xe7dfd2,
+      });
+      lampAt(lamps, postAt, facingLamp, 2.05, 0.38);
+    }
+    if (town.id === 'dune') {
+      const gateAt = shift(town.colat, town.az, -6.4, 3.2);
+      const gate = new THREE.Mesh(
+        new THREE.TorusGeometry(2.15, 0.16, 6, 14),
+        toonMaterial(gradient, 0xf09a48),
+      );
+      gate.position.set(gateAt.x, gateAt.y, gateAt.z);
+      gate.quaternion.copy(frameQuaternion(gateAt.x, gateAt.y, gateAt.z, Math.sin(town.az), 0, Math.cos(town.az)));
+      const gateUp = new THREE.Vector3(gateAt.x, gateAt.y, gateAt.z).normalize();
+      gate.position.addScaledVector(gateUp, 2.15);
+      scene.add(gate);
+    }
   }
 
   const paint = (geo: THREE.BufferGeometry, list: readonly Stamp[], flat = false) => {
@@ -274,6 +380,29 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   paint(cylinder(1.85, 1.85, 0.2, 2.4), discs);
   paint(box(1.9, 1.15, 1.25, 0.58), stalls);
   paint(box(2.15, 0.12, 1.55, 1.28), awnings, true);
+  paint(hipRoof(), hips);
+  paint(windowsGeo(), windows);
+  paint(chimney(), chimneys);
+  paint(signBoard(), signs);
+  paint(crownBulb(), crowns, true);
+  paint(bulb(), lamps, true);
+}
+
+function lampAt(list: Stamp[], p: { x: number; y: number; z: number }, facing: THREE.Quaternion, height: number, scale: number): void {
+  const len = Math.hypot(p.x, p.y, p.z) || 1;
+  list.push({
+    x: p.x + (p.x / len) * height,
+    y: p.y + (p.y / len) * height,
+    z: p.z + (p.z / len) * height,
+    qx: facing.x,
+    qy: facing.y,
+    qz: facing.z,
+    qw: facing.w,
+    sx: scale,
+    sy: scale,
+    sz: scale,
+    color: AMBER,
+  });
 }
 
 function roofTint(biome: number): number {
@@ -308,5 +437,73 @@ function cylinder(rt: number, rb: number, h: number, lift: number): THREE.Cylind
 function door(): THREE.BoxGeometry {
   const geo = new THREE.BoxGeometry(0.55, 0.85, 0.08);
   geo.translate(0, 0.46, 1.18);
+  return geo;
+}
+
+function hipRoof(): THREE.ConeGeometry {
+  const geo = new THREE.ConeGeometry(2.05, 0.7, 4);
+  geo.translate(0, 2.55, 0);
+  return geo;
+}
+
+function windowsGeo(): THREE.BufferGeometry {
+  const geo = new THREE.BoxGeometry(0.36, 0.4, 0.06);
+  const left = geo.clone();
+  left.translate(-0.58, 1.38, 1.2);
+  const right = geo.clone();
+  right.translate(0.58, 1.38, 1.2);
+  return mergePair(left, right);
+}
+
+function chimney(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(0.28, 0.62, 0.28);
+  geo.translate(0.62, 3.2, -0.15);
+  return geo;
+}
+
+function signBoard(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(1.7, 0.95, 0.1);
+  geo.translate(0, 2.45, 0.15);
+  return geo;
+}
+
+function crownBulb(): THREE.SphereGeometry {
+  const geo = new THREE.SphereGeometry(0.34, 7, 6);
+  geo.translate(0, 7.55, 0);
+  return geo;
+}
+
+function bulb(): THREE.SphereGeometry {
+  return new THREE.SphereGeometry(1, 7, 6);
+}
+
+function mergePair(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geo = new THREE.BufferGeometry();
+  const count = a.getAttribute('position').count + b.getAttribute('position').count;
+  const position = new Float32Array(count * 3);
+  const normal = new Float32Array(count * 3);
+  const pa = a.getAttribute('position');
+  const pb = b.getAttribute('position');
+  const na = a.getAttribute('normal');
+  const nb = b.getAttribute('normal');
+  for (let i = 0; i < pa.count; i += 1) {
+    position[i * 3] = pa.getX(i);
+    position[i * 3 + 1] = pa.getY(i);
+    position[i * 3 + 2] = pa.getZ(i);
+    normal[i * 3] = na.getX(i);
+    normal[i * 3 + 1] = na.getY(i);
+    normal[i * 3 + 2] = na.getZ(i);
+  }
+  const off = pa.count;
+  for (let i = 0; i < pb.count; i += 1) {
+    position[(off + i) * 3] = pb.getX(i);
+    position[(off + i) * 3 + 1] = pb.getY(i);
+    position[(off + i) * 3 + 2] = pb.getZ(i);
+    normal[(off + i) * 3] = nb.getX(i);
+    normal[(off + i) * 3 + 1] = nb.getY(i);
+    normal[(off + i) * 3 + 2] = nb.getZ(i);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
   return geo;
 }

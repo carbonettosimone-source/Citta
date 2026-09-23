@@ -12,13 +12,14 @@ English: mobile-first spherical hub, radius 160. Six large wedge biomes, invente
 
 Si parte in piazza, di fronte al faro. Il faro vale 20 monete: bastano per la demo.
 
-- **Pollice sinistro** sulla levetta per camminare. In alto si va avanti.
+- **Pollice sinistro** sulla levetta per camminare. A fondo corsa: la scritta diventa «corri».
 - **Dito sul mondo** per girare la visuale. Il blocco del puntatore non serve.
 - **Salta** è il tasto tondo a destra. Un secondo tocco in aria fa il doppio salto.
-- Il pulsante al centro raccoglie la sfida quando sei vicino.
-- **Eventi** → scegli il modo → vedi la puntata → **Entra (demo)**.
+- Il pulsante al centro raccoglie la sfida quando sei vicino. Le monete sul sentiero si prendono da sole.
+- **Mappa** mostra il pianeta, i paesi e dove guardi. Tocca un nome per la distanza.
+- **Giochi** → scegli il modo → vedi la puntata → **Entra (demo)**. La bacheca in città apre lo stesso pannello.
 
-Tastiera, se c'è: WASD o frecce, trascina per guardare, E raccoglie, spazio salta, Q e R ruotano.
+Tastiera, se c'è: WASD o frecce camminano, Shift corre, trascina per guardare, E raccoglie, spazio salta, M apre la mappa, Q e R ruotano.
 
 Portrait e landscape usano gli stessi controlli. I pannelli rispettano le safe area.
 
@@ -37,7 +38,7 @@ Il montepremi di quattro puntate torna ai corridori, senza rake:
 
 Rami, Lea e Nico sono tempi fissi. Una linea pulita può arrivare prima di Rami; una corsa lenta prende il terzo. Il rango settimanale di questa sessione parte vuoto e migliora (il numero scende) quando chiudi una gara. Poi **Torna in piazza**.
 
-Corsa, Logica e Precisione mostrano la puntata ma non aprono una stanza: un toast lo dice, e non scala monete.
+Corsa, Logica, Precisione e il Giro degli spicchi mostrano la scheda ma non aprono una stanza. Il giro paga 25 monete da solo, quando hai visitato le sei mete. Nessuna puntata, niente soldi veri.
 
 Il cerchio ciano in fondo al percorso sblocca anche il cancello, se lo raggiungi fuori dalla gara.
 
@@ -60,9 +61,12 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 - Sei spicchi larghi, con cucitura scura: mesa corallo, prateria menta, giardino viola, campo di cristalli, dune pesca, bosco di lanterne. Ogni spicchio ha un totem e la sua famiglia di piante
 - Piante inventate (ventagli, dischi esagonali, stelle su stelo, torri di petali, cristalli, nastri, lanterne). Niente pini, querce o palme. Quasi tutte in `InstancedMesh`
 - Palo-faro sul polo nord, sentiero chiaro, sfide lontane dallo spawn e colorate come il proprio spicchio
-- Avatar snello, circa un quinto dell’altezza precedente, così case e rocce lo sovrastano. Braccia e mantello nel passo, doppio salto
-- Città del polo vicino allo spawn (piazza, strade, case, torri, chioschi) e paesi negli spicchi menta, viola e lanterne, più un campo sulle dune. Stesso seme `hashText('Mondo-1')` a ogni caricamento
-- Erba e detriti di bioma, rocce a gruppi, cuciture più larghe. Tutto in `InstancedMesh` dove si ripete
+- Avatar snello, circa un quinto dell’altezza precedente. Passo e corsa sono animazioni diverse: la corsa piega il busto, allunga il passo e stende il mantello. Doppio salto
+- Strade e piazze scavate nel guscio, con un rilievo basso fuori dal selciato. Cuciture sfumate fra gli spicchi. Stesso seme `hashText('Mondo-1')`
+- Città del polo (piazza, strade, case con porte e finestre, torri con lanterne, bacheca dei giochi), paesi in menta, viola, cristallo e lanterne, campo ostacoli con un arco. Stesso seme a ogni caricamento
+- Tappeto di flora inventata, boschetti, vento leggero sulle istanze. Rocce ferme. Tutto in `InstancedMesh` dove si ripete
+- Mappa del pianeta dal HUD, con i luoghi e la direzione in cui guardi
+- Monete lungo i sentieri, mete nei paesi, giro degli spicchi da 25, bacheca che apre Giochi
 - Mondo rigenerato da seme (`hash32`, niente `Math.random`)
 - WebGL2: scena a metà risoluzione, upscale nearest
 - Nebbia corta, stesso colore del cielo

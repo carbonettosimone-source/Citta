@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { toonMaterial } from '../render/toon';
-import { CHALLENGES, biomeOf, type ChallengeDef } from './content';
+import { CHALLENGES, GIRO_BONUS, GIRO_IDS, biomeOf, type ChallengeDef } from './content';
 import { frameQuaternion } from '../world/planet';
 import type { Player } from '../player/player';
 import { grant, type Session } from './session';
@@ -100,6 +100,22 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
     group.add(pole, flag);
     bob = flag;
     baseY = 2.2;
+  } else if (def.id === 'lanterne') {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 2.8, 5), ink);
+    pole.position.y = 1.4;
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 6), glow());
+    lamp.position.y = 2.9;
+    group.add(pole, lamp);
+    bob = lamp;
+    baseY = 2.9;
+  } else if (def.id === 'bacheca') {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.7, 0.16), ink);
+    post.position.y = 0.85;
+    const board = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.85, 0.08), glow());
+    board.position.y = 1.85;
+    group.add(post, board);
+    bob = board;
+    baseY = 1.85;
   } else {
     const left = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.9, 0.18), ink);
     const right = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.9, 0.18), ink);
@@ -150,8 +166,9 @@ function promptFor(def: ChallengeDef, session: Session): string {
 }
 
 function collect(def: ChallengeDef, session: Session, hud: Hud): void {
+  if (def.opensBoard) hud.openBoard();
   if (session.claimed.has(def.id)) {
-    hud.toast(`${def.name} è già tua.`);
+    hud.toast(def.opensBoard ? 'La bacheca elenca i giochi.' : `${def.name} è già tua.`);
     return;
   }
   if (def.needsCourse && !session.courseClear) {
@@ -162,5 +179,15 @@ function collect(def: ChallengeDef, session: Session, hud: Hud): void {
   grant(session, def.coins);
   hud.sync();
   hud.toast(`+${def.coins} · ${def.line}`);
+  payGiro(session, hud);
   navigator.vibrate?.(18);
+}
+
+function payGiro(session: Session, hud: Hud): void {
+  if (session.claimed.has('giro')) return;
+  if (!GIRO_IDS.every((id) => session.claimed.has(id))) return;
+  session.claimed.add('giro');
+  grant(session, GIRO_BONUS);
+  hud.sync();
+  hud.toast(`+${GIRO_BONUS} · Giro degli spicchi chiuso.`);
 }
