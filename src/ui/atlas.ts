@@ -38,12 +38,12 @@ export function createAtlas(root: HTMLElement): Atlas {
     <div class="sheet map-sheet">
       <header class="sheet-head">
         <div>
-          <p class="eyebrow">Mondo-1 · nord al centro</p>
+          <p class="eyebrow">Modulo 16 m · cardo e decumano</p>
           <h2>Mappa</h2>
         </div>
         <button type="button" class="ghost" id="map-close">Chiudi</button>
       </header>
-      <canvas class="map-canvas" width="640" height="820" aria-label="Pianeta e pianta della città"></canvas>
+      <canvas class="map-canvas" width="420" height="512" aria-label="Pianta della città, modulo 16 metri"></canvas>
       <p class="map-caption" id="map-caption">In alto il pianeta. In basso la pianta: cardo e decumano.</p>
       <ul class="map-list"></ul>
     </div>
@@ -103,9 +103,8 @@ export function createAtlas(root: HTMLElement): Atlas {
     },
     draw(px, py, pz, fx, fy, fz) {
       if (!open) return;
-      const size = 640;
-      const width = size;
-      const height = Math.round(size * 1.28);
+      const width = Math.round(Math.max(280, Math.min(420, canvas.clientWidth || 360)));
+      const height = Math.round(width * 1.22);
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
@@ -136,13 +135,29 @@ function paint(
   fz: number,
   selected: string,
 ): void {
-  const cx = width / 2;
-  const cy = height * 0.3;
-  const radius = Math.min(width, height) * 0.26;
   ctx.clearRect(0, 0, width, height);
+  const planH = Math.round(height * 0.78);
+  paintPlan(ctx, width, planH, px, py, pz, fx, fy, fz);
+  const planetR = Math.min(width * 0.12, (height - planH) * 0.32);
+  paintPlanet(ctx, width * 0.5, planH + (height - planH) * 0.52, planetR, px, py, pz, fx, fy, fz, selected);
+}
+
+function paintPlanet(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  px: number,
+  py: number,
+  pz: number,
+  fx: number,
+  fy: number,
+  fz: number,
+  selected: string,
+): void {
   ctx.fillStyle = '#10241c';
   ctx.beginPath();
-  ctx.arc(cx, cy, radius + 8, 0, Math.PI * 2);
+  ctx.arc(cx, cy, radius + Math.max(3, radius * 0.12), 0, Math.PI * 2);
   ctx.fill();
 
   for (let i = 0; i < BIOMES.length; i += 1) {
@@ -163,14 +178,14 @@ function paint(
   }
 
   ctx.strokeStyle = 'rgba(255, 241, 208, 0.85)';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(1, radius * 0.04);
   ctx.beginPath();
   const ring = (1.02 / Math.PI) * radius;
   ctx.arc(cx, cy, ring, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.strokeStyle = 'rgba(74, 59, 56, 0.9)';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = Math.max(1, radius * 0.03);
   for (let i = 0; i < BIOMES.length; i += 1) {
     const edge = biomeAzimuth(i) - Math.PI / BIOMES.length;
     const rim = project(Math.PI * 0.92, edge, cx, cy, radius);
@@ -180,30 +195,14 @@ function paint(
     ctx.stroke();
   }
 
-  ctx.font = '600 13px Outfit, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  const dot = Math.max(2, radius * 0.06);
   for (const place of MAP_PLACES) {
-    if (isCity(place.id)) continue;
+    if (isCity(place.id) || place.kind === 'biome' || place.kind === 'pole') continue;
     const at = project(place.colat, place.az, cx, cy, radius);
-    const hot = place.id === selected;
-    ctx.fillStyle = '#10241c';
+    ctx.fillStyle = place.id === selected ? '#ffffff' : KIND_COLOR[place.kind];
     ctx.beginPath();
-    ctx.arc(at.x, at.y, place.kind === 'biome' ? 4 : 8, 0, Math.PI * 2);
+    ctx.arc(at.x, at.y, dot, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = hot ? '#ffffff' : KIND_COLOR[place.kind];
-    ctx.beginPath();
-    ctx.arc(at.x, at.y, place.kind === 'biome' ? 2.5 : 5.5, 0, Math.PI * 2);
-    ctx.fill();
-    const label = mapLabel(place);
-    if (!label) continue;
-    ctx.font = '700 12px Outfit, sans-serif';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(16, 36, 28, 0.9)';
-    ctx.fillStyle = '#f6f1e6';
-    const nudge = labelNudge(place.id);
-    ctx.strokeText(label, at.x, at.y - 12 + nudge);
-    ctx.fillText(label, at.x, at.y - 12 + nudge);
   }
 
   const here = angles(px, py, pz);
@@ -224,9 +223,8 @@ function paint(
   ctx.fill();
   ctx.fillStyle = '#10241c';
   ctx.beginPath();
-  ctx.arc(you.x, you.y, 4, 0, Math.PI * 2);
+  ctx.arc(you.x, you.y, Math.max(2, radius * 0.05), 0, Math.PI * 2);
   ctx.fill();
-  paintPlan(ctx, width, height, px, py, pz, fx, fy, fz);
 }
 
 function isCity(id: string): boolean {
@@ -259,20 +257,24 @@ function paintPlan(
   fy: number,
   fz: number,
 ): void {
-  const bandTop = height * 0.56;
   ctx.fillStyle = '#1a1030';
-  ctx.fillRect(12, bandTop, width - 24, height - bandTop - 10);
-  ctx.strokeStyle = 'rgba(255, 77, 134, 0.85)';
+  ctx.fillRect(8, 8, width - 16, height - 12);
+  ctx.strokeStyle = 'rgba(255, 77, 134, 0.9)';
   ctx.lineWidth = 2;
-  ctx.strokeRect(12, bandTop, width - 24, height - bandTop - 10);
-  ctx.font = '700 13px Outfit, sans-serif';
+  ctx.strokeRect(8, 8, width - 16, height - 12);
+  ctx.font = '700 15px Outfit, sans-serif';
   ctx.fillStyle = '#ffe4f2';
   ctx.textAlign = 'left';
-  ctx.fillText('Pianta · modulo 16 m', 22, bandTop + 18);
+  ctx.textBaseline = 'middle';
+  ctx.fillText('N → faro', 18, 26);
+  ctx.textAlign = 'right';
+  ctx.fillText('E → menta', width - 18, 26);
 
+  const spanE = 78;
+  const spanN = 74;
+  const scale = Math.min((width - 72) / spanE, (height - 58) / spanN);
   const originX = width / 2;
-  const originY = bandTop + (height - bandTop) * 0.56;
-  const scale = (width * 0.42) / 40;
+  const originY = 34 + (height - 46) * (38 / spanN);
   const pt = (n: number, e: number) => ({ x: originX + e * scale, y: originY - n * scale });
   const line = (n0: number, e0: number, n1: number, e1: number, widthPx: number, color: string) => {
     const a = pt(n0, e0);
@@ -285,37 +287,48 @@ function paintPlan(
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
   };
-  line(-36, 0, 28, 0, 7, '#f070a8');
-  line(0, -36, 0, 36, 7, '#f070a8');
-  line(16, -24, 16, 24, 4, '#d4d0ee');
-  line(-16, -24, -16, 24, 4, '#d4d0ee');
-  line(-24, 16, 24, 16, 4, '#d4d0ee');
-  line(-24, -16, 24, -16, 4, '#d4d0ee');
+  const primary = Math.max(5, scale * 1.15);
+  const secondary = Math.max(3, scale * 0.62);
+  line(-36, 0, 30, 0, primary, '#f070a8');
+  line(0, -36, 0, 36, primary, '#f070a8');
+  line(16, -24, 16, 24, secondary, '#d4d0ee');
+  line(-16, -24, -16, 24, secondary, '#d4d0ee');
+  line(-24, 16, 24, 16, secondary, '#d4d0ee');
+  line(-24, -16, 24, -16, secondary, '#d4d0ee');
   line(7.4, 8, 13.2, 8, 2, '#9ad7c4');
   line(-13.2, 8, -7.4, 8, 2, '#9ad7c4');
   line(7.4, -8, 13.2, -8, 2, '#9ad7c4');
   line(-13.2, -8, -7.4, -8, 2, '#9ad7c4');
+  const forum = [pt(6, 6), pt(6, -6), pt(-6, -6), pt(-6, 6)];
+  ctx.strokeStyle = '#ff4d86';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  const first = forum[0];
+  if (first) ctx.moveTo(first.x, first.y);
+  for (const corner of forum.slice(1)) ctx.lineTo(corner.x, corner.y);
+  ctx.closePath();
+  ctx.stroke();
 
-  const node = (n: number, e: number, label: string, fill: string) => {
+  const node = (n: number, e: number, label: string, fill: string, dx: number, dy: number) => {
     const at = pt(n, e);
     ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.arc(at.x, at.y, 5, 0, Math.PI * 2);
+    ctx.arc(at.x, at.y, 6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.font = '700 11px Outfit, sans-serif';
+    ctx.font = '700 13px Outfit, sans-serif';
     ctx.fillStyle = '#ffe4f2';
     ctx.textAlign = 'center';
-    ctx.fillText(label, at.x, at.y - 10);
+    ctx.fillText(label, at.x + dx, at.y + dy);
   };
-  node(0, 0, 'Piazza', '#ff4d86');
-  node(16, 0, 'Corallo', '#ff4d86');
-  node(0, 16, 'Mercato', '#22c8ee');
-  node(0, -16, 'Botteghe', '#7c4dff');
-  node(16, 16, 'Giochi', '#ffc43a');
-  node(26, 0, 'Terrazza', '#7ec8ee');
-  node(-32, 0, 'Sud', '#c9b6ff');
-  node(0, 32, 'Est', '#c9b6ff');
-  node(0, -32, 'Ovest', '#c9b6ff');
+  node(0, 0, 'Piazza', '#ff4d86', 0, 16);
+  node(16, 0, 'Corallo', '#ff4d86', 0, -14);
+  node(0, 16, 'Mercato', '#22c8ee', 0, -14);
+  node(0, -16, 'Botteghe', '#7c4dff', 0, -14);
+  node(16, 16, 'Giochi', '#ffc43a', 0, -14);
+  node(26, 0, 'Terrazza', '#7ec8ee', 36, 0);
+  node(-32, 0, 'Sud', '#c9b6ff', 0, -14);
+  node(0, 32, 'Est', '#c9b6ff', 0, 16);
+  node(0, -32, 'Ovest', '#c9b6ff', 0, 16);
 
   const here = cityLocal(px, py, pz);
   const face = cityLocal(px + fx, py + fy, pz + fz);
@@ -331,37 +344,6 @@ function paintPlan(
   ctx.beginPath();
   ctx.arc(you.x, you.y, 4, 0, Math.PI * 2);
   ctx.fill();
-}
-
-function mapLabel(place: MapPlace): string | null {
-  if (place.kind === 'biome' || place.kind === 'pole') return null;
-  if (place.kind === 'hub') return 'Piazza';
-  if (place.id === 'quarter') return 'Corallo';
-  if (place.id === 'mercato') return 'Mercato';
-  if (place.kind === 'games') return 'Giochi';
-  if (place.id === 'botteghe') return 'Botteghe';
-  if (place.id === 'porta') return 'Porta';
-  if (place.id === 'east-gate') return 'Est';
-  if (place.id === 'dune-gate') return 'Dune';
-  if (place.id === 'terrazza') return 'Terrazza';
-  if (place.kind === 'venue') return 'Ostacoli';
-  if (place.kind === 'lookout') return 'Belvedere';
-  if (place.id === 'mint') return 'Menta';
-  if (place.id === 'violet') return 'Viola';
-  if (place.id === 'crystal-town') return 'Cristallo';
-  if (place.id === 'lantern') return 'Lanterne';
-  return place.name;
-}
-
-function labelNudge(id: string): number {
-  if (id === 'games') return 16;
-  if (id === 'mercato') return -4;
-  if (id === 'terrazza') return -14;
-  if (id === 'quarter') return 12;
-  if (id === 'dune-gate') return 14;
-  if (id === 'botteghe') return -12;
-  if (id === 'porta') return 12;
-  return 0;
 }
 
 function project(colat: number, az: number, cx: number, cy: number, radius: number): { x: number; y: number } {

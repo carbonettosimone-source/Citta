@@ -1,22 +1,22 @@
 # Minimondo
 
-**Apri sul telefono:** [https://arrives-bruce-conference-sweet.trycloudflare.com/](https://arrives-bruce-conference-sweet.trycloudflare.com/)
+**Apri sul telefono:** [https://ranger-gregory-webpage-qualifying.trycloudflare.com/](https://ranger-gregory-webpage-qualifying.trycloudflare.com/)
 
 È la build di produzione, servita da un tunnel Cloudflare perché l’API di questo ambiente non può accendere GitHub Pages (403 su `POST /pages`, e il workflow di deploy risponde 404 finché Pages non è abilitato). Il ramo `gh-pages` è già pronto: in Settings → Pages → Deploy from a branch → `gh-pages` / `/` il sito stabile diventa [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/). Il tunnel non ha garanzia di uptime: se il link non risponde, quel passo in Settings lo rimpiazza.
 
-Hub nel browser, pensato per il pollice: un pianeta sferico di raggio 160 m, dieci volte il giro del guscio precedente. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi grandi si incontrano su un incastro di pietra chiara. Il cielo è lilla, non sabbia: gli spicchi sono corallo, menta, viola, teal, pesca e lanterna, il selciato è rosa e grigio freddo, i tetti e le persiane tengono il colore. Chiome inventate a strati, case con gronda e una fontana in piazza. Il nucleo è una città: piazza civica con colonnato, mercato a est, botteghe a ovest, piazza dei giochi, il quartiere del corallo con una viuzza, porta meridionale e porta verso le dune. Oltre le porte restano gli spicchi e i paesi. Raccogli le sfide sparse negli spicchi, poi entra nella demo di Ostacoli sulle dune. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
+Hub nel browser, pensato per il pollice: un pianeta sferico di raggio 160 m, dieci volte il giro del guscio precedente. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi grandi si incontrano su un incastro di pietra chiara. Il cielo è lilla, non sabbia: gli spicchi sono corallo, menta, viola, teal, pesca e lanterna, il selciato è rosa e grigio freddo, i tetti e le persiane tengono il colore. Chiome inventate a strati, case con gronda. Il nucleo è una pianta, non uno sparso: cardo e decumano si incrociano in una piazza civica colonnata, modulo 16 m. Corallo sta a nord sul cardo, il mercato a est, le botteghe a ovest, i giochi all’angolo nord-est. Tre porte chiudono gli assi; il faro chiude la visuale a nord. Oltre le porte restano gli spicchi e i paesi. Raccogli le sfide sparse negli spicchi, poi entra nella demo di Ostacoli sulle dune. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
 English: mobile-first spherical hub, radius 160. Six large wedge biomes, invented plants, slender avatar, double jump, touch stick, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 
 ## Come si gioca
 
-Si parte in piazza, di fronte al faro. Il faro vale 20 monete: bastano per la demo.
+Si parte sul cardo, a sud della piazza, di fronte al faro. Il faro vale 20 monete: bastano per la demo.
 
 - **Pollice sinistro** sulla levetta per camminare. A fondo corsa: la scritta diventa «corri».
 - **Dito sul mondo** per girare la visuale. Il blocco del puntatore non serve.
 - **Salta** è il tasto tondo a destra. Un secondo tocco in aria fa il doppio salto.
 - Il pulsante al centro raccoglie la sfida quando sei vicino. Le monete sul sentiero si prendono da sole.
-- **Mappa** mostra il pianeta, i paesi e dove guardi. Tocca un nome per la distanza.
+- **Mappa** mostra la pianta della città: cardo, decumano, modulo 16 m e i nomi sui nodi. In basso, piccolo, il pianeta. Tocca un nome per la distanza.
 - **Giochi** → scegli il modo → vedi la puntata → **Entra (demo)**. La bacheca in città apre lo stesso pannello.
 
 Tastiera, se c'è: WASD o frecce camminano, Shift corre, trascina per guardare, E raccoglie, spazio salta, M apre la mappa, Q e R ruotano.
@@ -63,9 +63,9 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 - Palo-faro sul polo nord, sentiero chiaro, sfide lontane dallo spawn e colorate come il proprio spicchio
 - Avatar snello, circa un quinto dell’altezza precedente. Passo e corsa sono animazioni diverse: la corsa piega il busto, allunga il passo e stende il mantello. Doppio salto
 - Strade e piazze scavate nel guscio, con un rilievo basso fuori dal selciato. Cuciture sfumate fra gli spicchi. Stesso seme `hashText('Mondo-1')`
-- Città del polo (piazza, strade, case con porte e finestre, torri con lanterne, bacheca dei giochi), paesi in menta, viola, cristallo e lanterne, campo ostacoli con un arco. Stesso seme a ogni caricamento
+- Città a griglia (vedi `PLAN.md`): cardo e decumano larghi 6 m, strade a ±16 m, vicoli solo dentro i blocchi, piazza colonnata all’incrocio, bacheca al centro di piazza dei giochi. Paesi in menta, viola, cristallo e lanterne, campo ostacoli con un arco. Stesso seme a ogni caricamento
 - Tappeto di flora inventata, boschetti, vento leggero sulle istanze. Rocce ferme. Tutto in `InstancedMesh` dove si ripete
-- Mappa del pianeta dal HUD, con i luoghi e la direzione in cui guardi
+- Mappa dal HUD: pianta ortogonale della città e, sotto, il pianeta con la direzione in cui guardi
 - Monete lungo i sentieri, mete nei paesi, giro degli spicchi da 25, bacheca che apre Giochi
 - Mondo rigenerato da seme (`hash32`, niente `Math.random`)
 - WebGL2: scena a metà risoluzione, upscale nearest
