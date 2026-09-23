@@ -289,7 +289,7 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
         stamp(doors, 1, 1, 1, INK);
         stamp(windows, 1, 1, 1, 0x163044);
         if (!hip) stamp(chimneys, 1, 1, 1, 0xc46a52);
-        blockers.push({ ...p, r: 1.45, h: 3.4 });
+        blockers.push({ ...p, r: 1.72, h: 3.4 });
       } else if (lot.kind === 'tower') {
         stamp(towers, 1, 1, 1, 0xe7dfd2);
         stamp(caps, 1, 1, 1, tint);
@@ -303,11 +303,11 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
         stamp(stalls, 1.15, 1.05, 1.05, WALL);
         stamp(signs, 1, 1, 1, 0x143028);
         lampAt(lamps, p, facing, 3.15, 0.42);
-        blockers.push({ ...p, r: 1.15, h: 2.5 });
+        blockers.push({ ...p, r: 1.32, h: 2.5 });
       } else {
         stamp(stalls, 1, 1, 1, WALL);
         stamp(awnings, 1, 1, 1, AMBER);
-        blockers.push({ ...p, r: 1.05, h: 1.7 });
+        blockers.push({ ...p, r: 1.16, h: 1.7 });
       }
     }
     const center = onSphere(town.colat, town.az);

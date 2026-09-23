@@ -22,6 +22,8 @@ export type Player = {
   readonly y: number;
   readonly z: number;
   readonly gait: Gait;
+  /** Raggio dei piedi disegnati. Deve coincidere con la posizione sul guscio. */
+  readonly radius: number;
   update(dt: number, blockers: readonly Blocker[], frozen: boolean): void;
   consumeInteract(): boolean;
   syncCamera(camera: THREE.PerspectiveCamera, dt: number): void;
@@ -48,6 +50,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
   let hopCue = 0;
   let interactEdge = false;
   let gait: Gait = 'idle';
+  let rendered = PLANET_R;
   const basis = new THREE.Vector3(SPAWN_FACE.x, SPAWN_FACE.y, SPAWN_FACE.z).normalize();
   const face = basis.clone();
   const follow = new THREE.Vector3(x, y, z).normalize();
@@ -61,11 +64,11 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
 
   const place = (bob = 0) => {
     up.set(x, y, z).normalize();
-    const lift = PLANET_R + alt + bob;
-    body.position.copy(up).multiplyScalar(lift);
+    const feet = Math.hypot(x, y, z);
+    body.position.copy(up).multiplyScalar(feet + bob);
+    rendered = feet + bob;
     body.quaternion.copy(frameQuaternion(up.x, up.y, up.z, face.x, face.y, face.z));
-    const ground = shellLift(x, y, z);
-    shadow.position.copy(up).multiplyScalar(PLANET_R + ground + 0.04);
+    shadow.position.copy(up).multiplyScalar(Math.max(PLANET_R, feet - alt) + 0.03);
     spin.setFromUnitVectors(look.set(0, 0, 1), up);
     shadow.quaternion.copy(spin);
     shadow.scale.setScalar(1 - Math.min(0.45, alt * 0.28));
@@ -84,6 +87,9 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     },
     get gait() {
       return gait;
+    },
+    get radius() {
+      return rendered;
     },
     update(dt, blockers, frozen) {
       const input = controls.sample(Math.min(dt, 0.05));
@@ -122,7 +128,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       const portrait = window.innerHeight > window.innerWidth;
       const dist = portrait ? 3.15 : 3.7;
       const horiz = Math.cos(controls.pitch) * dist;
-      const anchor = PLANET_R + alt;
+      const anchor = Math.hypot(x, y, z);
       camera.fov = portrait ? 70 : 60;
       camera.updateProjectionMatrix();
       camera.position
@@ -145,9 +151,10 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       grounded = true;
       extraJump = true;
       hopCue = 0;
-      x = up.x * PLANET_R;
-      y = up.y * PLANET_R;
-      z = up.z * PLANET_R;
+      const shell = PLANET_R + shellLift(up.x, up.y, up.z);
+      x = up.x * shell;
+      y = up.y * shell;
+      z = up.z * shell;
       basis.set(faceX, faceY, faceZ);
       basis.addScaledVector(up, -basis.dot(up));
       if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
@@ -224,7 +231,8 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       grounded = false;
     }
     up.set(x, y, z).normalize();
-    const shell = PLANET_R + shellLift(up.x, up.y, up.z) + alt;
+    const ground = shellLift(up.x, up.y, up.z);
+    const shell = PLANET_R + ground + alt;
     x = up.x * shell;
     y = up.y * shell;
     z = up.z * shell;

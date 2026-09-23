@@ -51,9 +51,9 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
   const blockers: Blocker[] = [];
   addBeacon(scene, gradient, blockers);
   addTowns(scene, gradient, blockers);
-  addApproach(scene, gradient);
-  scatter(scene, gradient);
-  addDress(scene, gradient);
+  addApproach(scene, gradient, blockers);
+  scatter(scene, gradient, blockers);
+  addDress(scene, gradient, blockers);
   addCourse(scene, gradient, blockers);
 
   return { blockers, sky };
@@ -135,7 +135,7 @@ function mixHex(a: number, b: number, t: number): number {
 }
 
 /** Filare lungo la via dello spawn: sta nel cono stretto del ritratto. */
-function addApproach(scene: THREE.Scene, gradient: THREE.Texture): void {
+function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
   const az = biomeAzimuth(0);
   const colat = 0.2;
   const border: Plant[] = [];
@@ -155,6 +155,8 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture): void {
   for (let n = -14.2; n <= -3.2; n += 3.3) {
     plantAt(stems, n, -1.48, 1, 0xd45a62);
     plantAt(stems, n, 1.48, 1, 0xd45a62);
+    blockers.push({ ...shift(colat, az, n, -1.48), r: 0.22, h: 2.2 });
+    blockers.push({ ...shift(colat, az, n, 1.48), r: 0.22, h: 2.2 });
     plantAt(crowns, n, -1.48, 1, 0xf26d86);
     plantAt(crowns, n, 1.48, 1, 0xf6c2b4);
   }
@@ -175,6 +177,8 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture): void {
   const up = new THREE.Vector3(gateAt.x, gateAt.y, gateAt.z).normalize();
   gate.position.addScaledVector(up, 1.55);
   scene.add(gate);
+  blockers.push({ ...shift(colat, az, -12.6, -1.5), r: 0.38, h: 1.7 });
+  blockers.push({ ...shift(colat, az, -12.6, 1.5), r: 0.38, h: 1.7 });
 }
 
 function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
@@ -198,10 +202,10 @@ function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocke
   ring.rotation.x = Math.PI / 2;
   ring.position.y = y0 + 0.12;
   scene.add(foot, shaft, lamp, cap, ring);
-  blockers.push({ x: 0, y: PLANET_R, z: 0, r: 2.6, h: 11 });
+  blockers.push({ x: 0, y: PLANET_R, z: 0, r: 3.1, h: 11 });
 }
 
-function scatter(scene: THREE.Scene, gradient: THREE.Texture): void {
+function scatter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
   const coral: Plant[] = [];
   const discs: Plant[] = [];
   const mintStem: Plant[] = [];
@@ -255,7 +259,7 @@ function scatter(scene: THREE.Scene, gradient: THREE.Texture): void {
   paint(scene, ribbon(), gradient, ribbons, false, true);
   paint(scene, cylinder(0.08, 0.11, 3.3, 5), gradient, poles, false, true);
   paint(scene, bulb(), gradient, bulbs, true, true);
-  addTotems(scene, gradient);
+  addTotems(scene, gradient, blockers);
 }
 
 type Spot = { colat: number; az: number; scale: number; roll: number; grove: boolean };
@@ -390,7 +394,10 @@ function bulb(): THREE.SphereGeometry {
   return geo;
 }
 
-function addTotems(scene: THREE.Scene, gradient: THREE.Texture): void {
+const TOTEM_R = [1.7, 0.5, 1.05, 0.7, 2.05, 0.42] as const;
+const TOTEM_H = [3.2, 4.6, 4.2, 5.2, 2.6, 5.2] as const;
+
+function addTotems(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
   for (let biome = 0; biome < BIOMES.length; biome++) {
     const info = BIOMES[biome];
     if (!info) continue;
@@ -403,6 +410,7 @@ function addTotems(scene: THREE.Scene, gradient: THREE.Texture): void {
     group.position.set(p.x, p.y, p.z);
     group.quaternion.copy(q);
     scene.add(group);
+    blockers.push({ x: raw.x, y: raw.y, z: raw.z, r: TOTEM_R[biome] ?? 0.8, h: TOTEM_H[biome] ?? 4 });
   }
 }
 

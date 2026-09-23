@@ -32,7 +32,7 @@ export function resolve(
   py /= radial;
   pz /= radial;
 
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 3; pass++) {
     for (const block of blockers) {
       if (altitude >= block.h - 0.02) continue;
       const bl = Math.hypot(block.x, block.y, block.z) || 1;

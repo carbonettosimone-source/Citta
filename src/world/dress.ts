@@ -3,6 +3,7 @@ import { commit, setInstanceQuat } from '../render/instance';
 import { toonInstances, withWind } from '../render/toon';
 import { WORLD_SEED, unit } from './hash';
 import { biomeAzimuth, frameQuaternion, onPath, onSphere, shift } from './planet';
+import type { Blocker } from './collide';
 import { seat } from './relief';
 import { nearTown, onTownGround } from './towns';
 
@@ -21,7 +22,7 @@ type Bit = {
 const ROCK = [0xd7a090, 0xb7d7c6, 0xcbb6e6, 0xb7e4ea, 0xe7c59a, 0xe7b0c8] as const;
 
 /** Tappeto e rocce dallo stesso seme di Mondo-1. Identici a ogni caricamento. */
-export function addDress(scene: THREE.Scene, gradient: THREE.Texture): void {
+export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
   const fans: Bit[] = [];
   const blades: Bit[] = [];
   const stalks: Bit[] = [];
@@ -77,6 +78,9 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture): void {
   paint(scene, gradient, tuft(), scrub, false, true);
   paint(scene, gradient, tuft(), moss, false, true);
   paint(scene, gradient, boulder(), rocks, false, false);
+  for (const rock of rocks) {
+    blockers.push({ x: rock.x, y: rock.y, z: rock.z, r: 0.52 * rock.s, h: 1.05 * rock.s });
+  }
 }
 
 function tint(biome: number, n: number): number {

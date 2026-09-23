@@ -90,6 +90,7 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
       view.dataset['pz'] = player.z.toFixed(2);
       view.dataset['yaw'] = controls.yaw.toFixed(3);
       view.dataset['gait'] = player.gait;
+      view.dataset['feet'] = player.radius.toFixed(3);
       view.dataset['hx'] = aim.x.toFixed(3);
       view.dataset['hy'] = aim.y.toFixed(3);
       view.dataset['hz'] = aim.z.toFixed(3);
