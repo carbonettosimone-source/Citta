@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
-import { toonInstances, toonMaterial } from '../render/toon';
+import { toonInstances, toonMaterial, withWind } from '../render/toon';
 import type { Blocker } from './collide';
-import { bandFalloff, biomeAzimuth, frameQuaternion, onSphere, shift } from './planet';
+import { bandFalloff, biomeAzimuth, eastTangent, frameQuaternion, northTangent, onSphere, shift } from './planet';
 
 type Kind = 'house' | 'tower' | 'pavilion' | 'stall' | 'kiosk';
 
@@ -171,6 +171,35 @@ export const CRYSTAL_LOOK = shift(1.62, biomeAzimuth(3) + 0.07, 0, 4.5);
 /** Bacheca accanto al chiosco, fuori dal raggio del lotto così ci si può stare davanti. */
 export const GAMES_BOARD = shift(hub.colat, hub.az, 4.15, 5.55);
 
+type Dwelling = {
+  n: number;
+  e: number;
+  spin: number;
+  sx: number;
+  sy: number;
+  sz: number;
+  hip: boolean;
+  wall: number;
+  roof: number;
+  porch: boolean;
+  potN: number;
+  potE: number;
+};
+
+/** Case diverse attorno al cortile. Le porte guardano la piazza, il varco a nord resta sul faro. */
+const QUARTER_HOMES: readonly Dwelling[] = [
+  { n: 17.2, e: -6.6, spin: Math.PI, sx: 0.86, sy: 0.9, sz: 0.96, hip: true, wall: 0xf7f1e8, roof: 0xf26d86, porch: true, potN: 1.5, potE: -0.8 },
+  { n: 17.2, e: 6.6, spin: Math.PI, sx: 0.7, sy: 1.34, sz: 0.8, hip: false, wall: 0xf3e6dc, roof: 0xd45a62, porch: false, potN: 1.55, potE: 0.75 },
+  { n: 20.3, e: -8.5, spin: Math.PI / 2, sx: 1.16, sy: 0.8, sz: 1.02, hip: true, wall: 0xf6f1e6, roof: 0xe39a32, porch: true, potN: 0.85, potE: 1.65 },
+  { n: 20.3, e: 8.5, spin: -Math.PI / 2, sx: 0.66, sy: 1.28, sz: 0.78, hip: false, wall: 0xf8efe4, roof: 0xc46a52, porch: false, potN: -0.7, potE: -1.5 },
+  { n: 24.1, e: -5.5, spin: 0, sx: 0.92, sy: 0.96, sz: 0.88, hip: true, wall: 0xf4ebe3, roof: 0xf26d86, porch: true, potN: -1.5, potE: 0.8 },
+  { n: 24.1, e: 5.5, spin: 0, sx: 1.08, sy: 0.76, sz: 0.98, hip: true, wall: 0xf6f1e6, roof: 0xe08a6a, porch: false, potN: -1.45, potE: -0.85 },
+];
+
+function houseReach(sx: number, sz: number): number {
+  return Math.hypot(1.25 * sx, 1.15 * sz) + 0.35;
+}
+
 type Pad = { x: number; y: number; z: number; r2: number };
 const pads: Pad[] = [];
 
@@ -185,6 +214,21 @@ for (const town of TOWNS) {
     const r = lot.kind === 'tower' ? 2.15 : lot.kind === 'pavilion' ? 1.75 : lot.kind === 'stall' ? 1.95 : lot.kind === 'kiosk' ? 2.3 : 2.55;
     pads.push({ ...shift(town.colat, town.az, lot.n, lot.e), r2: r * r });
   }
+}
+
+/** Cortile a nord della piazza, sulla visuale del faro. Stesso telaio della città. */
+export const QUARTER_PLAZA = shift(hub.colat, hub.az, 20, 0);
+
+for (let n = 12.4; n <= 27.2; n += 2) {
+  pads.push({ ...shift(hub.colat, hub.az, n, 0), r2: 2.05 * 2.05 });
+}
+for (let e = -9.6; e <= 9.6; e += 2) {
+  pads.push({ ...shift(hub.colat, hub.az, 20, e), r2: 1.85 * 1.85 });
+}
+pads.push({ ...QUARTER_PLAZA, r2: 4.7 * 4.7 });
+for (const home of QUARTER_HOMES) {
+  const reach = houseReach(home.sx, home.sz);
+  pads.push({ ...shift(hub.colat, hub.az, home.n, home.e), r2: reach * reach });
 }
 
 /** 1 al centro di piazza, strada o lotto; scende a 0 sulla spalla. */
@@ -223,7 +267,10 @@ export function nearTown(x: number, y: number, z: number, margin: number): boole
     const reach = town.plaza + margin;
     if (dx * dx + dy * dy + dz * dz < reach * reach) return true;
   }
-  return false;
+  const dx = x - QUARTER_PLAZA.x;
+  const dy = y - QUARTER_PLAZA.y;
+  const dz = z - QUARTER_PLAZA.z;
+  return dx * dx + dy * dy + dz * dz < (12 + margin) * (12 + margin);
 }
 
 type Stamp = {
@@ -366,6 +413,8 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
     addBasin(scene, gradient, blockers, town);
   }
 
+  addQuarter(scene, gradient, blockers);
+
   const paint = (geo: THREE.BufferGeometry, list: readonly Stamp[], flat = false) => {
     if (list.length === 0) return;
     const material = flat ? new THREE.MeshBasicMaterial({ color: 0xffffff }) : toonInstances(gradient);
@@ -399,6 +448,282 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   paint(signBoard(), signs);
   paint(crownBulb(), crowns, true);
   paint(bulb(), lamps, true);
+}
+
+function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
+  const walls: Stamp[] = [];
+  const roofs: Stamp[] = [];
+  const hips: Stamp[] = [];
+  const doors: Stamp[] = [];
+  const windows: Stamp[] = [];
+  const frames: Stamp[] = [];
+  const lintels: Stamp[] = [];
+  const eaves: Stamp[] = [];
+  const steps: Stamp[] = [];
+  const chimneys: Stamp[] = [];
+  const porches: Stamp[] = [];
+  const plaques: Stamp[] = [];
+  const posts: Stamp[] = [];
+  const lamps: Stamp[] = [];
+  const benches: Stamp[] = [];
+  const crates: Stamp[] = [];
+  const fences: Stamp[] = [];
+  const banners: Stamp[] = [];
+  const stems: Stamp[] = [];
+  const crowns: Stamp[] = [];
+  const glows: Stamp[] = [];
+  const bollards: Stamp[] = [];
+
+  const put = (list: Stamp[], p: { x: number; y: number; z: number }, q: THREE.Quaternion, sx: number, sy: number, sz: number, color: number) => {
+    list.push({ x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, sx, sy, sz, color });
+  };
+  const pose = (n: number, e: number, spin: number) => {
+    const p = shift(hub.colat, hub.az, n, e);
+    const q = frameQuaternion(p.x, p.y, p.z, Math.sin(hub.az), 0, Math.cos(hub.az));
+    q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), spin));
+    return { p, q };
+  };
+
+  for (const home of QUARTER_HOMES) {
+    const { p, q } = pose(home.n, home.e, home.spin);
+    put(walls, p, q, home.sx, home.sy, home.sz, home.wall);
+    put(home.hip ? hips : roofs, p, q, home.sx, home.sy, home.sz, home.roof);
+    put(doors, p, q, home.sx, home.sy, home.sz, INK);
+    put(windows, p, q, home.sx, home.sy, home.sz, 0x163044);
+    put(frames, p, q, home.sx, home.sy, home.sz, 0xf4efe6);
+    put(lintels, p, q, home.sx, home.sy, home.sz, AMBER);
+    put(eaves, p, q, home.sx, home.sy, home.sz, home.hip ? home.roof : 0xf4efe6);
+    put(steps, p, q, home.sx, home.sy, home.sz, 0xe7d3b2);
+    put(plaques, p, q, home.sx, home.sy, home.sz, 0xfff1d0);
+    if (!home.hip) put(chimneys, p, q, home.sx, home.sy, home.sz, 0xc46a52);
+    if (home.porch) put(porches, p, q, home.sx, home.sy, home.sz, AMBER);
+    blockers.push({ ...p, r: Math.hypot(1.25 * home.sx, 1.15 * home.sz) + 0.04, h: 3.45 * home.sy });
+    const pot = pose(home.n + home.potN, home.e + home.potE, home.spin);
+    put(stems, pot.p, pot.q, 0.72, 0.72, 0.72, 0xf6f1e6);
+    put(crowns, pot.p, pot.q, 0.7, 0.7, 0.7, 0xf26d86);
+    blockers.push({ ...pot.p, r: 0.28, h: 0.7 });
+  }
+
+  const towers: Stamp[] = [];
+  const caps: Stamp[] = [];
+  const bell = pose(20.3, 11.8, 0);
+  put(towers, bell.p, bell.q, 0.74, 0.86, 0.74, 0xe7dfd2);
+  put(caps, bell.p, bell.q, 0.74, 0.86, 0.74, 0xf26d86);
+  put(glows, raise(bell.p, 6.35), bell.q, 0.26, 0.26, 0.26, AMBER);
+  blockers.push({ ...bell.p, r: 0.82, h: 6.4 });
+
+  for (const n of [13.6, 15.8, 18.2, 21.8, 24.8]) {
+    for (const e of [-2.55, 2.55]) {
+      const lamp = pose(n, e, 0);
+      put(posts, lamp.p, lamp.q, 0.62, 0.92, 0.62, 0xe7dfd2);
+      lampAt(lamps, lamp.p, lamp.q, 2.15, 0.3);
+      blockers.push({ ...lamp.p, r: 0.18, h: 2.2 });
+    }
+  }
+
+  for (const gate of [
+    { n: 14.2, e: -2.75, color: AMBER },
+    { n: 14.2, e: 2.75, color: 0xf26d86 },
+  ]) {
+    const flag = pose(gate.n, gate.e, 0);
+    put(posts, flag.p, flag.q, 0.5, 1.05, 0.5, 0xe7dfd2);
+    put(banners, flag.p, flag.q, 1, 1, 1, gate.color);
+    blockers.push({ ...flag.p, r: 0.2, h: 2.3 });
+  }
+
+  for (const seat of [
+    { n: 18.4, e: -4.4, spin: Math.PI },
+    { n: 18.4, e: 4.4, spin: Math.PI },
+    { n: 21.6, e: -4.6, spin: 0 },
+    { n: 21.6, e: 4.4, spin: 0 },
+  ]) {
+    const bench = pose(seat.n, seat.e, seat.spin);
+    put(benches, bench.p, bench.q, 1, 1, 1, 0xe7dfd2);
+    blockers.push({ ...bench.p, r: 0.52, h: 0.62 });
+  }
+
+  for (const boxAt of [
+    { n: 19.9, e: -10.35, s: 0.42 },
+    { n: 20.28, e: -10.55, s: 0.34 },
+    { n: 20.55, e: -10.2, s: 0.38 },
+  ]) {
+    const crate = pose(boxAt.n, boxAt.e, 0.4);
+    put(crates, crate.p, crate.q, boxAt.s, boxAt.s, boxAt.s, 0xc4894e);
+    blockers.push({ ...crate.p, r: boxAt.s * 0.55, h: boxAt.s + 0.15 });
+  }
+
+  for (const wall of [
+    { n: 15.4, e: -3.9 },
+    { n: 15.4, e: 3.9 },
+    { n: 19.4, e: -11.3 },
+    { n: 21.2, e: -11.3 },
+  ]) {
+    const fence = pose(wall.n, wall.e, 0);
+    put(fences, fence.p, fence.q, 1, 1, 1, 0xf4efe6);
+    blockers.push({ ...fence.p, r: 0.62, h: 0.72 });
+  }
+
+  for (const tree of [
+    { n: 18.8, e: -5.1 },
+    { n: 18.8, e: 5.1 },
+    { n: 22.2, e: 5.6 },
+    { n: 21.2, e: -5.9 },
+  ]) {
+    const plant = pose(tree.n, tree.e, 0);
+    put(stems, plant.p, plant.q, 1, 1, 1, 0xd45a62);
+    put(crowns, plant.p, plant.q, 1.05, 1.05, 1.05, 0xf6c2b4);
+    blockers.push({ ...plant.p, r: 0.2, h: 2.3 });
+  }
+
+  const wireSpin = pose(16.6, 0, 0);
+  put(glows, raise(wireSpin.p, 2.55), wireSpin.q, 0.12, 0.12, 0.12, 0xfff1d0);
+  for (const bulbN of [15.2, 16.2, 17.2, 18.2]) {
+    put(glows, raise(shift(hub.colat, hub.az, bulbN, 0), 2.42), wireSpin.q, 0.16, 0.16, 0.16, AMBER);
+  }
+  const crossAt = shift(hub.colat, hub.az, 20, 0);
+  const east = eastTangent(hub.az);
+  const crossQ = frameQuaternion(crossAt.x, crossAt.y, crossAt.z, east.x, east.y, east.z);
+  for (const bulbE of [-2.2, -0.7, 0.7, 2.2]) {
+    put(glows, raise(shift(hub.colat, hub.az, 20, bulbE), 2.42), crossQ, 0.16, 0.16, 0.16, AMBER);
+  }
+
+  const fountain = pose(22.8, -3.2, 0);
+  const up = new THREE.Vector3(fountain.p.x, fountain.p.y, fountain.p.z).normalize();
+  const basinGeo = new THREE.TorusGeometry(0.86, 0.12, 6, 14);
+  basinGeo.rotateX(Math.PI / 2);
+  const basin = new THREE.Mesh(basinGeo, toonMaterial(gradient, 0xf4efe6));
+  basin.position.set(fountain.p.x, fountain.p.y, fountain.p.z).addScaledVector(up, 0.16);
+  basin.quaternion.copy(fountain.q);
+  const water = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.62, 0.05, 12),
+    new THREE.MeshBasicMaterial({ color: 0x8fd8ea }),
+  );
+  water.position.set(fountain.p.x, fountain.p.y, fountain.p.z).addScaledVector(up, 0.1);
+  water.quaternion.copy(fountain.q);
+  const jet = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.7, 6), new THREE.MeshBasicMaterial({ color: 0xe8f7fb }));
+  jet.position.set(fountain.p.x, fountain.p.y, fountain.p.z).addScaledVector(up, 0.48);
+  jet.quaternion.copy(fountain.q);
+  scene.add(basin, water, jet);
+  for (const [dn, de] of [
+    [0.86, 0],
+    [-0.86, 0],
+    [0, 0.86],
+    [0, -0.86],
+  ] as const) {
+    const lip = shift(hub.colat, hub.az, 22.8 + dn, -3.2 + de);
+    put(bollards, lip, fountain.q, 1, 1, 1, 0xe7dfd2);
+    blockers.push({ ...lip, r: 0.22, h: 0.7 });
+  }
+
+  const court = shift(hub.colat, hub.az, 20, 0);
+  const courtQ = frameQuaternion(court.x, court.y, court.z, 1, 0, 0);
+  const ringGeo = new THREE.TorusGeometry(3.15, 0.06, 5, 20);
+  ringGeo.rotateX(Math.PI / 2);
+  const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: AMBER }));
+  const courtUp = new THREE.Vector3(court.x, court.y, court.z).normalize();
+  ring.position.set(court.x, court.y, court.z).addScaledVector(courtUp, 0.08);
+  ring.quaternion.copy(courtQ);
+  scene.add(ring);
+
+  const north = northTangent(hub.colat, hub.az);
+  const northQ = frameQuaternion(wireSpin.p.x, wireSpin.p.y, wireSpin.p.z, north.x, north.y, north.z);
+  const northWire = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 4.6), toonMaterial(gradient, 0x241c22));
+  northWire.position.copy(raiseVec(wireSpin.p, 2.58));
+  northWire.quaternion.copy(northQ);
+  const crossWire = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 4.8), toonMaterial(gradient, 0x241c22));
+  crossWire.position.copy(raiseVec(crossAt, 2.58));
+  crossWire.quaternion.copy(crossQ);
+  scene.add(northWire, crossWire);
+
+  const paint = (geo: THREE.BufferGeometry, list: readonly Stamp[], flat = false, wind = false) => {
+    if (list.length === 0) return;
+    const material = flat ? new THREE.MeshBasicMaterial({ color: 0xffffff }) : toonInstances(gradient);
+    if (wind) withWind(material);
+    const mesh = new THREE.InstancedMesh(geo, material, list.length);
+    mesh.frustumCulled = false;
+    for (let i = 0; i < list.length; i += 1) {
+      const s = list[i];
+      if (!s) continue;
+      setInstanceQuat(mesh, i, s.x, s.y, s.z, s.sx, s.sy, s.sz, s.qx, s.qy, s.qz, s.qw, s.color);
+    }
+    commit(mesh);
+    scene.add(mesh);
+  };
+
+  paint(box(2.5, 2.3, 2.3, 1.15), walls);
+  paint(roof(), roofs);
+  paint(hipRoof(), hips);
+  paint(door(), doors);
+  paint(windowsGeo(), windows);
+  paint(frameGeo(), frames);
+  paint(lintel(), lintels);
+  paint(eave(), eaves);
+  paint(step(), steps);
+  paint(chimney(), chimneys);
+  paint(porchGeo(), porches, true);
+  paint(plaqueGeo(), plaques);
+  paint(cylinder(0.82, 0.95, 6.2, 3.1), towers);
+  paint(cap(), caps);
+  paint(cylinder(0.16, 0.2, 2.3, 1.15), posts);
+  paint(bulb(), lamps, true);
+  paint(benchGeo(), benches);
+  paint(box(1, 0.72, 0.72, 0.36), crates);
+  paint(fenceGeo(), fences);
+  paint(bannerCloth(), banners);
+  paint(cylinder(0.08, 0.11, 1.15, 0.58), stems);
+  paint(quarterCrown(), crowns, false, true);
+  paint(bulb(), glows, true);
+  paint(cylinder(0.14, 0.16, 0.7, 0.35), bollards);
+}
+
+function raise(p: { x: number; y: number; z: number }, height: number): { x: number; y: number; z: number } {
+  const len = Math.hypot(p.x, p.y, p.z) || 1;
+  return { x: p.x + (p.x / len) * height, y: p.y + (p.y / len) * height, z: p.z + (p.z / len) * height };
+}
+
+function raiseVec(p: { x: number; y: number; z: number }, height: number): THREE.Vector3 {
+  const at = raise(p, height);
+  return new THREE.Vector3(at.x, at.y, at.z);
+}
+
+function porchGeo(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(1.35, 0.07, 0.62);
+  geo.translate(0, 1.58, 1.42);
+  return geo;
+}
+
+function plaqueGeo(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(0.28, 0.2, 0.04);
+  geo.translate(0.52, 1.18, 1.24);
+  return geo;
+}
+
+function benchGeo(): THREE.BufferGeometry {
+  const seat = new THREE.BoxGeometry(1.15, 0.08, 0.36);
+  seat.translate(0, 0.42, 0);
+  const back = new THREE.BoxGeometry(1.15, 0.36, 0.06);
+  back.translate(0, 0.62, -0.16);
+  return mergePair(seat, back);
+}
+
+function fenceGeo(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(1.35, 0.58, 0.1);
+  geo.translate(0, 0.3, 0);
+  return geo;
+}
+
+function bannerCloth(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(0.5, 0.82, 0.04);
+  geo.translate(0, 1.72, 0.16);
+  return geo;
+}
+
+function quarterCrown(): THREE.BufferGeometry {
+  const low = new THREE.CylinderGeometry(0.42, 0.32, 0.16, 6);
+  low.translate(0, 1.05, 0);
+  const top = new THREE.CylinderGeometry(0.26, 0.2, 0.12, 5);
+  top.translate(0, 1.32, 0);
+  return mergePair(low, top);
 }
 
 function lampAt(list: Stamp[], p: { x: number; y: number; z: number }, facing: THREE.Quaternion, height: number, scale: number): void {

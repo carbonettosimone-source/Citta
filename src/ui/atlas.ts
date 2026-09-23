@@ -225,6 +225,7 @@ function paint(
 function mapLabel(place: MapPlace): string | null {
   if (place.kind === 'biome' || place.kind === 'pole') return null;
   if (place.kind === 'hub') return 'Città';
+  if (place.id === 'quarter') return 'Case';
   if (place.kind === 'games') return 'Giochi';
   if (place.kind === 'venue') return 'Ostacoli';
   if (place.kind === 'lookout') return 'Belvedere';

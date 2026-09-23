@@ -1,10 +1,10 @@
 import { BIOMES, angles, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
-import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN_PLAZA, MINT_PLAZA, VIOLET_PLAZA } from '../world/towns';
+import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN_PLAZA, MINT_PLAZA, QUARTER_PLAZA, VIOLET_PLAZA } from '../world/towns';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 7;
+export const PROTO = 8;
 
 const homeAz = biomeAzimuth(0);
 const home = onSphere(0.3, homeAz);
@@ -244,6 +244,7 @@ function place(id: string, name: string, kind: MapKind, point: { x: number; y: n
 export const MAP_PLACES: readonly MapPlace[] = [
   { id: 'pole', name: 'Faro del polo', kind: 'pole', colat: 0.04, az: homeAz },
   place('hub', 'Città del polo', 'hub', HUB_PLAZA),
+  place('quarter', 'Quartiere del corallo', 'village', QUARTER_PLAZA),
   place('games', 'Bacheca dei giochi', 'games', GAMES_BOARD),
   place('mint', 'Paese di menta', 'village', MINT_PLAZA),
   place('violet', 'Paese viola', 'village', VIOLET_PLAZA),
