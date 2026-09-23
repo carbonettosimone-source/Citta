@@ -8,6 +8,7 @@ import { addDress } from './dress';
 import { unit } from './hash';
 import { seat } from './relief';
 import { addTowns, nearTown, townBlend } from './towns';
+import { addWays } from './ways';
 import {
   BIOMES,
   PLANET_R,
@@ -49,6 +50,7 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
   const blockers: Blocker[] = [];
   addBeacon(scene, gradient, blockers);
   addTowns(scene, gradient, blockers);
+  addWays(scene, gradient, blockers);
   scatter(scene, gradient, blockers);
   addDress(scene, gradient, blockers);
   addCourse(scene, gradient, blockers);

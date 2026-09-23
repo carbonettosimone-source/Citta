@@ -1,6 +1,6 @@
 import { BIOMES, PLANET_R, angles, biomeAzimuth, onSphere } from '../world/planet';
 import { MAP_PLACES, type MapPlace } from '../game/content';
-import { getMark, setMark } from '../game/guide';
+import { clearMark, getMark, setMark } from '../game/guide';
 
 export type Atlas = {
   readonly button: HTMLButtonElement;
@@ -46,16 +46,28 @@ export function createAtlas(root: HTMLElement): Atlas {
         <button type="button" class="ghost" id="map-close">Chiudi</button>
       </header>
       <canvas class="map-canvas" width="420" height="420" aria-label="Globo di Mondo-1, ruotabile"></canvas>
-      <p class="map-caption" id="map-caption">Trascina per girare il pianeta. Tocca un luogo: ti volti verso di lui.</p>
+      <p class="map-caption" id="map-caption">Trascina per girare il pianeta. Tocca un luogo: la freccia segue l’arco più corto.</p>
       <ul class="map-list"></ul>
     </div>
   `;
   root.append(overlay);
 
-  const guide = document.createElement('p');
-  guide.className = 'guide';
-  guide.hidden = true;
-  root.append(guide);
+  const needle = document.createElement('div');
+  needle.className = 'needle';
+  needle.hidden = true;
+  needle.innerHTML = `
+    <button type="button" class="needle-x" aria-label="Annulla la meta">×</button>
+    <svg class="needle-arrow" viewBox="0 0 64 88" aria-hidden="true">
+      <path d="M32 4 L56 44 H44 V82 H20 V44 H8 Z" fill="#ffc43a" stroke="#241c22" stroke-width="4" stroke-linejoin="round"/>
+    </svg>
+    <p class="needle-label"></p>
+  `;
+  root.append(needle);
+  const arrow = needle.querySelector<SVGElement>('.needle-arrow');
+  const needleLabel = needle.querySelector<HTMLElement>('.needle-label');
+  const cancel = needle.querySelector<HTMLButtonElement>('.needle-x');
+  if (!arrow || !needleLabel || !cancel) throw new Error('freccia incompleta');
+  cancel.addEventListener('click', () => clearMark());
 
   const canvas = overlay.querySelector('canvas');
   const caption = overlay.querySelector<HTMLElement>('#map-caption');
@@ -133,6 +145,10 @@ export function createAtlas(root: HTMLElement): Atlas {
   canvas.addEventListener('pointercancel', () => {
     drag = null;
   });
+  window.addEventListener('keydown', (event) => {
+    if (event.repeat || event.code !== 'Escape' || open) return;
+    clearMark();
+  });
 
   const pick = (clientX: number, clientY: number) => {
     const rect = canvas.getBoundingClientRect();
@@ -152,7 +168,12 @@ export function createAtlas(root: HTMLElement): Atlas {
         best = place;
       }
     }
-    if (best) choose(best);
+    if (best) {
+      choose(best);
+      return;
+    }
+    setMark({ name: 'Segnato', x: world.x * PLANET_R, y: world.y * PLANET_R, z: world.z * PLANET_R });
+    setOpen(false);
   };
 
   return {
@@ -168,10 +189,22 @@ export function createAtlas(root: HTMLElement): Atlas {
       const here = angles(px, py, pz);
       const mark = getMark();
       if (mark) {
-        const meters = angular(here.colat, here.az, angles(mark.x, mark.y, mark.z).colat, angles(mark.x, mark.y, mark.z).az) * PLANET_R;
-        guide.hidden = false;
-        guide.textContent = `Verso ${mark.name} · ${Math.max(1, Math.round(meters))} m`;
-      } else guide.hidden = true;
+        const there = angles(mark.x, mark.y, mark.z);
+        const meters = Math.max(1, Math.round(angular(here.colat, here.az, there.colat, there.az) * PLANET_R));
+        const deg = bearingDeg(px, py, pz, fx, fy, fz, mark.x, mark.y, mark.z);
+        needle.hidden = false;
+        const label = `Verso ${mark.name} · ${meters} m`;
+        if (needleLabel.textContent !== label) needleLabel.textContent = label;
+        if (deg !== null) {
+          arrow.style.transform = `rotate(${deg.toFixed(1)}deg)`;
+          needle.dataset.deg = deg.toFixed(1);
+        }
+        needle.dataset.meters = String(meters);
+      } else {
+        needle.hidden = true;
+        delete needle.dataset.deg;
+        delete needle.dataset.meters;
+      }
       if (!open) return;
       if (!userSpun) spin = -here.az;
       const width = Math.round(Math.max(260, Math.min(420, canvas.clientWidth || 340)));
@@ -292,6 +325,18 @@ function paintGlobe(
     if (place.kind !== 'pole') label(at.x, at.y, short(place));
   }
 
+  const mark = getMark();
+  if (mark) {
+    const at = project(...unit(mark));
+    if (at.z > 0.12) {
+      ctx.strokeStyle = '#ffc43a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, 9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
   const you = project(...unit({ x: px, y: py, z: pz }));
   const ahead = project(...unit(normalize(px + fx * 18, py + fy * 18, pz + fz * 18)));
   if (you.z > 0.05) {
@@ -312,7 +357,7 @@ function paintGlobe(
   }
 }
 
-const CAPITAL_SPAN = 0.52;
+const CAPITAL_SPAN = Math.PI / 3;
 
 function strokeParallel(
   ctx: CanvasRenderingContext2D,
@@ -451,6 +496,44 @@ function short(place: MapPlace): string {
   if (place.id === 'crystal-town') return 'Cristallo';
   if (place.id === 'lantern') return 'Lanterne';
   return place.name;
+}
+
+/** Gradi orari della tangente geodetica rispetto alla faccia. 0 = freccia in su. */
+function bearingDeg(
+  px: number,
+  py: number,
+  pz: number,
+  fx: number,
+  fy: number,
+  fz: number,
+  mx: number,
+  my: number,
+  mz: number,
+): number | null {
+  const ul = Math.hypot(px, py, pz) || 1;
+  const ux = px / ul;
+  const uy = py / ul;
+  const uz = pz / ul;
+  const ml = Math.hypot(mx, my, mz) || 1;
+  const tx = mx / ml;
+  const ty = my / ml;
+  const tz = mz / ml;
+  const dot = tx * ux + ty * uy + tz * uz;
+  let gx = tx - ux * dot;
+  let gy = ty - uy * dot;
+  let gz = tz - uz * dot;
+  const gl = Math.hypot(gx, gy, gz);
+  if (gl < 1e-4) return null;
+  gx /= gl;
+  gy /= gl;
+  gz /= gl;
+  const rx = uy * fz - uz * fy;
+  const ry = uz * fx - ux * fz;
+  const rz = ux * fy - uy * fx;
+  const rl = Math.hypot(rx, ry, rz) || 1;
+  const ahead = gx * fx + gy * fy + gz * fz;
+  const right = gx * (rx / rl) + gy * (ry / rl) + gz * (rz / rl);
+  return (Math.atan2(right, ahead) * 180) / Math.PI;
 }
 
 function angular(c0: number, a0: number, c1: number, a1: number): number {

@@ -36,3 +36,9 @@ Le piazze sono calotte piccole (raggio 5–9 m), non isolati infiniti. Le faccia
 | Porta ovest | 0,64 · −0,46 | Sbocco verso le lanterne; le dune si raggiungono girando il pianeta. |
 
 I paesi (menta, viola, cristallo, lanterne, dune) restano nei loro spicchi, collegati dai meridiani dei biomi e dall’anello a colat 1,02. Non c’è un centro quadrato che ignora la curvatura.
+
+Il parallelo civico non si ferma alle porte. Continua, più stretto, fino al meridiano della menta (est, +π/3) e a quello delle lanterne (ovest, −π/3). Sulla spalla, a circa 7,6 m dall’asse, stanno le case di borgo; i pali e le bandiere stanno a 3,3 m, così il centro resta libero. I meridiani dei biomi hanno pali dalla spalla a partire da colat 0,70, e un incrocio coperto dove incontrano l’anello.
+
+## Freccia
+
+Toccare il globo (un luogo, o un punto qualsiasi del guscio) fissa una meta. Ogni frame la freccia in alto ruota sulla tangente dell’arco più corto: la direzione è il vettore meta proiettato sul piano tangente, l’angolo è `atan2` fra destra del giocatore e la sua faccia. La distanza è l’angolo per il raggio. Sotto i 6 m la meta si cancella. Si cancella anche con la ×, o con Esc quando la mappa è chiusa. L’anello d’oro a terra resta sul punto.

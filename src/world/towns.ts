@@ -52,6 +52,10 @@ const TOWNS: readonly Town[] = [
       { n: -8, e: 2.6, kind: 'house', spin: 2.4 },
       { n: 2, e: -7.2, kind: 'stall', spin: -1.2 },
       { n: -3, e: 7.6, kind: 'house', spin: 0.9 },
+      { n: 6.4, e: -12, kind: 'house', spin: 0.2 },
+      { n: -6.4, e: -12, kind: 'house', spin: 2.4 },
+      { n: 6.2, e: -16.4, kind: 'pavilion', spin: 0.5 },
+      { n: -6, e: -16.2, kind: 'house', spin: -2.2 },
     ],
   },
   {
@@ -91,6 +95,10 @@ const TOWNS: readonly Town[] = [
       { n: -8, e: 2.4, kind: 'house', spin: 2.2 },
       { n: 2.2, e: -7.2, kind: 'stall', spin: -1.1 },
       { n: 9, e: -2.4, kind: 'pavilion', spin: 0.4 },
+      { n: 6.2, e: -12.4, kind: 'house', spin: 0.3 },
+      { n: -6.2, e: -12.6, kind: 'house', spin: 2.3 },
+      { n: 5.8, e: -16.2, kind: 'stall', spin: 0.6 },
+      { n: -5.6, e: -16, kind: 'pavilion', spin: -2.1 },
     ],
   },
   {

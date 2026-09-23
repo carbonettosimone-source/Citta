@@ -57,8 +57,8 @@ export function createHud(
 
   const coach = el('div', 'coach');
   coach.innerHTML = `
-    <p>La città è avanti, verso il palo. Levetta a fondo per correre.</p>
-    <strong>${coarse ? 'Mappa in alto a destra. I paesi stanno negli spicchi.' : 'Shift corre. M apre la mappa. I paesi stanno negli spicchi.'}</strong>
+    <p>La freccia in alto indica la meta, lungo la curva.</p>
+    <strong>${coarse ? 'Mappa in alto a destra. Tocca un luogo e seguila.' : 'Shift corre. M apre la mappa. Tocca un luogo e segui la freccia.'}</strong>
   `;
 
   const hint = el('p', 'hint');

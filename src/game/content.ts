@@ -5,7 +5,7 @@ import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 11;
+export const PROTO = 12;
 
 const homeAz = CAPITAL_AZ;
 const home = onSphere(SPAWN_COLAT, homeAz);

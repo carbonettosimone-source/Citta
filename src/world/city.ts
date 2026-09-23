@@ -94,6 +94,23 @@ function homes(): Home[] {
   }
   list.push({ colat: CORAL_COLAT, az: CAPITAL_AZ, north: 0, east: 8, face: 'west', sy: 1.16, hip: true, wall: 0xfff2f6, roof: 0xff4d86 });
   list.push({ colat: CORAL_COLAT, az: CAPITAL_AZ, north: 0, east: -8, face: 'east', sy: 1.16, hip: true, wall: 0xfff2f6, roof: 0xff4d86 });
+  const spur = [0.62, 0.78, 0.94];
+  for (const daz of spur) {
+    for (const sign of [-1, 1] as const) {
+      const north = sign > 0 ? (daz < 0.8 ? 7.6 : -7.6) : daz < 0.8 ? -7.6 : 7.6;
+      list.push({
+        colat: CAPITAL_COLAT,
+        az: CAPITAL_AZ + sign * daz,
+        north,
+        east: 0,
+        face: north > 0 ? 'south' : 'north',
+        sy: 0.92,
+        hip: sign > 0,
+        wall: sign > 0 ? 0xfff2f6 : 0xeefcf8,
+        roof: sign > 0 ? 0x22c8ee : 0xff7a3a,
+      });
+    }
+  }
   return list;
 }
 
@@ -118,9 +135,18 @@ export function inCapital(x: number, y: number, z: number, margin: number): bool
   if (colat > 0.26 && colat < 1.08 && lateral < 14 + margin) return true;
   const along = Math.abs(colat - CAPITAL_COLAT) * PLANET_R;
   if (daz < 0.62 && along < 14 + margin) return true;
+  const signed = signedAzimuth(az);
+  if (Math.abs(signed) > 0.45 && Math.abs(signed) < Math.PI / 3 + 0.06 && along < 12 + margin) return true;
   const upper = Math.abs(colat - CORAL_COLAT) * PLANET_R;
   if (daz < 0.36 && upper < 12 + margin) return true;
   return false;
+}
+
+function signedAzimuth(az: number): number {
+  let d = az - CAPITAL_AZ;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
 export function addCityPads(pads: Pad[]): void {
@@ -130,6 +156,8 @@ export function addCityPads(pads: Pad[]): void {
   for (let colat = 0.3; colat <= 1.02; colat += 2.5 / PLANET_R) put(colat, CAPITAL_AZ, 3.3);
   const rho = Math.sin(CAPITAL_COLAT) * PLANET_R;
   for (let daz = -0.5; daz <= 0.52; daz += 2.5 / rho) put(CAPITAL_COLAT, CAPITAL_AZ + daz, 3.3);
+  for (let daz = 0.5; daz <= Math.PI / 3; daz += 2.6 / rho) put(CAPITAL_COLAT, CAPITAL_AZ + daz, 2.4);
+  for (let daz = -0.5; daz >= -Math.PI / 3; daz -= 2.6 / rho) put(CAPITAL_COLAT, CAPITAL_AZ + daz, 2.4);
   const rhoHi = Math.sin(CORAL_COLAT) * PLANET_R;
   for (let daz = 0; daz <= 0.3; daz += 2.5 / rhoHi) put(CORAL_COLAT, CAPITAL_AZ + daz, 2.6);
   for (const side of [-1, 1]) {

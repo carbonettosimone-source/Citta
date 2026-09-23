@@ -34,13 +34,13 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   for (let biome = 0; biome < 6; biome += 1) {
     const center = biomeAzimuth(biome);
     const cover: Bit[] = [];
-    for (let n = 0; n < 168; n += 1) {
-      const az = center + (unit(biome, n, WORLD_SEED) - 0.5) * 0.9;
-      const colat = 0.26 + unit(n, biome, WORLD_SEED ^ 17) * 2.4;
+    for (let n = 0; n < 248; n += 1) {
+      const az = center + (unit(biome, n, WORLD_SEED) - 0.5) * 0.92;
+      const colat = 0.38 + unit(n, biome, WORLD_SEED ^ 17) * 1.85;
       if (drop(colat, az, 0.35)) continue;
       const scale = 0.85 + unit(biome, n, 4) * 0.85;
       cover.push(bit(colat, az, scale, tint(biome, n)));
-      if (n % 4 === 0) {
+      if (n % 3 === 0) {
         const extra = shift(colat, az, (unit(n, biome, 21) - 0.5) * 1.6, (unit(biome, n, 27) - 0.5) * 1.6);
         const len = Math.hypot(extra.x, extra.y, extra.z) || 1;
         const colat2 = Math.acos(Math.min(1, Math.max(-1, extra.y / len)));
@@ -48,7 +48,7 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
         if (!drop(colat2, az2, 0.35)) cover.push(bit(colat2, az2, scale * 0.72, tint(biome, n + 9)));
       }
     }
-    for (let n = 0; n < 18; n += 1) {
+    for (let n = 0; n < 28; n += 1) {
       const az = center + (unit(biome + 20, n, WORLD_SEED) - 0.5) * 0.8;
       const colat = 0.4 + unit(n, biome + 3, WORLD_SEED) * 2.1;
       if (drop(colat, az, 3.5)) continue;
