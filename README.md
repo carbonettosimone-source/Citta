@@ -1,6 +1,6 @@
 # Minimondo
 
-**Apri sul telefono:** [https://leo-contacting-lecture-fantastic.trycloudflare.com/](https://leo-contacting-lecture-fantastic.trycloudflare.com/)
+**Apri sul telefono:** [https://non-somerset-distributor-settle.trycloudflare.com/](https://non-somerset-distributor-settle.trycloudflare.com/)
 
 È la build di produzione, servita da un tunnel Cloudflare perché l’API di questo ambiente non può accendere GitHub Pages (403 su `POST /pages`, e il workflow di deploy risponde 404 finché Pages non è abilitato). Il ramo `gh-pages` è già pronto: in Settings → Pages → Deploy from a branch → `gh-pages` / `/` il sito stabile diventa [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/). Il tunnel non ha garanzia di uptime: se il link non risponde, quel passo in Settings lo rimpiazza.
 
