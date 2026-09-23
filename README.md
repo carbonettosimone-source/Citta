@@ -4,9 +4,9 @@
 
 È la build di produzione, servita da un tunnel Cloudflare perché l’API di questo ambiente non può accendere GitHub Pages (403 su `POST /pages`, e il workflow di deploy risponde 404 finché Pages non è abilitato). Il ramo `gh-pages` è già pronto: in Settings → Pages → Deploy from a branch → `gh-pages` / `/` il sito stabile diventa [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/). Il tunnel non ha garanzia di uptime: se il link non risponde, quel passo in Settings lo rimpiazza.
 
-Hub nel browser, pensato per il pollice: un mini-pianeta sferico, low-poly, da girare a piedi. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi di colore si incontrano su cuciture nette. Raccogli le sfide, poi entra nella demo di Ostacoli sulle dune. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
+Hub nel browser, pensato per il pollice: un pianeta sferico di raggio 160 m, dieci volte il giro del guscio precedente. La gravità tira verso il centro, l’orizzonte curva, e sei spicchi grandi si incontrano su cuciture scure. Raccogli le sfide sparse negli spicchi, poi entra nella demo di Ostacoli sulle dune. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
-English: mobile-first spherical hub. Six wedge biomes, invented plants, touch stick, drag to look, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
+English: mobile-first spherical hub, radius 160. Six large wedge biomes, invented plants, slender avatar, double jump, touch stick, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 
 ## Come si gioca
 
@@ -14,7 +14,7 @@ Si parte in piazza, di fronte al faro. Il faro vale 20 monete: bastano per la de
 
 - **Pollice sinistro** sulla levetta per camminare. In alto si va avanti.
 - **Dito sul mondo** per girare la visuale. Il blocco del puntatore non serve.
-- **Salta** è il tasto tondo a destra.
+- **Salta** è il tasto tondo a destra. Un secondo tocco in aria fa il doppio salto.
 - Il pulsante al centro raccoglie la sfida quando sei vicino.
 - **Eventi** → scegli il modo → vedi la puntata → **Entra (demo)**.
 
@@ -56,10 +56,11 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 
 ## Cosa c'è in questa versione
 
-- Mini-pianeta di raggio 16. Si cammina sul guscio: il passo è nel piano tangente, la gravità è radiale, la camera tiene l’alto verso il centro
-- Sei spicchi: mesa corallo, prateria menta, giardino viola, campo di cristalli, dune pesca, bosco di lanterne. Tinte diverse, cuciture visibili
-- Piante inventate, una famiglia per spicchio (ventagli, stelle su stelo, torri di petali, cristalli, nastri, lanterne). Niente pini, querce o palme. Quasi tutte in `InstancedMesh`
-- Faro-palo sul polo nord, sentiero chiaro che avvolge la sfera, sfide colorate come il proprio spicchio
+- Mini-pianeta di raggio 160. Si cammina sul guscio: il passo è nel piano tangente, la gravità è radiale, la camera tiene l’alto verso il centro. Un giro è circa un chilometro
+- Sei spicchi larghi, con cucitura scura: mesa corallo, prateria menta, giardino viola, campo di cristalli, dune pesca, bosco di lanterne. Ogni spicchio ha un totem e la sua famiglia di piante
+- Piante inventate (ventagli, dischi esagonali, stelle su stelo, torri di petali, cristalli, nastri, lanterne). Niente pini, querce o palme. Quasi tutte in `InstancedMesh`
+- Palo-faro sul polo nord, sentiero chiaro, sfide lontane dallo spawn e colorate come il proprio spicchio
+- Avatar snello, braccia e mantello nel passo, doppio salto (anello ambra sul secondo)
 - Mondo rigenerato da seme (`hash32`, niente `Math.random`)
 - WebGL2: scena a metà risoluzione, upscale nearest
 - Nebbia corta, stesso colore del cielo

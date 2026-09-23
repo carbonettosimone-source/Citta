@@ -5,12 +5,13 @@ import { toonMaterial } from '../render/toon';
 import { resolve, type Blocker } from '../world/collide';
 import { frameQuaternion, PLANET_R } from '../world/planet';
 
-const SPEED = 5.4;
-const GRAVITY = 26;
-const JUMP = 7.2;
-const RADIUS = 0.36;
+const SPEED = 6;
+const GRAVITY = 27;
+const JUMP = 8.2;
+const JUMP2 = 6.3;
+const RADIUS = 0.3;
 const STEP = 1 / 90;
-const FOLLOW = 12;
+const FOLLOW = 9;
 
 export type Player = {
   readonly x: number;
@@ -38,6 +39,8 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
   let phase = 0;
   let grounded = true;
   let jumpLatch = false;
+  let extraJump = true;
+  let hopCue = 0;
   let interactEdge = false;
   const basis = new THREE.Vector3(SPAWN_FACE.x, SPAWN_FACE.y, SPAWN_FACE.z).normalize();
   const face = basis.clone();
@@ -45,7 +48,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
 
   const body = buildAvatar(scene, gradient);
   const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.46, 14),
+    new THREE.CircleGeometry(0.32, 14),
     new THREE.MeshBasicMaterial({ color: 0x1a2430, transparent: true, opacity: 0.28, depthWrite: false }),
   );
   scene.add(shadow);
@@ -84,14 +87,11 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
         integrate(h, blockers, frozen ? 0 : input.strafe, frozen ? 0 : input.forward, wantJump);
       }
       const moving = !frozen && grounded && Math.abs(input.strafe) + Math.abs(input.forward) > 0.08;
-      if (moving) phase += dt * 8;
-      const bob = moving ? Math.sin(phase) * 0.045 : 0;
+      if (moving) phase += dt * 9.5;
+      const bob = moving ? Math.sin(phase * 2) * 0.035 : 0;
       place(bob);
-      const swing = moving ? Math.sin(phase) * 0.7 : 0;
-      const leftLeg = body.getObjectByName('legL');
-      const rightLeg = body.getObjectByName('legR');
-      if (leftLeg) leftLeg.rotation.x = swing;
-      if (rightLeg) rightLeg.rotation.x = -swing;
+      hopCue = Math.max(0, hopCue - dt * 2.6);
+      pose(moving, hopCue);
     },
     consumeInteract() {
       const hit = interactEdge;
@@ -104,7 +104,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       follow.lerp(up, k).normalize();
       heading(head);
       const portrait = window.innerHeight > window.innerWidth;
-      const dist = portrait ? 5.35 : 6.35;
+      const dist = portrait ? 6.7 : 7.9;
       const horiz = Math.cos(controls.pitch) * dist;
       const anchor = PLANET_R + alt;
       camera.position
@@ -125,6 +125,8 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       alt = 0;
       vy = 0;
       grounded = true;
+      extraJump = true;
+      hopCue = 0;
       x = up.x * PLANET_R;
       y = up.y * PLANET_R;
       z = up.z * PLANET_R;
@@ -171,11 +173,19 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     face.addScaledVector(up, -face.dot(up));
     if (face.lengthSq() < 1e-6) face.copy(basis);
     else face.normalize();
-    if (grounded && wantJump && !jumpLatch) {
-      vy = JUMP;
-      alt = 0.02;
-      grounded = false;
-      jumpLatch = true;
+    if (wantJump && !jumpLatch) {
+      if (grounded) {
+        vy = JUMP;
+        alt = 0.04;
+        grounded = false;
+        extraJump = true;
+        jumpLatch = true;
+      } else if (extraJump) {
+        vy = JUMP2;
+        extraJump = false;
+        hopCue = 1;
+        jumpLatch = true;
+      }
     }
     vy -= GRAVITY * h;
     alt += vy * h;
@@ -183,6 +193,7 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       alt = 0;
       vy = 0;
       grounded = true;
+      extraJump = true;
     } else {
       grounded = false;
     }
@@ -194,6 +205,33 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
   }
 
   return api;
+
+  function pose(moving: boolean, cue: number): void {
+    const swing = moving ? Math.sin(phase) * 1.05 : 0;
+    const airborne = alt > 0.08;
+    const legL = body.getObjectByName('legL');
+    const legR = body.getObjectByName('legR');
+    const armL = body.getObjectByName('armL');
+    const armR = body.getObjectByName('armR');
+    const torso = body.getObjectByName('torso');
+    const cape = body.getObjectByName('cape');
+    const puff = body.getObjectByName('puff');
+    if (legL && legR) {
+      legL.rotation.x = airborne ? 0.55 : swing;
+      legR.rotation.x = airborne ? -0.35 : -swing;
+    }
+    if (armL && armR) {
+      const lift = airborne ? (cue > 0.05 ? -1.35 : -0.7) : -swing * 0.9;
+      armL.rotation.x = airborne ? lift : -swing * 0.9;
+      armR.rotation.x = airborne ? lift : swing * 0.9;
+    }
+    if (torso) torso.rotation.x = airborne ? -0.18 : moving ? 0.16 : 0;
+    if (cape) cape.rotation.x = airborne ? 0.7 : moving ? 0.25 + Math.sin(phase) * 0.35 : 0.12;
+    if (puff instanceof THREE.Mesh && puff.material instanceof THREE.MeshBasicMaterial) {
+      puff.material.opacity = cue * 0.9;
+      puff.scale.setScalar(0.55 + (1 - cue) * 1.7);
+    }
+  }
 }
 
 function buildAvatar(scene: THREE.Scene, gradient: THREE.Texture): THREE.Group {
@@ -201,35 +239,59 @@ function buildAvatar(scene: THREE.Scene, gradient: THREE.Texture): THREE.Group {
   const cloth = toonMaterial(gradient, 0x1d6fd0);
   const skin = toonMaterial(gradient, 0xffe0c4);
   const ink = toonMaterial(gradient, 0x14283a);
+  const capeMat = toonMaterial(gradient, 0x123f86);
 
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.66, 6), cloth);
-  torso.position.y = 1.02;
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.62, 6), cloth);
+  torso.name = 'torso';
+  torso.position.y = 1.22;
   group.add(torso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), skin);
-  head.position.y = 1.56;
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.12, 5), skin);
+  neck.position.y = 1.58;
+  group.add(neck);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 8, 6), skin);
+  head.position.y = 1.74;
   group.add(head);
 
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.09, 0.1), toonMaterial(gradient, 0xf0a03a));
-  visor.position.set(0, 1.58, 0.16);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.055, 0.07), toonMaterial(gradient, 0xf0a03a));
+  visor.position.set(0, 1.76, 0.11);
   group.add(visor);
 
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.32, 0.14), ink);
-  pack.position.set(0, 1.05, -0.24);
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.28, 0.08), ink);
+  pack.position.set(0, 1.24, -0.16);
   group.add(pack);
 
-  group.add(leg('legL', -0.11, cloth));
-  group.add(leg('legR', 0.11, cloth));
+  const cape = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.46, 0.03), capeMat);
+  cape.name = 'cape';
+  cape.position.set(0, 1.18, -0.2);
+  cape.geometry.translate(0, -0.18, 0);
+  group.add(cape);
+
+  group.add(limb('legL', -0.09, 0.88, 0.78, 0.045, cloth));
+  group.add(limb('legR', 0.09, 0.88, 0.78, 0.045, cloth));
+  group.add(limb('armL', -0.2, 1.46, 0.58, 0.032, cloth));
+  group.add(limb('armR', 0.2, 1.46, 0.58, 0.032, cloth));
+
+  const puff = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.03, 5, 14),
+    new THREE.MeshBasicMaterial({ color: 0xf6c14a, transparent: true, opacity: 0, depthWrite: false }),
+  );
+  puff.name = 'puff';
+  puff.rotation.x = Math.PI / 2;
+  puff.position.y = 0.12;
+  group.add(puff);
+
   scene.add(group);
   return group;
 }
 
-function leg(name: string, x: number, material: THREE.Material): THREE.Group {
+function limb(name: string, x: number, y: number, length: number, radius: number, material: THREE.Material): THREE.Group {
   const pivot = new THREE.Group();
   pivot.name = name;
-  pivot.position.set(x, 0.72, 0);
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.64, 5), material);
-  mesh.position.y = -0.32;
+  pivot.position.set(x, y, 0);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.85, radius, length, 5), material);
+  mesh.position.y = -length / 2;
   pivot.add(mesh);
   return pivot;
 }

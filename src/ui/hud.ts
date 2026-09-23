@@ -53,14 +53,14 @@ export function createHud(
 
   const coach = el('div', 'coach');
   coach.innerHTML = `
-    <p>Il faro è sul polo, davanti a te.</p>
+    <p>Il palo è avanti. I premi stanno negli spicchi.</p>
     <strong>${coarse ? 'Pollice sinistro per camminare, dito sul mondo per girarti.' : 'WASD per camminare, trascina per girarti.'}</strong>
   `;
 
   const hint = el('p', 'hint');
   hint.textContent = coarse
-    ? 'Levetta a sinistra · dito sul mondo per girare · Salta a destra'
-    : 'WASD o levetta · trascina per guardare · E raccoglie · spazio salta';
+    ? 'Levetta a sinistra · dito sul mondo per girare · Salta due volte'
+    : 'WASD o levetta · trascina per guardare · E raccoglie · spazio, due salti';
 
   const prompt = button('', 'prompt');
   prompt.hidden = true;

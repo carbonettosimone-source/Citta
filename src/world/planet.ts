@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 
-/** Raggio del mini-pianeta. Camminarci sopra è un giro corto, con orizzonte curvo. */
-export const PLANET_R = 16;
+/**
+ * Raggio del pianeta. 160 m è dieci volte il guscio precedente (16 m):
+ * il giro dell'equatore passa da ~100 m a ~1000 m.
+ */
+export const PLANET_R = 160;
 
 export const BIOME_COUNT = 6;
 
@@ -24,8 +27,11 @@ export const BIOMES: readonly Biome[] = [
   { id: 'lantern', name: 'Bosco di lanterne', ground: 0xee86b8, patch: 0xf7b6d6, deep: 0xd24e90, plant: 0xf2c14e },
 ];
 
-export const PATH_COLOR = 0xfff4e4;
-const RING = 1.05;
+export const PATH_COLOR = 0xfff1d0;
+export const SEAM_COLOR = 0x4a3b38;
+const RING = 1.02;
+const RING_HALF = 3.1 / PLANET_R;
+const SPOKE_HALF = 2.4;
 
 export function biomeAzimuth(index: number): number {
   return -Math.PI + (index + 0.5) * ((Math.PI * 2) / BIOME_COUNT);
@@ -73,16 +79,50 @@ export function onPath(x: number, y: number, z: number): boolean {
   const len = Math.hypot(x, y, z) || 1;
   const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
   const az = Math.atan2(x, z);
-  if (Math.abs(colat - RING) < 0.09) return true;
-  if (Math.abs(colat - (Math.PI - RING)) < 0.07) return true;
-  if (colat < 0.16 || colat > 2.7) return false;
+  if (Math.abs(colat - RING) < RING_HALF) return true;
+  if (Math.abs(colat - (Math.PI - RING)) < RING_HALF * 0.85) return true;
+  if (colat < 0.12 || colat > 2.85) return false;
   let best = Math.PI;
   for (let i = 0; i < BIOME_COUNT; i++) {
     const d = angleDiff(az, biomeAzimuth(i));
     if (d < best) best = d;
   }
-  const meters = best * Math.max(0.42, Math.sin(colat)) * PLANET_R;
-  return meters < 1.25;
+  return best * Math.sin(colat) * PLANET_R < SPOKE_HALF;
+}
+
+/** Distanza in metri dal confine di spicchio più vicino. Grande vicino al centro del bioma. */
+export function edgeMeters(x: number, y: number, z: number): number {
+  const len = Math.hypot(x, y, z) || 1;
+  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
+  const az = Math.atan2(x, z);
+  const u = ((az + Math.PI) / (Math.PI * 2)) * BIOME_COUNT;
+  const frac = u - Math.floor(u);
+  const edge = Math.min(frac, 1 - frac);
+  return edge * ((Math.PI * 2) / BIOME_COUNT) * Math.sin(colat) * PLANET_R;
+}
+
+/** Punto sul guscio, a `meters` dal centro del segmento, nel piano tangente. */
+export function beside(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+  meters: number,
+): { x: number; y: number; z: number } {
+  up.set(ax + bx, ay + by, az + bz).multiplyScalar(0.5);
+  const px = up.x;
+  const py = up.y;
+  const pz = up.z;
+  if (up.lengthSq() < 1e-8) up.set(0, 1, 0);
+  up.normalize();
+  fwd.set(bx - ax, by - ay, bz - az);
+  fwd.addScaledVector(up, -fwd.dot(up));
+  if (fwd.lengthSq() < 1e-8) fwd.set(1, 0, 0);
+  fwd.normalize();
+  right.crossVectors(fwd, up).normalize();
+  return project(px + right.x * meters, py + right.y * meters, pz + right.z * meters);
 }
 
 export function angleDiff(a: number, b: number): number {

@@ -3,6 +3,7 @@ import type { Player } from '../player/player';
 import { toonMaterial } from '../render/toon';
 import { frameQuaternion, PLANET_R } from '../world/planet';
 import {
+  FINISH,
   RANK_FOR_PLACE,
   RACE_GHOSTS,
   RACE_LIMIT,
@@ -188,11 +189,10 @@ export function createMatch(
         canQuit: true,
         lock: false,
       });
-      const end = RACE_PATH[RACE_PATH.length - 1];
-      const dx = player.x - (end?.x ?? 0);
-      const dy = player.y - (end?.y ?? 0);
-      const dz = player.z - (end?.z ?? 0);
-      if (dx * dx + dy * dy + dz * dz <= 1.55 * 1.55) finish(true, elapsed);
+      const dx = player.x - FINISH.x;
+      const dy = player.y - FINISH.y;
+      const dz = player.z - FINISH.z;
+      if (dx * dx + dy * dy + dz * dz <= FINISH.r * FINISH.r) finish(true, elapsed);
       else if (elapsed >= RACE_LIMIT) finish(false, elapsed);
     },
   };
@@ -255,10 +255,10 @@ function pointAt(
 function runner(gradient: THREE.Texture, color: number): THREE.Group {
   const group = new THREE.Group();
   const cloth = toonMaterial(gradient, color);
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.55, 2, 6), cloth);
-  body.position.y = 0.78;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 5), toonMaterial(gradient, 0xffe0c4));
-  head.position.y = 1.38;
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.72, 2, 6), cloth);
+  body.position.y = 0.86;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 5), toonMaterial(gradient, 0xffe0c4));
+  head.position.y = 1.48;
   group.add(body, head);
   return group;
 }

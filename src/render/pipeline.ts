@@ -38,13 +38,13 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
   renderer.autoClear = true;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(FOG_COLOR, 8, 26);
+  scene.fog = new THREE.Fog(FOG_COLOR, 18, 86);
   scene.add(new THREE.HemisphereLight(0xfff6e8, 0xd2c0aa, 0.62));
   const sun = new THREE.DirectionalLight(0xfff3df, 1.2);
   sun.position.set(12, 18, 6);
   scene.add(sun);
 
-  const camera = new THREE.PerspectiveCamera(62, 1, 0.08, 120);
+  const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
 
   const target = new THREE.WebGLRenderTarget(2, 2, {
     depthBuffer: true,

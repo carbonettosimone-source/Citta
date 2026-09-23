@@ -36,7 +36,7 @@ export function createSky(): THREE.Mesh {
       depthWrite: false,
     }),
   );
-  sky.scale.setScalar(80);
+  sky.scale.setScalar(180);
   sky.frustumCulled = false;
   sky.renderOrder = -1;
   return sky;

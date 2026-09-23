@@ -1,13 +1,13 @@
-import { BIOMES, biomeAzimuth, northTangent, onSphere, shift, type Biome } from '../world/planet';
+import { BIOMES, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 4;
+export const PROTO = 5;
 
 const homeAz = biomeAzimuth(0);
-const home = onSphere(0.78, homeAz);
-const homeFace = northTangent(0.78, homeAz);
+const home = onSphere(0.3, homeAz);
+const homeFace = northTangent(0.3, homeAz);
 
 export const SPAWN = home;
 export const SPAWN_FACE = homeFace;
@@ -27,12 +27,12 @@ export type ChallengeDef = {
   needsCourse?: boolean;
 };
 
-const faro = onSphere(0.2, homeAz);
-const anello = onSphere(1.05, biomeAzimuth(1));
-const pietre = onSphere(1.42, biomeAzimuth(2));
-const belvedere = onSphere(1.7, biomeAzimuth(3));
+const faro = onSphere(0.13, homeAz);
+const anello = onSphere(1.38, biomeAzimuth(1));
+const pietre = onSphere(1.92, biomeAzimuth(2));
+const belvedere = onSphere(2.35, biomeAzimuth(3));
 const dune = biomeAzimuth(4);
-const cancello = onSphere(1.02, dune - 0.52);
+const cancello = onSphere(1.48, dune - 0.28);
 
 export const CHALLENGES: readonly ChallengeDef[] = [
   {
@@ -158,21 +158,24 @@ export const RANK_FOR_PLACE = [9, 26, 47, 70] as const;
 export type RacePoint = { x: number; y: number; z: number };
 
 const raceSamples: readonly { c: number; a: number }[] = [
-  { c: 1.02, a: dune - 0.34 },
-  { c: 1.02, a: dune - 0.16 },
-  { c: 1.3, a: dune - 0.02 },
-  { c: 1.3, a: dune + 0.16 },
-  { c: 0.98, a: dune + 0.3 },
-  { c: 1.14, a: dune + 0.42 },
+  { c: 1.06, a: dune - 0.038 },
+  { c: 1.06, a: dune - 0.008 },
+  { c: 1.105, a: dune + 0.012 },
+  { c: 1.105, a: dune + 0.036 },
+  { c: 1.055, a: dune + 0.048 },
+  { c: 1.085, a: dune + 0.072 },
 ];
 
 export const RACE_PATH: readonly RacePoint[] = raceSamples.map((sample) => onSphere(sample.c, sample.a));
 
-export const RACE_BARS: readonly RacePoint[] = [
-  shift(1.02, dune + 0.0, 0, 0),
-  shift(1.34, dune + 0.34, 0, 0),
-  shift(1.02, dune + 0.05, 0, 1.6),
-];
+function gate(index: number, side: number): RacePoint {
+  const a = RACE_PATH[index];
+  const b = RACE_PATH[index + 1];
+  if (!a || !b) throw new Error('varco senza segmento');
+  return beside(a.x, a.y, a.z, b.x, b.y, b.z, side);
+}
+
+export const RACE_BARS: readonly RacePoint[] = [gate(0, 1.9), gate(2, -2), gate(4, -2)];
 
 export const RACE_GHOSTS: readonly { name: string; seconds: number; color: number }[] = [
   { name: 'Rami', seconds: 5.6, color: 0xf0a03a },
@@ -184,7 +187,7 @@ export const RACE_LIMIT = 24;
 
 const finish = RACE_PATH[RACE_PATH.length - 1];
 if (!finish) throw new Error('percorso senza traguardo');
-export const FINISH = { x: finish.x, y: finish.y, z: finish.z, r: 1.55 };
+export const FINISH = { x: finish.x, y: finish.y, z: finish.z, r: 2.5 };
 
 export function payoutFor(place: number, stake: number): number {
   const mult = PAYOUT_MULT[place - 1] ?? 0;
