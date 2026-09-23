@@ -12,8 +12,8 @@ export type Atlas = {
 
 const KIND_COLOR: Record<MapPlace['kind'], string> = {
   pole: '#f0a03a',
-  hub: '#f6f1e6',
-  village: '#f6f1e6',
+  hub: '#ff4d86',
+  village: '#c9b6ff',
   biome: '#9ad7c4',
   games: '#e39a32',
   venue: '#f06a45',
@@ -196,8 +196,9 @@ function paint(
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(16, 36, 28, 0.9)';
     ctx.fillStyle = '#f6f1e6';
-    ctx.strokeText(label, at.x, at.y - 12);
-    ctx.fillText(label, at.x, at.y - 12);
+    const nudge = labelNudge(place.id);
+    ctx.strokeText(label, at.x, at.y - 12 + nudge);
+    ctx.fillText(label, at.x, at.y - 12 + nudge);
   }
 
   const here = angles(px, py, pz);
@@ -224,9 +225,14 @@ function paint(
 
 function mapLabel(place: MapPlace): string | null {
   if (place.kind === 'biome' || place.kind === 'pole') return null;
-  if (place.kind === 'hub') return 'Città';
-  if (place.id === 'quarter') return 'Case';
+  if (place.kind === 'hub') return 'Piazza';
+  if (place.id === 'quarter') return 'Corallo';
+  if (place.id === 'mercato') return 'Mercato';
   if (place.kind === 'games') return 'Giochi';
+  if (place.id === 'botteghe') return 'Botteghe';
+  if (place.id === 'porta') return 'Porta';
+  if (place.id === 'dune-gate') return 'Dune';
+  if (place.id === 'terrazza') return 'Terrazza';
   if (place.kind === 'venue') return 'Ostacoli';
   if (place.kind === 'lookout') return 'Belvedere';
   if (place.id === 'mint') return 'Menta';
@@ -234,6 +240,17 @@ function mapLabel(place: MapPlace): string | null {
   if (place.id === 'crystal-town') return 'Cristallo';
   if (place.id === 'lantern') return 'Lanterne';
   return place.name;
+}
+
+function labelNudge(id: string): number {
+  if (id === 'games') return 16;
+  if (id === 'mercato') return -4;
+  if (id === 'terrazza') return -14;
+  if (id === 'quarter') return 12;
+  if (id === 'dune-gate') return 14;
+  if (id === 'botteghe') return -12;
+  if (id === 'porta') return 12;
+  return 0;
 }
 
 function project(colat: number, az: number, cx: number, cy: number, radius: number): { x: number; y: number } {

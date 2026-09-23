@@ -28,7 +28,7 @@ export type Pickups = {
 };
 
 export function createPickups(scene: THREE.Scene): Pickups {
-  const coins = [welcome(), ...layout()];
+  const coins = [welcome(), ...alleys(), ...layout()];
   const mesh = new THREE.InstancedMesh(
     octahedron(),
     new THREE.MeshBasicMaterial({ color: 0xffffff }),
@@ -69,6 +69,21 @@ function welcome(): Coin {
   const p = seat(raw.x, raw.y, raw.z);
   const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
   return { id: 'moneta-via', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, taken: false };
+}
+
+function alleys(): Coin[] {
+  const az = biomeAzimuth(0);
+  const spots = [
+    { id: 'moneta-vicolo', n: 27.4, e: -15.4 },
+    { id: 'moneta-mercato', n: 6.8, e: 35.2 },
+    { id: 'moneta-bottega', n: -6.6, e: -35.4 },
+  ] as const;
+  return spots.map((spot) => {
+    const raw = shift(0.2, az, spot.n, spot.e);
+    const p = seat(raw.x, raw.y, raw.z);
+    const q = frameQuaternion(raw.x, raw.y, raw.z, Math.cos(az), 0, -Math.sin(az));
+    return { id: spot.id, x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, taken: false };
+  });
 }
 
 function layout(): Coin[] {

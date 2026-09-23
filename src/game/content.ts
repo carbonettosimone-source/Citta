@@ -1,10 +1,11 @@
 import { BIOMES, angles, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
+import { BOTTEGHE_PLAZA, DUNE_GATE, MARKET_PLAZA, SOUTH_PLAZA, TERRACE } from '../world/city';
 import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN_PLAZA, MINT_PLAZA, QUARTER_PLAZA, VIOLET_PLAZA } from '../world/towns';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 8;
+export const PROTO = 9;
 
 const homeAz = biomeAzimuth(0);
 const home = onSphere(0.3, homeAz);
@@ -243,9 +244,14 @@ function place(id: string, name: string, kind: MapKind, point: { x: number; y: n
 
 export const MAP_PLACES: readonly MapPlace[] = [
   { id: 'pole', name: 'Faro del polo', kind: 'pole', colat: 0.04, az: homeAz },
-  place('hub', 'Città del polo', 'hub', HUB_PLAZA),
+  place('hub', 'Piazza civica', 'hub', HUB_PLAZA),
   place('quarter', 'Quartiere del corallo', 'village', QUARTER_PLAZA),
-  place('games', 'Bacheca dei giochi', 'games', GAMES_BOARD),
+  place('mercato', 'Mercato', 'village', MARKET_PLAZA),
+  place('games', 'Piazza dei giochi', 'games', GAMES_BOARD),
+  place('botteghe', 'Botteghe', 'village', BOTTEGHE_PLAZA),
+  place('porta', 'Porta meridionale', 'village', SOUTH_PLAZA),
+  place('dune-gate', 'Porta delle dune', 'village', DUNE_GATE),
+  place('terrazza', 'Terrazza del faro', 'village', TERRACE),
   place('mint', 'Paese di menta', 'village', MINT_PLAZA),
   place('violet', 'Paese viola', 'village', VIOLET_PLAZA),
   place('crystal-town', 'Borgo di cristallo', 'village', CRYSTAL_PLAZA),

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
 import { toonInstances, toonMaterial, withWind } from '../render/toon';
 import type { Blocker } from './collide';
+import { addCity, addCityPads, GAMES_PLAZA } from './city';
 import { bandFalloff, biomeAzimuth, eastTangent, frameQuaternion, northTangent, onSphere, shift } from './planet';
 
 type Kind = 'house' | 'tower' | 'pavilion' | 'stall' | 'kiosk';
@@ -168,8 +169,8 @@ export const LANTERN_PLAZA = onSphere(lantern.colat, lantern.az);
 export const DUNE_CAMP = onSphere(dune.colat, dune.az);
 export const CRYSTAL_PLAZA = onSphere(crystal.colat, crystal.az);
 export const CRYSTAL_LOOK = shift(1.62, biomeAzimuth(3) + 0.07, 0, 4.5);
-/** Bacheca accanto al chiosco, fuori dal raggio del lotto così ci si può stare davanti. */
-export const GAMES_BOARD = shift(hub.colat, hub.az, 4.15, 5.55);
+/** Bacheca al centro di piazza dei giochi, senza un lotto addosso. */
+export const GAMES_BOARD = GAMES_PLAZA;
 
 type Dwelling = {
   n: number;
@@ -230,6 +231,7 @@ for (const home of QUARTER_HOMES) {
   const reach = houseReach(home.sx, home.sz);
   pads.push({ ...shift(hub.colat, hub.az, home.n, home.e), r2: reach * reach });
 }
+addCityPads(pads);
 
 /** 1 al centro di piazza, strada o lotto; scende a 0 sulla spalla. */
 export function townBlend(x: number, y: number, z: number): number {
@@ -270,7 +272,11 @@ export function nearTown(x: number, y: number, z: number, margin: number): boole
   const dx = x - QUARTER_PLAZA.x;
   const dy = y - QUARTER_PLAZA.y;
   const dz = z - QUARTER_PLAZA.z;
-  return dx * dx + dy * dy + dz * dz < (12 + margin) * (12 + margin);
+  if (dx * dx + dy * dy + dz * dz < (12 + margin) * (12 + margin)) return true;
+  const hx = x - HUB_PLAZA.x;
+  const hy = y - HUB_PLAZA.y;
+  const hz = z - HUB_PLAZA.z;
+  return hx * hx + hy * hy + hz * hz < (38 + margin) * (38 + margin);
 }
 
 type Stamp = {
@@ -421,6 +427,7 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   }
 
   addQuarter(scene, gradient, blockers);
+  addCity(scene, gradient, blockers);
 
   const paint = (geo: THREE.BufferGeometry, list: readonly Stamp[], flat = false) => {
     if (list.length === 0) return;
