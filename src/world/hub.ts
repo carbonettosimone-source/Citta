@@ -5,14 +5,13 @@ import { createSky } from '../render/sky';
 import { toonInstances, toonMaterial, withWind } from '../render/toon';
 import type { Blocker } from './collide';
 import { addDress } from './dress';
-import { WORLD_SEED, unit } from './hash';
+import { unit } from './hash';
 import { seat } from './relief';
 import { addTowns, nearTown, townBlend } from './towns';
 import {
   BIOMES,
-  PATH_COLOR,
   PLANET_R,
-  SEAM_COLOR,
+  angleDiff,
   biomeAzimuth,
   biomeIndex,
   edgeMeters,
@@ -22,6 +21,7 @@ import {
   pathBlend,
   quatAxisY,
   shift,
+  type Biome,
 } from './planet';
 
 export type Hub = {
@@ -90,34 +90,58 @@ function buildSurface(gradient: THREE.Texture): THREE.Mesh {
 
 function vertexColor(x: number, y: number, z: number): number {
   const len = Math.hypot(x, y, z) || 1;
-  const nx = x / len;
-  const nz = z / len;
-  const colat = Math.acos(Math.min(1, Math.max(-1, (y / len))));
+  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
   const az = Math.atan2(x, z);
-  const qx = Math.round(az * 9);
-  const qy = Math.round(colat * 11);
-  const flat = Math.max(pathBlend(x, y, z), townBlend(x, y, z));
-  if (flat > 0.82) {
-    const pave = unit(qx, qy, WORLD_SEED ^ 9);
-    if (pave > 0.86) return mixHex(PATH_COLOR, 0xd9c4a2, 0.45);
-    if (pave > 0.72) return mixHex(PATH_COLOR, 0xfff8ea, 0.55);
-    return PATH_COLOR;
-  }
-  const biome = BIOMES[biomeIndex(x, z)] ?? BIOMES[0];
-  const roll = unit(qx, qy, WORLD_SEED);
-  let hex = biome.ground;
-  if (roll > 0.84) hex = biome.deep;
-  else if (roll > 0.58) hex = biome.patch;
-  const parallel = Math.hypot(nx, nz) * PLANET_R;
+  const pathW = pathBlend(x, y, z);
+  const townW = townBlend(x, y, z);
+  const flat = Math.max(pathW, townW);
+  const stone = paveHex(colat, az, townW);
+  if (flat > 0.82) return stone;
+  const idx = biomeIndex(x, z);
+  const biome = BIOMES[idx] ?? BIOMES[0];
+  let hex = groundTone(biome, colat, az);
+  const parallel = Math.hypot(x / len, z / len) * PLANET_R;
   if (parallel > 22) {
     const edge = edgeMeters(x, y, z);
-    if (edge < 8) {
-      const t = edge < 1.15 ? 1 : 1 - (edge - 1.15) / 6.85;
-      hex = mixHex(hex, SEAM_COLOR, t * t);
+    if (edge < 9) {
+      const u = ((az + Math.PI) / (Math.PI * 2)) * BIOMES.length;
+      const frac = u - Math.floor(u);
+      const neighbor = BIOMES[(frac < 0.5 ? idx + BIOMES.length - 1 : idx + 1) % BIOMES.length] ?? biome;
+      const shoulder = edge < 1.25 ? 1 : 1 - (edge - 1.25) / 7.75;
+      hex = mixHex(hex, groundTone(neighbor, colat, az), shoulder * 0.72);
+      if (edge < 1.25) hex = mixHex(hex, 0xf6efe2, (1 - edge / 1.25) ** 2);
     }
   }
-  if (flat > 0.04) hex = mixHex(hex, PATH_COLOR, flat);
+  if (flat > 0.04) hex = mixHex(hex, stone, flat);
   return hex;
+}
+
+function groundTone(biome: Biome, colat: number, az: number): number {
+  const broad = Math.sin(az * 2.2 + colat * 1.7) * 0.5 + 0.5;
+  const fine = Math.sin(az * 4.6 - colat * 2.4 + 1.3) * 0.5 + 0.5;
+  if (fine > 0.78) return mixHex(biome.ground, biome.deep, 0.42);
+  if (broad > 0.58) return mixHex(biome.ground, biome.patch, 0.62);
+  return biome.ground;
+}
+
+function paveHex(colat: number, az: number, townW: number): number {
+  const along = colat * PLANET_R;
+  let best = Math.PI;
+  for (let i = 0; i < BIOMES.length; i += 1) {
+    const d = angleDiff(az, biomeAzimuth(i));
+    if (d < best) best = d;
+  }
+  const spokeM = best * Math.sin(Math.max(0.15, colat)) * PLANET_R;
+  const tile = 1.28;
+  const u = along / tile;
+  const v = spokeM / tile;
+  const fu = u - Math.floor(u);
+  const fv = v - Math.floor(v);
+  if (fu < 0.07 || fu > 0.93 || fv < 0.07 || fv > 0.93) return 0xe4d0b0;
+  const checker = (Math.floor(u) + Math.floor(v)) & 1;
+  if (spokeM < 0.55) return 0xfff8ea;
+  if (townW > 0.72 && spokeM > 0.7) return checker ? 0xf6cbb8 : 0xf3ddd0;
+  return checker ? 0xf4e6cc : 0xe7d3b2;
 }
 
 function mixHex(a: number, b: number, t: number): number {
@@ -139,8 +163,10 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
   const az = biomeAzimuth(0);
   const colat = 0.2;
   const border: Plant[] = [];
+  const pots: Plant[] = [];
   const stems: Plant[] = [];
   const crowns: Plant[] = [];
+  const fruit: Plant[] = [];
   const plantAt = (list: Plant[], north: number, east: number, scale: number, color: number) => {
     const raw = shift(colat, az, north, east);
     const p = seat(raw.x, raw.y, raw.z);
@@ -151,6 +177,8 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
     const scale = 0.95 + ((Math.abs(Math.round(n * 10)) % 3) * 0.18);
     plantAt(border, n, -0.72, scale, 0xf26d86);
     plantAt(border, n, 0.72, scale * 0.9, 0xd45a62);
+    plantAt(pots, n, -0.72, scale, 0xf6f1e6);
+    plantAt(pots, n, 0.72, scale * 0.9, 0xe7dfd2);
   }
   for (let n = -14.2; n <= -3.2; n += 3.3) {
     plantAt(stems, n, -1.48, 1, 0xd45a62);
@@ -159,23 +187,35 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
     blockers.push({ ...shift(colat, az, n, 1.48), r: 0.22, h: 2.2 });
     plantAt(crowns, n, -1.48, 1, 0xf26d86);
     plantAt(crowns, n, 1.48, 1, 0xf6c2b4);
+    plantAt(fruit, n, -1.48, 1, 0xf0a03a);
+    plantAt(fruit, n, 1.48, 1, 0xf0a03a);
   }
-  const crownGeo = new THREE.CylinderGeometry(0.78, 0.78, 0.2, 6);
-  crownGeo.translate(0, 2.2, 0);
-  paint(scene, cone(0.42, 0.95, 5, 0.48), gradient, border, false, true);
+  paint(scene, planterLeaf(), gradient, border, false, true);
+  paint(scene, planterPot(), gradient, pots, false, false);
   paint(scene, cylinder(0.07, 0.1, 2.15, 5), gradient, stems, false, true);
-  paint(scene, crownGeo, gradient, crowns, false, true);
+  paint(scene, layeredCrown(), gradient, crowns, false, true);
+  paint(scene, crownFruit(), gradient, fruit, true, true);
 
   const gateAt = shift(colat, az, -12.6, 0);
   const face = northTangent(colat, az);
   const gate = new THREE.Mesh(
-    new THREE.TorusGeometry(1.55, 0.11, 6, 16),
+    new THREE.TorusGeometry(1.55, 0.16, 8, 18),
     toonMaterial(gradient, 0xf0a03a),
   );
   gate.position.set(gateAt.x, gateAt.y, gateAt.z);
   gate.quaternion.copy(frameQuaternion(gateAt.x, gateAt.y, gateAt.z, face.x, face.y, face.z));
   const up = new THREE.Vector3(gateAt.x, gateAt.y, gateAt.z).normalize();
   gate.position.addScaledVector(up, 1.55);
+  const keystone = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xfff1d0 }),
+  );
+  keystone.position.y = 1.52;
+  const bannerA = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0xf0a03a));
+  bannerA.position.set(-0.46, 0.95, 0.02);
+  const bannerB = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0xfff6ea));
+  bannerB.position.set(0.46, 0.88, 0.02);
+  gate.add(keystone, bannerA, bannerB);
   scene.add(gate);
   blockers.push({ ...shift(colat, az, -12.6, -1.5), r: 0.38, h: 1.7 });
   blockers.push({ ...shift(colat, az, -12.6, 1.5), r: 0.38, h: 1.7 });
@@ -251,7 +291,7 @@ function scatter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[
   }
 
   paint(scene, cone(1.55, 0.72, 6, 0.36), gradient, coral, false, true);
-  paint(scene, cylinder(1.15, 1.15, 0.32, 6), gradient, discs, false, true);
+  paint(scene, coralGrove(), gradient, discs, false, true);
   paint(scene, cylinder(0.09, 0.12, 2.5, 5), gradient, mintStem, false, true);
   paint(scene, star(), gradient, mintStar, false, true);
   paint(scene, cone(0.72, 3.3, 5, 1.65), gradient, petals, false, true);
@@ -361,6 +401,82 @@ function paint(
   }
   commit(mesh);
   scene.add(mesh);
+}
+
+function layeredCrown(): THREE.BufferGeometry {
+  const low = new THREE.CylinderGeometry(0.95, 0.72, 0.22, 7);
+  low.translate(0, 1.78, 0);
+  const mid = new THREE.CylinderGeometry(0.64, 0.5, 0.18, 6);
+  mid.translate(0.06, 2.22, 0.04);
+  const top = new THREE.CylinderGeometry(0.34, 0.26, 0.14, 5);
+  top.translate(-0.04, 2.58, -0.03);
+  return mergeFlat([low, mid, top]);
+}
+
+function crownFruit(): THREE.BufferGeometry {
+  const geo = new THREE.SphereGeometry(0.14, 6, 5);
+  geo.translate(0.18, 2.28, 0.08);
+  return geo;
+}
+
+function planterLeaf(): THREE.BufferGeometry {
+  const leaf = new THREE.ConeGeometry(0.4, 0.82, 5);
+  leaf.translate(0, 0.72, 0);
+  const bud = new THREE.SphereGeometry(0.12, 6, 5);
+  bud.translate(0, 1.12, 0);
+  return mergeFlat([leaf, bud]);
+}
+
+function planterPot(): THREE.BufferGeometry {
+  const geo = new THREE.CylinderGeometry(0.3, 0.22, 0.24, 6);
+  geo.translate(0, 0.12, 0);
+  return geo;
+}
+
+function bannerGeo(): THREE.BufferGeometry {
+  const cloth = new THREE.BoxGeometry(0.38, 0.92, 0.045);
+  const hem = new THREE.BoxGeometry(0.42, 0.08, 0.05);
+  hem.translate(0, -0.46, 0);
+  return mergeFlat([cloth, hem]);
+}
+
+function coralGrove(): THREE.BufferGeometry {
+  const stem = new THREE.CylinderGeometry(0.09, 0.14, 1.7, 5);
+  stem.translate(0, 0.85, 0);
+  const low = new THREE.CylinderGeometry(1.05, 0.72, 0.28, 6);
+  low.translate(0, 1.85, 0);
+  const mid = new THREE.CylinderGeometry(0.7, 0.5, 0.22, 6);
+  mid.translate(0.08, 2.32, 0.04);
+  const top = new THREE.CylinderGeometry(0.36, 0.26, 0.16, 5);
+  top.translate(-0.05, 2.68, -0.02);
+  return mergeFlat([stem, low, mid, top]);
+}
+
+function mergeFlat(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const chunks = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+  let count = 0;
+  for (const chunk of chunks) count += chunk.getAttribute('position').count;
+  const position = new Float32Array(count * 3);
+  const normal = new Float32Array(count * 3);
+  let offset = 0;
+  for (const chunk of chunks) {
+    const p = chunk.getAttribute('position');
+    const n = chunk.getAttribute('normal');
+    for (let i = 0; i < p.count; i += 1) {
+      const o = offset + i;
+      position[o * 3] = p.getX(i);
+      position[o * 3 + 1] = p.getY(i);
+      position[o * 3 + 2] = p.getZ(i);
+      normal[o * 3] = n.getX(i);
+      normal[o * 3 + 1] = n.getY(i);
+      normal[o * 3 + 2] = n.getZ(i);
+    }
+    offset += p.count;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  return geo;
 }
 
 function cone(radius: number, height: number, sides: number, lift: number): THREE.ConeGeometry {

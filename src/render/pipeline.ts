@@ -38,11 +38,14 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
   renderer.autoClear = true;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(FOG_COLOR, 18, 86);
-  scene.add(new THREE.HemisphereLight(0xfff6e8, 0xd2c0aa, 0.62));
-  const sun = new THREE.DirectionalLight(0xfff3df, 1.2);
-  sun.position.set(12, 18, 6);
+  scene.fog = new THREE.Fog(FOG_COLOR, 16, 74);
+  scene.add(new THREE.HemisphereLight(0xffe7c4, 0xc9b39a, 0.7));
+  const sun = new THREE.DirectionalLight(0xffe2b0, 1.25);
+  sun.position.set(-16, 11, 9);
   scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x9eb6d8, 0.34);
+  fill.position.set(14, 6, -12);
+  scene.add(fill);
 
   const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 420);
 
@@ -59,6 +62,20 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
   blitCamera.position.z = 1;
   const blitMaterial = new THREE.MeshBasicMaterial({ map: target.texture });
   blitMaterial.toneMapped = false;
+  const gradeRes = { value: new THREE.Vector2(1, 1) };
+  blitMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms['uRes'] = gradeRes;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec2 uRes;')
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+        vec2 vigP = gl_FragCoord.xy / uRes - 0.5;
+        float vig = smoothstep(0.16, 0.62, dot(vigP, vigP));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(1.06, 0.94, 0.78), 0.28);
+        gl_FragColor.rgb *= mix(1.0, 0.72, vig);`,
+      );
+  };
   const blitScene = new THREE.Scene();
   blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blitMaterial));
 
@@ -72,6 +89,7 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
     );
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    gradeRes.value.set(width, height);
   };
 
   const render = () => {

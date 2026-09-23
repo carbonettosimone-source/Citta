@@ -256,6 +256,10 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   const awnings: Stamp[] = [];
   const hips: Stamp[] = [];
   const windows: Stamp[] = [];
+  const frames: Stamp[] = [];
+  const lintels: Stamp[] = [];
+  const eaves: Stamp[] = [];
+  const steps: Stamp[] = [];
   const chimneys: Stamp[] = [];
   const signs: Stamp[] = [];
   const crowns: Stamp[] = [];
@@ -288,6 +292,10 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
         stamp(hip ? hips : roofs, 1, 1, 1, tint);
         stamp(doors, 1, 1, 1, INK);
         stamp(windows, 1, 1, 1, 0x163044);
+        stamp(frames, 1, 1, 1, 0xf4efe6);
+        stamp(lintels, 1, 1, 1, AMBER);
+        stamp(eaves, 1, 1, 1, hip ? tint : 0xf4efe6);
+        stamp(steps, 1, 1, 1, 0xe7d3b2);
         if (!hip) stamp(chimneys, 1, 1, 1, 0xc46a52);
         blockers.push({ ...p, r: 1.72, h: 3.4 });
       } else if (lot.kind === 'tower') {
@@ -355,6 +363,7 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
       gate.position.addScaledVector(gateUp, 2.15);
       scene.add(gate);
     }
+    addBasin(scene, gradient, blockers, town);
   }
 
   const paint = (geo: THREE.BufferGeometry, list: readonly Stamp[], flat = false) => {
@@ -382,6 +391,10 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
   paint(box(2.15, 0.12, 1.55, 1.28), awnings, true);
   paint(hipRoof(), hips);
   paint(windowsGeo(), windows);
+  paint(frameGeo(), frames);
+  paint(lintel(), lintels);
+  paint(eave(), eaves);
+  paint(step(), steps);
   paint(chimney(), chimneys);
   paint(signBoard(), signs);
   paint(crownBulb(), crowns, true);
@@ -446,6 +459,88 @@ function hipRoof(): THREE.ConeGeometry {
   return geo;
 }
 
+function addBasin(
+  scene: THREE.Scene,
+  gradient: THREE.Texture,
+  blockers: Blocker[],
+  town: Town,
+): void {
+  const radius = town.id === 'hub' ? 1.42 : 0.78;
+  const spot = basinSpot(town, radius);
+  if (!spot) return;
+  const at = shift(town.colat, town.az, spot.n, spot.e);
+  const facing = frameQuaternion(at.x, at.y, at.z, Math.sin(town.az), 0, Math.cos(town.az));
+  const up = new THREE.Vector3(at.x, at.y, at.z).normalize();
+  const ringGeo = new THREE.TorusGeometry(radius, town.id === 'hub' ? 0.16 : 0.11, 6, 16);
+  ringGeo.rotateX(Math.PI / 2);
+  const ring = new THREE.Mesh(ringGeo, toonMaterial(gradient, 0xf4efe6));
+  ring.position.set(at.x, at.y, at.z).addScaledVector(up, 0.2);
+  ring.quaternion.copy(facing);
+  const water = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.72, radius * 0.72, 0.05, 14),
+    new THREE.MeshBasicMaterial({ color: town.id === 'hub' ? 0x8fd8ea : 0x9ad4e0 }),
+  );
+  water.position.set(at.x, at.y, at.z).addScaledVector(up, 0.12);
+  water.quaternion.copy(facing);
+  scene.add(ring, water);
+  if (town.id === 'hub') {
+    const jet = new THREE.Mesh(
+      new THREE.ConeGeometry(0.11, 0.85, 6),
+      new THREE.MeshBasicMaterial({ color: 0xe8f7fb }),
+    );
+    jet.position.set(at.x, at.y, at.z).addScaledVector(up, 0.58);
+    jet.quaternion.copy(facing);
+    scene.add(jet);
+  }
+  for (let i = 0; i < 4; i += 1) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    blockers.push({ ...shift(town.colat, town.az, spot.n + Math.cos(a) * radius, spot.e + Math.sin(a) * radius), r: 0.34, h: 0.7 });
+  }
+}
+
+function basinSpot(town: Town, radius: number): { n: number; e: number } | null {
+  const need = radius + 1.9;
+  for (const scale of [0.72, 0.85, 0.58]) {
+    for (const sn of [1, -1]) {
+      for (const se of [-1, 1]) {
+        const n = town.plaza * scale * sn;
+        const e = town.plaza * scale * se;
+        const offStreet = Math.abs(n) - radius > 2.5 && Math.abs(e) - radius > 2.65;
+        const clear = town.lots.every((lot) => Math.hypot(lot.n - n, lot.e - e) > need);
+        if (offStreet && clear) return { n, e };
+      }
+    }
+  }
+  return null;
+}
+
+function eave(): THREE.CylinderGeometry {
+  const geo = new THREE.CylinderGeometry(1.95, 1.95, 0.12, 6);
+  geo.translate(0, 2.32, 0);
+  return geo;
+}
+
+function frameGeo(): THREE.BufferGeometry {
+  const geo = new THREE.BoxGeometry(0.5, 0.54, 0.04);
+  const left = geo.clone();
+  left.translate(-0.58, 1.38, 1.16);
+  const right = geo.clone();
+  right.translate(0.58, 1.38, 1.16);
+  return mergePair(left, right);
+}
+
+function lintel(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(0.82, 0.12, 0.1);
+  geo.translate(0, 0.98, 1.22);
+  return geo;
+}
+
+function step(): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(0.78, 0.06, 0.32);
+  geo.translate(0, 0.04, 1.38);
+  return geo;
+}
+
 function windowsGeo(): THREE.BufferGeometry {
   const geo = new THREE.BoxGeometry(0.36, 0.4, 0.06);
   const left = geo.clone();
@@ -478,14 +573,16 @@ function bulb(): THREE.SphereGeometry {
 }
 
 function mergePair(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.BufferGeometry {
+  const ea = a.index ? a.toNonIndexed() : a;
+  const eb = b.index ? b.toNonIndexed() : b;
   const geo = new THREE.BufferGeometry();
-  const count = a.getAttribute('position').count + b.getAttribute('position').count;
+  const count = ea.getAttribute('position').count + eb.getAttribute('position').count;
   const position = new Float32Array(count * 3);
   const normal = new Float32Array(count * 3);
-  const pa = a.getAttribute('position');
-  const pb = b.getAttribute('position');
-  const na = a.getAttribute('normal');
-  const nb = b.getAttribute('normal');
+  const pa = ea.getAttribute('position');
+  const pb = eb.getAttribute('position');
+  const na = ea.getAttribute('normal');
+  const nb = eb.getAttribute('normal');
   for (let i = 0; i < pa.count; i += 1) {
     position[i * 3] = pa.getX(i);
     position[i * 3 + 1] = pa.getY(i);

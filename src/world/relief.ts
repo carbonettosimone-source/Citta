@@ -18,12 +18,11 @@ export function shellLift(x: number, y: number, z: number): number {
   const biome = biomeIndex(px, pz);
   const bias = BIAS[biome] ?? 0;
   const raw =
-    0.14 +
-    bias +
-    Math.sin(az * 3 + 0.7) * Math.sin(colat * 2.2) * 0.12 +
-    Math.sin(az * 6.5 - colat * 4.1) * 0.07 +
-    Math.sin(az * 2.2 + colat * 9) * 0.035;
-  const wild = Math.max(0.03, Math.min(0.46, raw)) * pole;
+    0.09 +
+    bias * 0.45 +
+    Math.sin(az * 2 + 0.4) * Math.sin(colat * 1.35) * 0.09 +
+    Math.sin(az * 3.1 - colat * 1.8) * 0.045;
+  const wild = Math.max(0.015, Math.min(0.28, raw)) * pole;
   const flat = Math.max(pathBlend(px, py, pz), townBlend(px, py, pz));
   return wild * (1 - flat);
 }
