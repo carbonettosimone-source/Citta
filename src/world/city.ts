@@ -53,9 +53,9 @@ type Home = {
 };
 
 const HOMES: readonly Home[] = [
-  { n: 17.2, e: -13.55, spin: -Math.PI / 2, sx: 0.86, sy: 0.94, sz: 0.76, hip: true, wall: 0xfff2f6, roof: 0xff4d86 },
-  { n: 23.1, e: -13.7, spin: -Math.PI / 2, sx: 0.66, sy: 1.3, sz: 0.72, hip: false, wall: 0xeef6ff, roof: 0x7c4dff },
-  { n: 26.15, e: -13.45, spin: -Math.PI / 2, sx: 0.98, sy: 0.8, sz: 0.78, hip: true, wall: 0xeefcf8, roof: 0x22c8ee },
+  { n: 17.5, e: -14.9, spin: Math.PI / 2, sx: 0.84, sy: 0.96, sz: 0.74, hip: true, wall: 0xfff2f6, roof: 0xff4d86 },
+  { n: 20.6, e: -15.0, spin: Math.PI / 2, sx: 0.64, sy: 1.28, sz: 0.7, hip: false, wall: 0xeef6ff, roof: 0x7c4dff },
+  { n: 23.7, e: -14.85, spin: Math.PI / 2, sx: 0.94, sy: 0.82, sz: 0.76, hip: true, wall: 0xeefcf8, roof: 0x22c8ee },
   { n: 11.3, e: -21.4, spin: 0, sx: 0.96, sy: 1.02, sz: 0.88, hip: true, wall: 0xf4eeff, roof: 0xff7a3a },
   { n: -11.1, e: -27.5, spin: Math.PI, sx: 0.78, sy: 1.24, sz: 0.84, hip: false, wall: 0xeef6ff, roof: 0x2ad4a0 },
 ];
@@ -88,10 +88,10 @@ export function addCityPads(pads: Pad[]): void {
   for (let n = 6; n <= 12.2; n += 2) put(n, 18.2, 1.4);
   for (let e = 18.2; e <= 24; e += 1.8) put(14, e, 1.35);
   for (let n = -6; n <= 6; n += 2) put(n, -24, 1.75);
-  for (let e = 29.2; e <= 37.2; e += 1.5) put(6.8, e, 0.95);
-  for (let e = -37.4; e <= -29.2; e += 1.5) put(-6.6, e, 0.95);
-  for (let n = 16.2; n <= 28.4; n += 1.6) put(n, -15.4, 1.02);
-  for (let e = -16.2; e <= -10; e += 1.7) put(20, e, 1.45);
+  for (let e = 25.6; e <= 37.2; e += 1.5) put(6.8, e, 0.95);
+  for (let e = -37.4; e <= -23.6; e += 1.5) put(-6.6, e, 0.95);
+  for (let n = 16; n <= 28.8; n += 1.5) put(n, -12.5, 0.95);
+  for (let e = -12.6; e <= -0.8; e += 1.55) put(26.8, e, 1.15);
   put(26.2, 0, 3.15);
   for (const home of HOMES) {
     const reach = Math.hypot(1.25 * home.sx, 1.15 * home.sz) + 0.3;
@@ -218,7 +218,7 @@ export function addCity(scene: THREE.Scene, gradient: THREE.Texture, blockers: B
     lamp(n, 21.35);
     lamp(n, 26.85);
   }
-  for (const n of [17.6, 22.4, 26.6]) lamp(n, -16.62);
+  for (const n of [16.3, 19.15, 22.15, 27.55]) lamp(n, -13.55);
 
   for (const home of HOMES) {
     const { p, q } = pose(home.n, home.e, home.spin);
@@ -271,7 +271,7 @@ export function addCity(scene: THREE.Scene, gradient: THREE.Texture, blockers: B
     put(shrineCaps, at.p, at.q, 1, 1, 1, color);
     blockers.push({ ...at.p, r: 0.4, h: 1.55 });
   };
-  shrineAt(28.35, -15.4, 0xff4d86);
+  shrineAt(28.55, -12.5, 0xff4d86);
   shrineAt(6.8, 37.15, 0xffc43a);
   shrineAt(-6.6, -37.35, 0x7c4dff);
 
