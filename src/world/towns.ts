@@ -502,7 +502,7 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     put(eaves, p, q, home.sx, home.sy, home.sz, home.roof);
     put(steps, p, q, home.sx, home.sy, home.sz, 0xc8c4dc);
     put(plaques, p, q, home.sx, home.sy, home.sz, 0xffe14a);
-    if (!home.hip) put(chimneys, p, q, home.sx, home.sy, home.sz, 0xc46a52);
+    if (!home.hip) put(chimneys, p, q, home.sx, home.sy, home.sz, 0xe04848);
     if (home.porch) put(porches, p, q, home.sx, home.sy, home.sz, AMBER);
     blockers.push({ ...p, r: Math.hypot(1.25 * home.sx, 1.15 * home.sz) + 0.04, h: 3.45 * home.sy });
     const pot = pose(home.n + home.potN, home.e + home.potE, home.spin);
