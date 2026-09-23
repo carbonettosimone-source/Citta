@@ -19,15 +19,15 @@ export type Biome = {
 
 /** Sei spicchi. Nessuna pianta terrestre: ogni famiglia è inventata. */
 export const BIOMES: readonly Biome[] = [
-  { id: 'coral', name: 'Mesa corallo', ground: 0xef8f86, patch: 0xf6c2b4, deep: 0xd45a62, plant: 0xf26d86 },
-  { id: 'mint', name: 'Prateria menta', ground: 0x8edfb2, patch: 0xc8f2d8, deep: 0x4eae84, plant: 0x2fce8c },
-  { id: 'violet', name: 'Giardino viola', ground: 0xc9a2ee, patch: 0xe4d0fa, deep: 0x7a52c0, plant: 0x9a62e0 },
-  { id: 'crystal', name: 'Campo di cristalli', ground: 0x6ed0d4, patch: 0xb4eef0, deep: 0x2e96ae, plant: 0x3ec8ee },
-  { id: 'dune', name: 'Dune pesca', ground: 0xf2c06e, patch: 0xf8dba6, deep: 0xe08a3e, plant: 0xf09a48 },
-  { id: 'lantern', name: 'Bosco di lanterne', ground: 0xee86b8, patch: 0xf7b6d6, deep: 0xd24e90, plant: 0xf2c14e },
+  { id: 'coral', name: 'Mesa corallo', ground: 0xf25b78, patch: 0xff8faf, deep: 0xd42858, plant: 0xff4d86 },
+  { id: 'mint', name: 'Prateria menta', ground: 0x3dce8a, patch: 0x8ef0c4, deep: 0x178a58, plant: 0x1ed98a },
+  { id: 'violet', name: 'Giardino viola', ground: 0xb06af0, patch: 0xd4a6ff, deep: 0x6a32c8, plant: 0x9a4ae8 },
+  { id: 'crystal', name: 'Campo di cristalli', ground: 0x2ec8d8, patch: 0x8eecf6, deep: 0x1288b4, plant: 0x22d4f0 },
+  { id: 'dune', name: 'Dune pesca', ground: 0xff8a3c, patch: 0xffc48a, deep: 0xe06020, plant: 0xff6a2a },
+  { id: 'lantern', name: 'Bosco di lanterne', ground: 0xf24a9a, patch: 0xff9ad4, deep: 0xd42878, plant: 0xffc43a },
 ];
 
-export const PATH_COLOR = 0xfff1d0;
+export const PATH_COLOR = 0xffe4f2;
 export const SEAM_COLOR = 0x4a3b38;
 const RING = 1.02;
 const RING_HALF = 3.1 / PLANET_R;

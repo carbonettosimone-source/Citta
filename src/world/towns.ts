@@ -188,12 +188,12 @@ type Dwelling = {
 
 /** Case diverse attorno al cortile. Le porte guardano la piazza, il varco a nord resta sul faro. */
 const QUARTER_HOMES: readonly Dwelling[] = [
-  { n: 17.2, e: -6.6, spin: Math.PI, sx: 0.86, sy: 0.9, sz: 0.96, hip: true, wall: 0xf7f1e8, roof: 0xf26d86, porch: true, potN: 1.5, potE: -0.8 },
-  { n: 17.2, e: 6.6, spin: Math.PI, sx: 0.7, sy: 1.34, sz: 0.8, hip: false, wall: 0xf3e6dc, roof: 0xd45a62, porch: false, potN: 1.55, potE: 0.75 },
-  { n: 20.3, e: -8.5, spin: Math.PI / 2, sx: 1.16, sy: 0.8, sz: 1.02, hip: true, wall: 0xf6f1e6, roof: 0xe39a32, porch: true, potN: 0.85, potE: 1.65 },
-  { n: 20.3, e: 8.5, spin: -Math.PI / 2, sx: 0.66, sy: 1.28, sz: 0.78, hip: false, wall: 0xf8efe4, roof: 0xc46a52, porch: false, potN: -0.7, potE: -1.5 },
-  { n: 24.1, e: -5.5, spin: 0, sx: 0.92, sy: 0.96, sz: 0.88, hip: true, wall: 0xf4ebe3, roof: 0xf26d86, porch: true, potN: -1.5, potE: 0.8 },
-  { n: 24.1, e: 5.5, spin: 0, sx: 1.08, sy: 0.76, sz: 0.98, hip: true, wall: 0xf6f1e6, roof: 0xe08a6a, porch: false, potN: -1.45, potE: -0.85 },
+  { n: 17.2, e: -6.6, spin: Math.PI, sx: 0.86, sy: 0.9, sz: 0.96, hip: true, wall: 0xfff2f6, roof: 0xff4d86, porch: true, potN: 1.5, potE: -0.8 },
+  { n: 17.2, e: 6.6, spin: Math.PI, sx: 0.7, sy: 1.34, sz: 0.8, hip: false, wall: 0xeef6ff, roof: 0x7c4dff, porch: false, potN: 1.55, potE: 0.75 },
+  { n: 20.3, e: -8.5, spin: Math.PI / 2, sx: 1.16, sy: 0.8, sz: 1.02, hip: true, wall: 0xf4eeff, roof: 0xff7a3a, porch: true, potN: 0.85, potE: 1.65 },
+  { n: 20.3, e: 8.5, spin: -Math.PI / 2, sx: 0.66, sy: 1.28, sz: 0.78, hip: false, wall: 0xeefcf8, roof: 0x2ad4a0, porch: false, potN: -0.7, potE: -1.5 },
+  { n: 24.1, e: -5.5, spin: 0, sx: 0.92, sy: 0.96, sz: 0.88, hip: true, wall: 0xffeef6, roof: 0xff4d86, porch: true, potN: -1.5, potE: 0.8 },
+  { n: 24.1, e: 5.5, spin: 0, sx: 1.08, sy: 0.76, sz: 0.98, hip: true, wall: 0xeef8ff, roof: 0x22c8ee, porch: false, potN: -1.45, potE: -0.85 },
 ];
 
 function houseReach(sx: number, sz: number): number {
@@ -287,9 +287,12 @@ type Stamp = {
   color: number;
 };
 
-const WALL = 0xf6f1e6;
+const WALL = 0xfff4f8;
 const INK = 0x241c22;
-const AMBER = 0xe39a32;
+const AMBER = 0xffb22e;
+const NAVY = 0x2c2640;
+const SHUTTERS = [0xff4d86, 0x2ad4a0, 0x7c4dff, 0x22c8ee, 0xff7a3a, 0xffc43a] as const;
+const STUCCO = [0xfff2f6, 0xeef6ff, 0xf4eeff, 0xeefcf8] as const;
 
 export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
   const walls: Stamp[] = [];
@@ -314,7 +317,11 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
 
   for (const town of TOWNS) {
     const tint = roofTint(town.biome);
+    let lotIndex = 0;
     for (const lot of town.lots) {
+      const accent = SHUTTERS[(town.biome + lotIndex) % SHUTTERS.length] ?? tint;
+      const stucco = STUCCO[(town.biome + lotIndex) % STUCCO.length] ?? WALL;
+      lotIndex += 1;
       const p = shift(town.colat, town.az, lot.n, lot.e);
       const facing = frameQuaternion(p.x, p.y, p.z, Math.sin(town.az), 0, Math.cos(town.az));
       facing.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), lot.spin));
@@ -335,23 +342,23 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
       };
       if (lot.kind === 'house') {
         const hip = Math.round(Math.abs(lot.e) + Math.abs(lot.n)) % 2 === 0;
-        stamp(walls, 1, 1, 1, WALL);
+        stamp(walls, 1, 1, 1, stucco);
         stamp(hip ? hips : roofs, 1, 1, 1, tint);
         stamp(doors, 1, 1, 1, INK);
-        stamp(windows, 1, 1, 1, 0x163044);
-        stamp(frames, 1, 1, 1, 0xf4efe6);
-        stamp(lintels, 1, 1, 1, AMBER);
-        stamp(eaves, 1, 1, 1, hip ? tint : 0xf4efe6);
-        stamp(steps, 1, 1, 1, 0xe7d3b2);
-        if (!hip) stamp(chimneys, 1, 1, 1, 0xc46a52);
+        stamp(windows, 1, 1, 1, 0x3aa0ff);
+        stamp(frames, 1, 1, 1, accent);
+        stamp(lintels, 1, 1, 1, accent);
+        stamp(eaves, 1, 1, 1, tint);
+        stamp(steps, 1, 1, 1, 0xc8c4dc);
+        if (!hip) stamp(chimneys, 1, 1, 1, 0xe04848);
         blockers.push({ ...p, r: 1.72, h: 3.4 });
       } else if (lot.kind === 'tower') {
-        stamp(towers, 1, 1, 1, 0xe7dfd2);
+        stamp(towers, 1, 1, 1, 0xf4f0ff);
         stamp(caps, 1, 1, 1, tint);
         stamp(crowns, 1, 1, 1, AMBER);
         blockers.push({ ...p, r: 1.15, h: 7.4 });
       } else if (lot.kind === 'pavilion') {
-        stamp(posts, 1, 1, 1, 0xe7dfd2);
+        stamp(posts, 1, 1, 1, NAVY);
         stamp(discs, 1, 1, 1, tint);
         blockers.push({ ...p, r: 0.55, h: 2.8 });
       } else if (lot.kind === 'kiosk') {
@@ -394,7 +401,7 @@ export function addTowns(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
         sx: 0.55,
         sy: 0.85,
         sz: 0.55,
-        color: 0xe7dfd2,
+        color: NAVY,
       });
       lampAt(lamps, postAt, facingLamp, 2.05, 0.38);
     }
@@ -489,44 +496,44 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     put(walls, p, q, home.sx, home.sy, home.sz, home.wall);
     put(home.hip ? hips : roofs, p, q, home.sx, home.sy, home.sz, home.roof);
     put(doors, p, q, home.sx, home.sy, home.sz, INK);
-    put(windows, p, q, home.sx, home.sy, home.sz, 0x163044);
-    put(frames, p, q, home.sx, home.sy, home.sz, 0xf4efe6);
-    put(lintels, p, q, home.sx, home.sy, home.sz, AMBER);
-    put(eaves, p, q, home.sx, home.sy, home.sz, home.hip ? home.roof : 0xf4efe6);
-    put(steps, p, q, home.sx, home.sy, home.sz, 0xe7d3b2);
-    put(plaques, p, q, home.sx, home.sy, home.sz, 0xfff1d0);
+    put(windows, p, q, home.sx, home.sy, home.sz, 0x3aa0ff);
+    put(frames, p, q, home.sx, home.sy, home.sz, home.roof);
+    put(lintels, p, q, home.sx, home.sy, home.sz, home.roof);
+    put(eaves, p, q, home.sx, home.sy, home.sz, home.roof);
+    put(steps, p, q, home.sx, home.sy, home.sz, 0xc8c4dc);
+    put(plaques, p, q, home.sx, home.sy, home.sz, 0xffe14a);
     if (!home.hip) put(chimneys, p, q, home.sx, home.sy, home.sz, 0xc46a52);
     if (home.porch) put(porches, p, q, home.sx, home.sy, home.sz, AMBER);
     blockers.push({ ...p, r: Math.hypot(1.25 * home.sx, 1.15 * home.sz) + 0.04, h: 3.45 * home.sy });
     const pot = pose(home.n + home.potN, home.e + home.potE, home.spin);
-    put(stems, pot.p, pot.q, 0.72, 0.72, 0.72, 0xf6f1e6);
-    put(crowns, pot.p, pot.q, 0.7, 0.7, 0.7, 0xf26d86);
+    put(stems, pot.p, pot.q, 0.72, 0.72, 0.72, NAVY);
+    put(crowns, pot.p, pot.q, 0.7, 0.7, 0.7, home.roof);
     blockers.push({ ...pot.p, r: 0.28, h: 0.7 });
   }
 
   const towers: Stamp[] = [];
   const caps: Stamp[] = [];
   const bell = pose(20.3, 11.8, 0);
-  put(towers, bell.p, bell.q, 0.74, 0.86, 0.74, 0xe7dfd2);
-  put(caps, bell.p, bell.q, 0.74, 0.86, 0.74, 0xf26d86);
+  put(towers, bell.p, bell.q, 0.74, 0.86, 0.74, 0xf4f0ff);
+  put(caps, bell.p, bell.q, 0.74, 0.86, 0.74, 0xff4d86);
   put(glows, raise(bell.p, 6.35), bell.q, 0.26, 0.26, 0.26, AMBER);
   blockers.push({ ...bell.p, r: 0.82, h: 6.4 });
 
   for (const n of [13.6, 15.8, 18.2, 21.8, 24.8]) {
     for (const e of [-2.55, 2.55]) {
       const lamp = pose(n, e, 0);
-      put(posts, lamp.p, lamp.q, 0.62, 0.92, 0.62, 0xe7dfd2);
+      put(posts, lamp.p, lamp.q, 0.62, 0.92, 0.62, NAVY);
       lampAt(lamps, lamp.p, lamp.q, 2.15, 0.3);
       blockers.push({ ...lamp.p, r: 0.18, h: 2.2 });
     }
   }
 
   for (const gate of [
-    { n: 14.2, e: -2.75, color: AMBER },
-    { n: 14.2, e: 2.75, color: 0xf26d86 },
+    { n: 14.2, e: -2.75, color: 0xff4d86 },
+    { n: 14.2, e: 2.75, color: 0x22c8ee },
   ]) {
     const flag = pose(gate.n, gate.e, 0);
-    put(posts, flag.p, flag.q, 0.5, 1.05, 0.5, 0xe7dfd2);
+    put(posts, flag.p, flag.q, 0.5, 1.05, 0.5, NAVY);
     put(banners, flag.p, flag.q, 1, 1, 1, gate.color);
     blockers.push({ ...flag.p, r: 0.2, h: 2.3 });
   }
@@ -538,7 +545,7 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     { n: 21.6, e: 4.4, spin: 0 },
   ]) {
     const bench = pose(seat.n, seat.e, seat.spin);
-    put(benches, bench.p, bench.q, 1, 1, 1, 0xe7dfd2);
+    put(benches, bench.p, bench.q, 1, 1, 1, 0x6d8cff);
     blockers.push({ ...bench.p, r: 0.52, h: 0.62 });
   }
 
@@ -548,7 +555,7 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     { n: 20.55, e: -10.2, s: 0.38 },
   ]) {
     const crate = pose(boxAt.n, boxAt.e, 0.4);
-    put(crates, crate.p, crate.q, boxAt.s, boxAt.s, boxAt.s, 0xc4894e);
+    put(crates, crate.p, crate.q, boxAt.s, boxAt.s, boxAt.s, 0xe07a32);
     blockers.push({ ...crate.p, r: boxAt.s * 0.55, h: boxAt.s + 0.15 });
   }
 
@@ -559,7 +566,7 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     { n: 21.2, e: -11.3 },
   ]) {
     const fence = pose(wall.n, wall.e, 0);
-    put(fences, fence.p, fence.q, 1, 1, 1, 0xf4efe6);
+    put(fences, fence.p, fence.q, 1, 1, 1, 0x9ee8c8);
     blockers.push({ ...fence.p, r: 0.62, h: 0.72 });
   }
 
@@ -570,8 +577,8 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     { n: 21.2, e: -5.9 },
   ]) {
     const plant = pose(tree.n, tree.e, 0);
-    put(stems, plant.p, plant.q, 1, 1, 1, 0xd45a62);
-    put(crowns, plant.p, plant.q, 1.05, 1.05, 1.05, 0xf6c2b4);
+    put(stems, plant.p, plant.q, 1, 1, 1, 0xd42858);
+    put(crowns, plant.p, plant.q, 1.05, 1.05, 1.05, tree.e < 0 ? 0xff4d86 : 0x22d4f0);
     blockers.push({ ...plant.p, r: 0.2, h: 2.3 });
   }
 
@@ -591,7 +598,7 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
   const up = new THREE.Vector3(fountain.p.x, fountain.p.y, fountain.p.z).normalize();
   const basinGeo = new THREE.TorusGeometry(0.86, 0.12, 6, 14);
   basinGeo.rotateX(Math.PI / 2);
-  const basin = new THREE.Mesh(basinGeo, toonMaterial(gradient, 0xf4efe6));
+  const basin = new THREE.Mesh(basinGeo, toonMaterial(gradient, 0xeef6ff));
   basin.position.set(fountain.p.x, fountain.p.y, fountain.p.z).addScaledVector(up, 0.16);
   basin.quaternion.copy(fountain.q);
   const water = new THREE.Mesh(
@@ -611,7 +618,7 @@ function addQuarter(scene: THREE.Scene, gradient: THREE.Texture, blockers: Block
     [0, -0.86],
   ] as const) {
     const lip = shift(hub.colat, hub.az, 22.8 + dn, -3.2 + de);
-    put(bollards, lip, fountain.q, 1, 1, 1, 0xe7dfd2);
+    put(bollards, lip, fountain.q, 1, 1, 1, NAVY);
     blockers.push({ ...lip, r: 0.22, h: 0.7 });
   }
 
@@ -744,7 +751,7 @@ function lampAt(list: Stamp[], p: { x: number; y: number; z: number }, facing: T
 }
 
 function roofTint(biome: number): number {
-  const tints = [0xf26d86, 0x2fce8c, 0x9a62e0, 0x3ec8ee, 0xf09a48, 0xf2c14e];
+  const tints = [0xff4d86, 0x2fce8c, 0x9a4ae8, 0x22d4f0, 0xff7a3a, 0xffc43a];
   return tints[biome] ?? 0xf2c14e;
 }
 
@@ -798,7 +805,7 @@ function addBasin(
   const up = new THREE.Vector3(at.x, at.y, at.z).normalize();
   const ringGeo = new THREE.TorusGeometry(radius, town.id === 'hub' ? 0.16 : 0.11, 6, 16);
   ringGeo.rotateX(Math.PI / 2);
-  const ring = new THREE.Mesh(ringGeo, toonMaterial(gradient, 0xf4efe6));
+  const ring = new THREE.Mesh(ringGeo, toonMaterial(gradient, 0xeef6ff));
   ring.position.set(at.x, at.y, at.z).addScaledVector(up, 0.2);
   ring.quaternion.copy(facing);
   const water = new THREE.Mesh(

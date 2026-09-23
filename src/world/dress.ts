@@ -19,7 +19,7 @@ type Bit = {
   color: number;
 };
 
-const ROCK = [0xd7a090, 0xb7d7c6, 0xcbb6e6, 0xb7e4ea, 0xe7c59a, 0xe7b0c8] as const;
+const ROCK = [0xf090a8, 0x8ee0c0, 0xc8a8f0, 0x8ee4f0, 0xffb07a, 0xf090c8] as const;
 
 /** Tappeto e rocce dallo stesso seme di Mondo-1. Identici a ogni caricamento. */
 export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
@@ -84,8 +84,8 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
 }
 
 function tint(biome: number, n: number): number {
-  const colors = [0xf26d86, 0x3d9a62, 0x9a62e0, 0x3ec8ee, 0xe08a3e, 0xf2c14e];
-  const deep = [0xd45a62, 0x2f6e48, 0x6a42b0, 0x2e96ae, 0xc46a32, 0xd24e90];
+  const colors = [0xff4d86, 0x2fce8c, 0x9a4ae8, 0x22d8f0, 0xff8a3c, 0xffc43a];
+  const deep = [0xd4285c, 0x178a55, 0x6a28c0, 0x1490c0, 0xe06020, 0xe03080];
   return unit(biome, n, 8) > 0.62 ? (deep[biome] ?? 0xffffff) : (colors[biome] ?? 0xffffff);
 }
 

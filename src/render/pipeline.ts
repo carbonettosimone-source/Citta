@@ -39,11 +39,11 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(FOG_COLOR, 16, 74);
-  scene.add(new THREE.HemisphereLight(0xffe7c4, 0xc9b39a, 0.7));
-  const sun = new THREE.DirectionalLight(0xffe2b0, 1.25);
+  scene.add(new THREE.HemisphereLight(0xd7e4ff, 0xe7a8d0, 0.62));
+  const sun = new THREE.DirectionalLight(0xffd0c2, 1.05);
   sun.position.set(-16, 11, 9);
   scene.add(sun);
-  const fill = new THREE.DirectionalLight(0x9eb6d8, 0.34);
+  const fill = new THREE.DirectionalLight(0x9eb4ff, 0.58);
   fill.position.set(14, 6, -12);
   scene.add(fill);
 
@@ -70,10 +70,11 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
       .replace(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
+        float luma = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+        gl_FragColor.rgb = mix(vec3(luma), gl_FragColor.rgb, 1.12);
         vec2 vigP = gl_FragCoord.xy / uRes - 0.5;
-        float vig = smoothstep(0.16, 0.62, dot(vigP, vigP));
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(1.06, 0.94, 0.78), 0.28);
-        gl_FragColor.rgb *= mix(1.0, 0.72, vig);`,
+        float vig = smoothstep(0.22, 0.75, dot(vigP, vigP));
+        gl_FragColor.rgb *= mix(1.0, 0.84, vig);`,
       );
   };
   const blitScene = new THREE.Scene();

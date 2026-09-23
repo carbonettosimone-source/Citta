@@ -109,7 +109,7 @@ function vertexColor(x: number, y: number, z: number): number {
       const neighbor = BIOMES[(frac < 0.5 ? idx + BIOMES.length - 1 : idx + 1) % BIOMES.length] ?? biome;
       const shoulder = edge < 1.25 ? 1 : 1 - (edge - 1.25) / 7.75;
       hex = mixHex(hex, groundTone(neighbor, colat, az), shoulder * 0.72);
-      if (edge < 1.25) hex = mixHex(hex, 0xf6efe2, (1 - edge / 1.25) ** 2);
+      if (edge < 1.25) hex = mixHex(hex, 0xefe6ff, (1 - edge / 1.25) ** 2);
     }
   }
   if (flat > 0.04) hex = mixHex(hex, stone, flat);
@@ -137,11 +137,11 @@ function paveHex(colat: number, az: number, townW: number): number {
   const v = spokeM / tile;
   const fu = u - Math.floor(u);
   const fv = v - Math.floor(v);
-  if (fu < 0.07 || fu > 0.93 || fv < 0.07 || fv > 0.93) return 0xe4d0b0;
+  if (fu < 0.07 || fu > 0.93 || fv < 0.07 || fv > 0.93) return 0xb9a8d4;
   const checker = (Math.floor(u) + Math.floor(v)) & 1;
-  if (spokeM < 0.55) return 0xfff8ea;
-  if (townW > 0.72 && spokeM > 0.7) return checker ? 0xf6cbb8 : 0xf3ddd0;
-  return checker ? 0xf4e6cc : 0xe7d3b2;
+  if (spokeM < 0.55) return 0xffe4f2;
+  if (townW > 0.72 && spokeM > 0.7) return checker ? 0xf070a8 : 0xe090c4;
+  return checker ? 0xd4d0ee : 0xb7b3d4;
 }
 
 function mixHex(a: number, b: number, t: number): number {
@@ -175,20 +175,20 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
   };
   for (let n = -15.4; n <= -2.2; n += 1.55) {
     const scale = 0.95 + ((Math.abs(Math.round(n * 10)) % 3) * 0.18);
-    plantAt(border, n, -0.72, scale, 0xf26d86);
-    plantAt(border, n, 0.72, scale * 0.9, 0xd45a62);
-    plantAt(pots, n, -0.72, scale, 0xf6f1e6);
-    plantAt(pots, n, 0.72, scale * 0.9, 0xe7dfd2);
+    plantAt(border, n, -0.72, scale, 0xff4d86);
+    plantAt(border, n, 0.72, scale * 0.9, 0x7c4dff);
+    plantAt(pots, n, -0.72, scale, 0x2c2640);
+    plantAt(pots, n, 0.72, scale * 0.9, 0x22c8ee);
   }
   for (let n = -14.2; n <= -3.2; n += 3.3) {
-    plantAt(stems, n, -1.48, 1, 0xd45a62);
-    plantAt(stems, n, 1.48, 1, 0xd45a62);
+    plantAt(stems, n, -1.48, 1, 0xd42858);
+    plantAt(stems, n, 1.48, 1, 0x6a28c0);
     blockers.push({ ...shift(colat, az, n, -1.48), r: 0.22, h: 2.2 });
     blockers.push({ ...shift(colat, az, n, 1.48), r: 0.22, h: 2.2 });
-    plantAt(crowns, n, -1.48, 1, 0xf26d86);
-    plantAt(crowns, n, 1.48, 1, 0xf6c2b4);
-    plantAt(fruit, n, -1.48, 1, 0xf0a03a);
-    plantAt(fruit, n, 1.48, 1, 0xf0a03a);
+    plantAt(crowns, n, -1.48, 1, 0xff4d86);
+    plantAt(crowns, n, 1.48, 1, 0x22d4f0);
+    plantAt(fruit, n, -1.48, 1, 0xffe14a);
+    plantAt(fruit, n, 1.48, 1, 0xffe14a);
   }
   paint(scene, planterLeaf(), gradient, border, false, true);
   paint(scene, planterPot(), gradient, pots, false, false);
@@ -200,7 +200,7 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
   const face = northTangent(colat, az);
   const gate = new THREE.Mesh(
     new THREE.TorusGeometry(1.55, 0.16, 8, 18),
-    toonMaterial(gradient, 0xf0a03a),
+    toonMaterial(gradient, 0xff4d86),
   );
   gate.position.set(gateAt.x, gateAt.y, gateAt.z);
   gate.quaternion.copy(frameQuaternion(gateAt.x, gateAt.y, gateAt.z, face.x, face.y, face.z));
@@ -208,12 +208,12 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
   gate.position.addScaledVector(up, 1.55);
   const keystone = new THREE.Mesh(
     new THREE.SphereGeometry(0.22, 8, 6),
-    new THREE.MeshBasicMaterial({ color: 0xfff1d0 }),
+    new THREE.MeshBasicMaterial({ color: 0xffe14a }),
   );
   keystone.position.y = 1.52;
-  const bannerA = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0xf0a03a));
+  const bannerA = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0xff4d86));
   bannerA.position.set(-0.46, 0.95, 0.02);
-  const bannerB = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0xfff6ea));
+  const bannerB = new THREE.Mesh(bannerGeo(), toonMaterial(gradient, 0x22c8ee));
   bannerB.position.set(0.46, 0.88, 0.02);
   gate.add(keystone, bannerA, bannerB);
   scene.add(gate);
@@ -222,7 +222,7 @@ function addApproach(scene: THREE.Scene, gradient: THREE.Texture, blockers: Bloc
 }
 
 function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
-  const stone = toonMaterial(gradient, 0xf4efe6);
+  const stone = toonMaterial(gradient, 0xf4f0ff);
   const y0 = PLANET_R;
   const foot = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3.1, 0.7, 8), stone);
   foot.position.y = y0 + 0.28;
@@ -233,7 +233,7 @@ function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocke
     new THREE.MeshBasicMaterial({ color: 0xf0a03a }),
   );
   lamp.position.y = y0 + 9.3;
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 1.15, 8), toonMaterial(gradient, 0xd4654a));
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 1.15, 8), toonMaterial(gradient, 0xff4d6a));
   cap.position.y = y0 + 10.4;
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(3.3, 0.14, 6, 18),
