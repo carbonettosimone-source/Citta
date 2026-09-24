@@ -12,9 +12,10 @@ export type Atlas = {
 };
 
 const KIND_COLOR: Record<MapPlace['kind'], string> = {
-  pole: '#f0a03a',
-  hub: '#d7d2ec',
-  exit: '#f0a03a',
+  pole: '#ff4fa3',
+  hub: '#ff6a22',
+  exit: '#3ad4ff',
+  node: '#c6f25a',
 };
 
 const CAM = 2.55;
@@ -250,7 +251,7 @@ function paintGlobe(
     const c0 = 0.08 + ((Math.PI - 0.16) * row) / bands;
     const c1 = 0.08 + ((Math.PI - 0.16) * (row + 1)) / bands;
     const lat = (c0 + c1) / 2;
-    const hex = lat < 0.28 ? 0x9eb6ef : lat > 2.5 ? 0x6a5a96 : 0xc6b7a2;
+    const hex = lat < 0.28 ? 0x7ad7ff : lat < 0.7 ? 0xc6f25a : lat < 1.15 ? 0xffe14a : lat < 1.7 ? 0xf24a9a : lat < 2.2 ? 0x7a3ad4 : 0x2ec8d8;
     for (let col = 0; col < slices; col += 1) {
       const z0 = -Math.PI + (Math.PI * 2 * col) / slices;
       const z1 = -Math.PI + (Math.PI * 2 * (col + 1)) / slices;
@@ -278,7 +279,7 @@ function paintGlobe(
   const hubPlace = MAP_PLACES.find((item) => item.id === 'hub');
   const exitPlace = MAP_PLACES.find((item) => item.id === 'exit');
   if (hubPlace && exitPlace) {
-    strokeMeridian(ctx, project, hubPlace.az, Math.min(hubPlace.colat, exitPlace.colat), Math.max(hubPlace.colat, exitPlace.colat), '#f0a03a', 2.5);
+    strokeMeridian(ctx, project, hubPlace.az, Math.min(hubPlace.colat, exitPlace.colat), Math.max(hubPlace.colat, exitPlace.colat), '#ffc43a', 3.5);
   }
 
   const drawn: { x: number; y: number }[] = [];
@@ -426,6 +427,11 @@ function short(place: MapPlace): string {
   if (place.kind === 'hub') return 'Hub';
   if (place.kind === 'exit') return 'Exit';
   if (place.kind === 'pole') return 'Faro';
+  if (place.id === 'paese-a') return 'A';
+  if (place.id === 'paese-b') return 'B';
+  if (place.id === 'paese-c') return 'C';
+  if (place.id === 'belvedere') return 'Belvedere';
+  if (place.id === 'arena') return 'Arena';
   return place.name;
 }
 

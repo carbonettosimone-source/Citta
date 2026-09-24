@@ -5,7 +5,8 @@ import { createSky } from '../render/sky';
 import { toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
 import { addDress } from './dress';
-import { auditHub, flowMask, geodesicFromHub, HUB_RADIUS, smoothstep } from './intensity';
+import { auditHub, flowMask, geodesicFromHub, HUB_RADIUS, SPAWN_E, SPAWN_N, smoothstep, tangentLocal } from './intensity';
+import { addLandmarks } from './landmarks';
 import { auditProps } from './props';
 import { auditStructures } from './structures';
 import { addHubModules } from './modules';
@@ -29,6 +30,7 @@ export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
   addBeacon(scene, gradient, blockers);
   addHubModules(scene, gradient, blockers);
   addDress(scene, gradient, blockers);
+  addLandmarks(scene, gradient, blockers);
   addCourse(scene, gradient, blockers);
   return { blockers, sky };
 }
@@ -69,22 +71,39 @@ function vertexColor(x: number, y: number, z: number): number {
   const tone = shellTone(colat, az);
   const dist = geodesicFromHub(x, y, z);
   let hex = tone;
-  if (dist < HUB_RADIUS + 1.4) {
-    const band = dist < 8 ? 0xd5d0c2 : dist < 18 ? 0xc5cbb8 : 0xb7c0ae;
-    const strength = dist < 8 ? 0.74 : dist < 18 ? 0.62 : 0.5;
-    const edge = smoothstep(HUB_RADIUS - 1.2, HUB_RADIUS + 1.4, dist);
-    hex = mixHex(hex, band, strength * (1 - edge));
+  const local = tangentLocal(x, y, z);
+  if (local && Math.hypot(local.north - SPAWN_N, local.east - SPAWN_E) < 6.4) {
+    hex = 0xff6a22;
+  } else if (dist < HUB_RADIUS + 1.2) {
+    const edge = smoothstep(HUB_RADIUS - 1.4, HUB_RADIUS + 1.2, dist);
+    hex = mixHex(hex, 0xe437a8, 0.86 * (1 - edge));
   }
   const flow = flowMask(x, y, z);
-  if (flow > 0.04) hex = mixHex(hex, 0xd5d0ea, flow);
+  if (flow > 0.04) hex = mixHex(hex, 0xb7b8c6, flow);
   return hex;
 }
 
 function shellTone(colat: number, az: number): number {
-  const n = Math.sin(az * 1.4 + colat * 1.8) * 0.5 + 0.5;
-  let hex = mixHex(0xc6b7a2, 0xa9baa6, n * 0.65);
-  if (colat < 0.24) hex = mixHex(hex, 0x9eb6ef, (1 - colat / 0.24) * 0.74);
-  if (colat > 2.45) hex = mixHex(hex, 0x6a5a96, Math.min(1, (colat - 2.45) / 0.55) * 0.4);
+  const bands: readonly { at: number; hex: number }[] = [
+    { at: 0.22, hex: 0x7ad7ff },
+    { at: 0.55, hex: 0xc6f25a },
+    { at: 0.95, hex: 0xffe14a },
+    { at: 1.45, hex: 0xf24a9a },
+    { at: 2.05, hex: 0x7a3ad4 },
+    { at: 2.55, hex: 0x2ec8d8 },
+    { at: 4, hex: 0x4a2a88 },
+  ];
+  let hex = 0x4a2a88;
+  for (const band of bands) {
+    if (colat < band.at) {
+      hex = band.hex;
+      break;
+    }
+  }
+  const wedge = Math.floor(((az + Math.PI) / (Math.PI * 2)) * 6);
+  if (colat > 0.35 && colat < 2.3 && wedge % 2 === 0) {
+    hex = mixHex(hex, wedge % 4 === 0 ? 0xc6f25a : 0xff4fa3, 0.55);
+  }
   return hex;
 }
 
@@ -103,27 +122,29 @@ function mixHex(a: number, b: number, t: number): number {
 }
 
 function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
-  const stone = toonMaterial(gradient, 0xf4f0ff);
   const y0 = PLANET_R;
-  const foot = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 3.3, 0.8, 8), stone);
+  const stripes = [0xff4fa3, 0x3ad4ff, 0xffe14a, 0xff4fa3, 0x3ad4ff, 0xf4f7ff, 0xff4fa3];
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.8, 0.7, 8), toonMaterial(gradient, 0x7a3ad4));
   foot.position.y = y0 + 0.32;
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 1.05, 14.2, 8), stone);
-  shaft.position.y = y0 + 7.5;
+  scene.add(foot);
+  stripes.forEach((color, index) => {
+    const radius = 0.95 - index * 0.06;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + 0.06, 1.85, 8), toonMaterial(gradient, color));
+    band.position.y = y0 + 1.15 + index * 1.85;
+    scene.add(band);
+  });
   const lamp = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.45, 1.45, 1.35, 8),
+    new THREE.CylinderGeometry(1.35, 1.35, 1.2, 8),
     new THREE.MeshBasicMaterial({ color: 0xf0a03a, fog: false }),
   );
-  lamp.position.y = y0 + 15.4;
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.9, 1.3, 8), toonMaterial(gradient, 0xff4d6a));
-  cap.position.y = y0 + 16.7;
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(3.6, 0.16, 6, 18),
-    new THREE.MeshBasicMaterial({ color: 0xf0a03a }),
-  );
+  lamp.position.y = y0 + 15.2;
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 1.25, 8), toonMaterial(gradient, 0xff4fa3));
+  cap.position.y = y0 + 16.4;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.14, 6, 18), new THREE.MeshBasicMaterial({ color: 0x3ad4ff, fog: false }));
   ring.rotation.x = Math.PI / 2;
-  ring.position.y = y0 + 0.14;
-  scene.add(foot, shaft, lamp, cap, ring);
-  blockers.push({ x: 0, y: PLANET_R, z: 0, r: 2.7, h: 17 });
+  ring.position.y = y0 + 0.16;
+  scene.add(lamp, cap, ring);
+  blockers.push({ x: 0, y: PLANET_R, z: 0, r: 2.4, h: 17 });
 }
 
 /** Stub dell'arena: il tracciato resta lontano, senza paese intorno. */

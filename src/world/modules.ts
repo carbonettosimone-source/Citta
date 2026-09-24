@@ -28,21 +28,29 @@ import {
 import { frameQuaternion, quatAxisY } from './planet';
 import { addStrangeStructures } from './structures';
 
-const STONE = 0xd7d2ec;
-const INK = 0x2a3144;
+const STONE = 0xc8c6d4;
+const INK = 0x2a1848;
 const GOLD = 0xf0a03a;
 const CYAN = 0x3ad4ff;
+const PINK = 0xff7ad4;
+const ORANGE = 0xff6a22;
 
 export function addHubModules(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
   const stone = toonMaterial(gradient, STONE);
   stone.side = THREE.DoubleSide;
+  const deck = toonMaterial(gradient, 0x3ec8ff);
+  deck.side = THREE.DoubleSide;
   addFlow(scene, stone);
-  addInlay(scene, 5.6, -23.6, 0.4, 0.31, GOLD);
+  addNeonEdges(scene);
+  addInlay(scene, 5.6, -23.6, 0.4, 0.34, GOLD);
   addApproach(scene);
   addPad(scene, stone, BOARD_N, BOARD_E, 2.55, 2.25);
   addPad(scene, stone, VENDOR_N, VENDOR_E, 2.25, 2.35);
   addPad(scene, stone, PREP_N, PREP_E, 2.45, 2.15);
-  addDisk(scene, stone, Q2_N, Q2_E, 2.55, Q2_H);
+  addDisk(scene, deck, Q2_N, Q2_E, 2.55, Q2_H);
+  addGlow(scene, BOARD_N, BOARD_E, BOARD_H + 0.08, 1.7);
+  addGlow(scene, VENDOR_N, VENDOR_E, VENDOR_H + 0.08, 1.45);
+  addGlow(scene, PREP_N, PREP_E, PREP_H + 0.08, 1.5);
   addLobe(scene, stone);
   addRamps(scene, stone);
   addBoard(scene, gradient, blockers);
@@ -53,6 +61,29 @@ export function addHubModules(scene: THREE.Scene, gradient: THREE.Texture, block
   addSpawn(scene);
   addChevrons(scene);
   addStrangeStructures(scene, gradient, blockers);
+}
+
+function addNeonEdges(scene: THREE.Scene): void {
+  const cyan: { n: number; e: number; h: number; half: number }[] = [];
+  const pink: { n: number; e: number; h: number; half: number }[] = [];
+  for (let north = 11.4; north >= -26.2; north -= 1.05) {
+    const half = Math.max(1.35, pathHalf(north) - 0.2);
+    cyan.push({ n: north, e: half - 0.18, h: 0.3, half: 0.09 });
+    pink.push({ n: north, e: -(half - 0.18), h: 0.3, half: 0.09 });
+  }
+  const cyanMat = new THREE.MeshBasicMaterial({ color: CYAN, side: THREE.DoubleSide, fog: false });
+  const pinkMat = new THREE.MeshBasicMaterial({ color: PINK, side: THREE.DoubleSide, fog: false });
+  scene.add(stripMesh(cyan, cyanMat), stripMesh(pink, pinkMat));
+}
+
+function addGlow(scene: THREE.Scene, north: number, east: number, height: number, radius: number): void {
+  const at = lifted(north, east, height);
+  const geo = new THREE.TorusGeometry(radius, 0.07, 6, 20);
+  geo.rotateX(Math.PI / 2);
+  const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: CYAN, fog: false }));
+  ring.position.set(at.x, at.y, at.z);
+  ring.quaternion.copy(frameQuaternion(at.x, at.y, at.z, 1, 0, 0));
+  scene.add(ring);
 }
 
 function addFlow(scene: THREE.Scene, material: THREE.Material): void {
@@ -265,7 +296,9 @@ function addExit(scene: THREE.Scene, blockers: Blocker[]): void {
 }
 
 function addSpawn(scene: THREE.Scene): void {
-  const at = lifted(SPAWN_N, SPAWN_E, 0.28);
+  const orange = new THREE.MeshBasicMaterial({ color: ORANGE, side: THREE.DoubleSide, fog: false });
+  addDisk(scene, orange, SPAWN_N, SPAWN_E, 5.4, 0.27);
+  const at = lifted(SPAWN_N, SPAWN_E, 0.32);
   const geo = new THREE.TorusGeometry(0.85, 0.06, 6, 18);
   geo.rotateX(Math.PI / 2);
   const ring = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf4f7ff }));

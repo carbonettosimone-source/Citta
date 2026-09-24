@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const FOG_HEX = 0xd4c6f4;
+const FOG_HEX = 0xb7e7ff;
 
 /** Cupola a colori di vertice, senza shader. L'orizzonte è il colore della nebbia. */
 export function createSky(): THREE.Mesh {
@@ -8,10 +8,10 @@ export function createSky(): THREE.Mesh {
   const pos = geo.attributes.position;
   if (!pos) throw new Error('cielo senza posizioni');
   const colors = new Float32Array(pos.count * 3);
-  const top = new THREE.Color(0x5d74f0);
+  const top = new THREE.Color(0x2f78ff);
   const horizon = new THREE.Color(FOG_HEX);
-  const warm = new THREE.Color(0xff7aa8);
-  const cool = new THREE.Color(0x7fd0ff);
+  const warm = new THREE.Color(0xffc46a);
+  const cool = new THREE.Color(0x7af0ff);
   const tmp = new THREE.Color();
 
   for (let i = 0; i < pos.count; i++) {

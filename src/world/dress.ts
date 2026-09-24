@@ -20,7 +20,7 @@ type Bit = {
   color: number;
 };
 
-const TONES = [0xb7aa9a, 0x8aa48c, 0xc6b59a, 0x9aa6b0] as const;
+const TONES = [0xff4fa3, 0xc6f25a, 0x3ad4ff, 0xffe14a] as const;
 
 /** Guscio rado, stesso seme. Niente famiglie per spicchio. */
 export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
@@ -57,7 +57,7 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
 }
 
 function skip(x: number, y: number, z: number): boolean {
-  if (geodesicFromHub(x, y, z) < HUB_RADIUS + 18) return true;
+  if (geodesicFromHub(x, y, z) < HUB_RADIUS + 78) return true;
   const dx = x - FINISH.x;
   const dy = y - FINISH.y;
   const dz = z - FINISH.z;

@@ -1,3 +1,4 @@
+import { LANDMARK_POINTS } from '../world/landmarks';
 import { BIOMES, angles, beside, biomeAzimuth, onSphere, type Biome } from '../world/planet';
 import {
   BOARD_FACE,
@@ -16,7 +17,7 @@ import {
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 16;
+export const PROTO = 17;
 
 export const SPAWN = SPAWN_POINT;
 export const SPAWN_FACE = SPAWN_FORWARD;
@@ -208,7 +209,7 @@ export function payoutFor(place: number, stake: number): number {
   return Math.round(stake * mult);
 }
 
-export type MapKind = 'pole' | 'hub' | 'exit';
+export type MapKind = 'pole' | 'hub' | 'exit' | 'node';
 
 export type MapPlace = {
   id: string;
@@ -227,6 +228,11 @@ export const MAP_PLACES: readonly MapPlace[] = [
   place('faro', 'Faro', 'pole', FARO_POINT),
   place('hub', 'Hub', 'hub', HUB_POINT),
   place('exit', 'Exit → A', 'exit', EXIT_POINT),
+  place('paese-a', 'Paese A', 'node', LANDMARK_POINTS.paeseA),
+  place('arena', 'Arena', 'node', LANDMARK_POINTS.arena),
+  place('paese-b', 'Paese B', 'node', LANDMARK_POINTS.paeseB),
+  place('paese-c', 'Paese C', 'node', LANDMARK_POINTS.paeseC),
+  place('belvedere', 'Belvedere', 'node', LANDMARK_POINTS.belvedere),
 ];
 
 export const GIRO_IDS = ['faro', 'bacheca', 'vendor'] as const;

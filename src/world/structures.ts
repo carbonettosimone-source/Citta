@@ -13,10 +13,10 @@ import { seat } from './relief';
  * Altri nodi (Paese, Arena) riusano `structureFor` quando arriveranno.
  */
 
-const INK = 0x2a3144;
-const DEEP = 0x1b2436;
-const PAPER = 0xf4efe4;
-const GOLD = 0xf0a03a;
+const INK = 0x3d7bff;
+const DEEP = 0xff4fa3;
+const PAPER = 0xf4efe8;
+const GOLD = 0xc6f25a;
 const CYAN = 0x3ad4ff;
 
 export const ARCHETYPES = ['spindle', 'halo', 'bracket', 'split', 'stack'] as const;
@@ -121,7 +121,7 @@ export function addStrangeStructures(scene: THREE.Scene, gradient: THREE.Texture
   const rings = built.flatMap((item) => item.spec.parts.filter((part) => part.primitive === 'ring'));
   const gems = built.flatMap((item) => item.spec.parts.filter((part) => part.primitive === 'gem'));
   const boxMesh = meshOf(new THREE.BoxGeometry(1, 1, 1), toonInstances(gradient), boxes.length);
-  const ringMesh = meshOf(new THREE.TorusGeometry(0.48, 0.045, 6, 18), flatInstances(), rings.length);
+  const ringMesh = meshOf(new THREE.TorusGeometry(0.48, 0.11, 6, 16), flatInstances(), rings.length);
   const gemMesh = meshOf(new THREE.OctahedronGeometry(0.22, 0), flatInstances(), gems.length);
 
   const cursor = { box: 0, ring: 0, gem: 0 };
@@ -228,7 +228,7 @@ function halo(lean: number, twist: number): Loose[] {
   return [
     { primitive: 'box', x: 0, y: 0.12, z: 0, sx: 0.7, sy: 0.24, sz: 0.7, color: INK },
     { primitive: 'box', x: 0, y: 0.7, z: 0, sx: 0.16, sy: 1.05, sz: 0.16, color: DEEP },
-    { primitive: 'ring', x: lean * 0.4, y: 1.35, z: 0, sx: 1.7, sy: 1.7, sz: 1.7, rx: 0.35 + twist * 0.2, ry: twist, color: GOLD },
+    { primitive: 'ring', x: lean * 0.4, y: 1.35, z: 0, sx: 1.7, sy: 1.7, sz: 1.7, rx: 0.35 + twist * 0.2, ry: twist, color: CYAN },
     { primitive: 'gem', x: lean, y: 1.35, z: 0.15, sx: 0.7, sy: 0.7, sz: 0.7, color: CYAN },
   ];
 }

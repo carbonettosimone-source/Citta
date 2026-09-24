@@ -25,7 +25,7 @@ Regole, in ordine:
 | Eroi | cinque slot fissi | una struttura strana accanto a bacheca, Q2, terminale, un landmark a nord-est, uno più piccolo sul bordo lontano dall’uscita |
 | Piano Q2 | `(5.6, -11.2)` | vista nord libera verso il faro. Solo cespugli bassi sui lati |
 
-Il guscio, dentro i 28 m, ha tre fasce di colore: prato chiaro, salvia, verde più fondo. Il nastro resta lilla. Fuori, il dressing conico del pianeta inizia solo oltre ~46 m, così non litiga con i boschetti.
+Il guscio del hub è magenta, lo spawn è un disco arancio, i boschetti sono coni. Le fasce lime / giallo / ciano del pianeta e il resto del lucchetto visivo stanno in [ART.md](ART.md).
 
 Cactus e alberi a blocchi del kit restano nel repo e non vengono posati: leggono un altro bioma.
 

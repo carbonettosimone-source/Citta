@@ -179,14 +179,34 @@ export function auditProps(): string[] {
   return problems;
 }
 
+const CONE_IDS = new Set<PropId>([
+  'grass',
+  'flower',
+  'bushSmall',
+  'bush',
+  'mushroom',
+  'mushroomTall',
+  'pine',
+  'tree',
+  'treeFat',
+  'treeTall',
+]);
+const CONE_COLORS = [0xff4fa3, 0x2ee0c5, 0xc6f25a, 0xffe14a, 0x7a5cff] as const;
+
 export async function loadHubProps(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): Promise<void> {
   const layout = propLayoutFromWorld();
+  const cones: PropPlacement[] = [];
   const byModel = new Map<PropId, PropPlacement[]>();
   for (const item of layout) {
+    if (CONE_IDS.has(item.model)) {
+      cones.push(item);
+      continue;
+    }
     const list = byModel.get(item.model) ?? [];
     list.push(item);
     byModel.set(item.model, list);
   }
+  paintCones(scene, gradient, cones, blockers);
   const loader = new GLTFLoader();
   await Promise.all(
     [...byModel.entries()].map(async ([id, items]) => {
@@ -221,6 +241,42 @@ export async function loadHubProps(scene: THREE.Scene, gradient: THREE.Texture, 
       }
     }),
   );
+}
+
+function paintCones(scene: THREE.Scene, gradient: THREE.Texture, items: readonly PropPlacement[], blockers: Blocker[]): void {
+  if (items.length === 0) return;
+  const geo = new THREE.ConeGeometry(0.42, 1.45, 6);
+  geo.translate(0, 0.72, 0);
+  const material = toonMaterial(gradient, 0xffffff);
+  const mesh = new THREE.InstancedMesh(geo, material, items.length);
+  mesh.frustumCulled = false;
+  items.forEach((item, index) => {
+    const face = tangentVector(item.north, item.east, Math.cos(item.yaw), Math.sin(item.yaw));
+    const raw = shift(HUB_COLAT, HUB_AZ, item.north, item.east);
+    const at = seat(raw.x, raw.y, raw.z);
+    const q = frameQuaternion(at.x, at.y, at.z, face.x, face.y, face.z);
+    const scale = coneScale(item);
+    setInstanceQuat(mesh, index, at.x, at.y, at.z, scale, scale, scale, q.x, q.y, q.z, q.w, CONE_COLORS[item.slot % CONE_COLORS.length]);
+    const spec = MODELS[item.model];
+    if (spec.radius > 0.12) {
+      blockers.push({
+        x: raw.x,
+        y: raw.y,
+        z: raw.z,
+        r: spec.radius * (item.scale / spec.scale) * 0.8,
+        h: Math.max(0.8, scale * 0.9),
+      });
+    }
+  });
+  commit(mesh);
+  scene.add(mesh);
+}
+
+function coneScale(item: PropPlacement): number {
+  if (item.model === 'grass' || item.model === 'flower') return item.scale * 0.28;
+  if (item.model === 'bushSmall' || item.model === 'mushroom') return item.scale * 0.42;
+  if (item.model === 'bush' || item.model === 'mushroomTall') return item.scale * 0.5;
+  return item.scale * 0.95;
 }
 
 function propLayoutFromWorld(): PropPlacement[] {
@@ -317,13 +373,9 @@ function colorOf(material: THREE.Material | undefined): number {
 function recolor(color: THREE.Color): number {
   const hsl = { h: 0, s: 0, l: 0 };
   color.getHSL(hsl);
-  if (hsl.s < 0.16) return hsl.l > 0.62 ? 0xd7d2c6 : 0x8d8a86;
-  if (hsl.h > 0.18 && hsl.h < 0.48) return hsl.l > 0.42 ? 0x8ed67a : 0x62b85a;
-  if (hsl.h < 0.04 || hsl.h > 0.94) return hsl.l > 0.72 ? 0xf4efe6 : 0xc46b6b;
-  if (hsl.h < 0.16) {
-    if (hsl.l > 0.72) return 0xf4efe6;
-    if (hsl.l > 0.55 && hsl.s > 0.45) return 0xe6c56a;
-    return hsl.l > 0.48 ? 0xd7c4a8 : 0xb08968;
-  }
+  if (hsl.s < 0.16) return hsl.l > 0.55 ? 0xffb15a : 0xff5a45;
+  if (hsl.h > 0.18 && hsl.h < 0.48) return hsl.l > 0.42 ? 0xc6f25a : 0x2ee0c5;
+  if (hsl.h < 0.04 || hsl.h > 0.94) return 0xff4fa3;
+  if (hsl.h < 0.16) return hsl.l > 0.55 ? 0xff8a3c : 0xe437a8;
   return color.getHex();
 }
