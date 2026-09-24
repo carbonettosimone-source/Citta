@@ -63,8 +63,8 @@ export function createHud(
 
   const hint = el('p', 'hint');
   hint.textContent = coarse
-    ? 'Levetta a fondo per correre · dito sul mondo per girare · Salta due volte'
-    : 'WASD cammina · Shift corre · M mappa · E raccoglie · spazio, due salti';
+    ? 'Levetta a fondo per correre · dito sul mondo per girare · Vola è l’auto · Salta due volte'
+    : 'WASD cammina · Shift corre · V o Vola è l’auto · trascina per guardare · spazio salta';
 
   const prompt = button('', 'prompt');
   prompt.hidden = true;
@@ -88,7 +88,7 @@ export function createHud(
       <h2 id="res-title"></h2>
       <p id="res-line"></p>
       <p class="math" id="res-math"></p>
-      <button type="button" class="primary wide" id="res-close">Torna in piazza</button>
+      <button type="button" class="primary wide" id="res-close">Torna all'hub</button>
     </div>
   `;
 
@@ -103,7 +103,7 @@ export function createHud(
         <div>
           <p class="eyebrow">${WORLD_ID} · proto ${PROTO}</p>
           <h2 id="events-title">Giochi</h2>
-          <p>Ostacoli è aperto. Il giro degli spicchi paga quando visiti le mete.</p>
+          <p>Ostacoli è aperto. Il giro paga quando visiti Faro, la bacheca e il terminale.</p>
         </div>
         <button type="button" class="ghost" id="events-close">Chiudi</button>
       </header>
@@ -193,7 +193,7 @@ export function createHud(
       return;
     }
     if (!selected.playable) {
-      toast(selected.id === 'giro' ? 'Il giro non si punta: visita le sei mete.' : `${selected.name} arriva dopo. Oggi si corre Ostacoli.`);
+      toast(selected.id === 'giro' ? 'Il giro non si punta: visita Faro, la bacheca e il terminale.' : `${selected.name} arriva dopo. Oggi si corre Ostacoli.`);
       return;
     }
     const mode = selected;

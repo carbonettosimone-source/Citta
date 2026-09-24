@@ -387,6 +387,26 @@ button.on { background: var(--cyan); color: white; }
 
 .jump.on { background: var(--amber); }
 
+.vola {
+  position: absolute;
+  z-index: 13;
+  right: calc(112px + env(safe-area-inset-right));
+  bottom: calc(52px + env(safe-area-inset-bottom));
+  min-height: 48px;
+  padding: 10px 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+button.vola.on {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.stick.drive { border-color: var(--cyan); }
+.stick.drive span { color: #b7f4ff; }
+
 .race {
   z-index: 16;
   left: 50%;
@@ -551,6 +571,12 @@ button.on { background: var(--cyan); color: white; }
     height: 64px;
     min-height: 64px;
     bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .vola {
+    right: calc(84px + env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    min-height: 44px;
+    padding: 8px 12px;
   }
   .prompt { bottom: calc(112px + env(safe-area-inset-bottom)); }
   .toasts { bottom: calc(168px + env(safe-area-inset-bottom)); }

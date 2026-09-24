@@ -1,18 +1,26 @@
-import { BIOMES, angles, beside, biomeAzimuth, northTangent, onSphere, type Biome } from '../world/planet';
-import { BOTTEGHE_PLAZA, CAPITAL_AZ, DUNE_GATE, EAST_GATE, MARKET_PLAZA, SOUTH_PLAZA, SPAWN_COLAT, TERRACE } from '../world/city';
-import { CRYSTAL_LOOK, CRYSTAL_PLAZA, DUNE_CAMP, GAMES_BOARD, HUB_PLAZA, LANTERN_PLAZA, MINT_PLAZA, QUARTER_PLAZA, VIOLET_PLAZA } from '../world/towns';
+import { LANDMARK_POINTS } from '../world/landmarks';
+import { BIOMES, angles, beside, biomeAzimuth, onSphere, type Biome } from '../world/planet';
+import {
+  BOARD_FACE,
+  BOARD_POINT,
+  EXIT_POINT,
+  FARO_POINT,
+  HUB_AZ,
+  HUB_POINT,
+  SPAWN_FACE as SPAWN_FORWARD,
+  SPAWN_POINT,
+  VENDOR_FACE,
+  VENDOR_H,
+  lifted,
+} from '../world/intensity';
 
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 12;
+export const PROTO = 17;
 
-const homeAz = CAPITAL_AZ;
-const home = onSphere(SPAWN_COLAT, homeAz);
-const homeFace = northTangent(SPAWN_COLAT, homeAz);
-
-export const SPAWN = home;
-export const SPAWN_FACE = homeFace;
+export const SPAWN = SPAWN_POINT;
+export const SPAWN_FACE = SPAWN_FORWARD;
 
 export type ChallengeKind = 'race' | 'logic' | 'precision' | 'explore' | 'obstacle';
 
@@ -26,83 +34,55 @@ export type ChallengeDef = {
   x: number;
   y: number;
   z: number;
+  fx?: number;
+  fy?: number;
+  fz?: number;
   needsCourse?: boolean;
   /** Apre la bacheca dei giochi, anche se la moneta è già presa. */
   opensBoard?: boolean;
 };
 
-const faro = HUB_PLAZA;
-const anello = MINT_PLAZA;
-const pietre = VIOLET_PLAZA;
-const belvedere = CRYSTAL_LOOK;
-const dune = biomeAzimuth(4);
-const cancello = DUNE_CAMP;
+const faroGem = onSphere(0.05, HUB_AZ);
+const vendorFront = lifted(-5.2, -11.4, VENDOR_H);
 
 export const CHALLENGES: readonly ChallengeDef[] = [
   {
     id: 'faro',
-    name: 'Faro del polo',
-    kind: 'race',
+    name: 'Faro',
+    kind: 'explore',
     coins: 20,
     biome: 0,
-    line: 'La piazza del polo ti segna come esploratore.',
-    ...faro,
-  },
-  {
-    id: 'anello',
-    name: 'Piazza di menta',
-    kind: 'precision',
-    coins: 12,
-    biome: 1,
-    line: 'Il paese della prateria. Paga poco, ma paga.',
-    ...anello,
-  },
-  {
-    id: 'pietre',
-    name: 'Petali logici',
-    kind: 'logic',
-    coins: 30,
-    biome: 2,
-    line: 'Il paese viola, per ora, è una moneta grossa.',
-    ...pietre,
-  },
-  {
-    id: 'belvedere',
-    name: 'Belvedere di cristallo',
-    kind: 'explore',
-    coins: 16,
-    biome: 3,
-    line: 'Il totem di cristallo, dove il pianeta curva via.',
-    ...belvedere,
-  },
-  {
-    id: 'cancello',
-    name: 'Campo delle dune',
-    kind: 'obstacle',
-    coins: 18,
-    biome: 4,
-    line: 'Il campo ricorda chi ha corso il sentiero.',
-    ...cancello,
-    needsCourse: true,
-  },
-  {
-    id: 'lanterne',
-    name: 'Piazza delle lanterne',
-    kind: 'explore',
-    coins: 14,
-    biome: 5,
-    line: 'Il paese rosa, sotto le lampade.',
-    ...LANTERN_PLAZA,
+    line: 'Il faro del polo. Resta fuori dall’hub.',
+    ...faroGem,
   },
   {
     id: 'bacheca',
-    name: 'Bacheca dei giochi',
+    name: 'Bacheca',
     kind: 'explore',
     coins: 8,
     biome: 0,
-    line: 'Da qui si entra in Ostacoli. Il giro degli spicchi paga a parte.',
-    ...GAMES_BOARD,
+    line: 'Da qui si entra in Ostacoli.',
+    x: BOARD_POINT.x,
+    y: BOARD_POINT.y,
+    z: BOARD_POINT.z,
+    fx: BOARD_FACE.x,
+    fy: BOARD_FACE.y,
+    fz: BOARD_FACE.z,
     opensBoard: true,
+  },
+  {
+    id: 'vendor',
+    name: 'Terminale',
+    kind: 'precision',
+    coins: 6,
+    biome: 0,
+    line: 'Monete di sessione. Niente soldi veri.',
+    x: vendorFront.x,
+    y: vendorFront.y,
+    z: vendorFront.z,
+    fx: VENDOR_FACE.x,
+    fy: VENDOR_FACE.y,
+    fz: VENDOR_FACE.z,
   },
 ];
 
@@ -169,17 +149,17 @@ export const EVENTS: readonly EventMode[] = [
     max: 100,
     demoStake: 20,
     playable: true,
-    blurb: 'Giro breve sulle dune. In anteprima correte in quattro. Si entra anche dalla bacheca in città.',
+    blurb: 'Giro breve. In anteprima correte in quattro. Si entra dalla bacheca sull’hub.',
   },
   {
     id: 'giro',
-    name: 'Giro degli spicchi',
+    name: 'Giro',
     players: '1',
     min: 0,
     max: 0,
     demoStake: 0,
     playable: false,
-    blurb: 'Visita le sei mete del pianeta. Quando le hai tutte, la bacheca aggiunge 25 monete. Nessuna puntata.',
+    blurb: 'Visita Faro, bacheca e terminale. La bacheca aggiunge 25 monete. Nessuna puntata.',
   },
 ];
 
@@ -190,6 +170,8 @@ export const RANK_FOR_PLACE = [9, 26, 47, 70] as const;
 
 export type RacePoint = { x: number; y: number; z: number };
 
+/** Stub dell’arena, lontano dall’hub. Non è un paese. */
+const dune = biomeAzimuth(4);
 const raceSamples: readonly { c: number; a: number }[] = [
   { c: 1.045, a: dune - 0.016 },
   { c: 1.045, a: dune - 0.004 },
@@ -227,7 +209,7 @@ export function payoutFor(place: number, stake: number): number {
   return Math.round(stake * mult);
 }
 
-export type MapKind = 'pole' | 'hub' | 'village' | 'biome' | 'games' | 'venue' | 'lookout';
+export type MapKind = 'pole' | 'hub' | 'exit' | 'node';
 
 export type MapPlace = {
   id: string;
@@ -243,30 +225,15 @@ function place(id: string, name: string, kind: MapKind, point: { x: number; y: n
 }
 
 export const MAP_PLACES: readonly MapPlace[] = [
-  { id: 'pole', name: 'Faro del polo', kind: 'pole', colat: 0.04, az: homeAz },
-  place('hub', 'Piazza civica', 'hub', HUB_PLAZA),
-  place('quarter', 'Quartiere del corallo', 'village', QUARTER_PLAZA),
-  place('mercato', 'Mercato', 'village', MARKET_PLAZA),
-  place('games', 'Piazza dei giochi', 'games', GAMES_BOARD),
-  place('botteghe', 'Botteghe', 'village', BOTTEGHE_PLAZA),
-  place('porta', 'Porta meridionale', 'village', SOUTH_PLAZA),
-  place('east-gate', 'Porta della menta', 'village', EAST_GATE),
-  place('dune-gate', 'Porta delle dune', 'village', DUNE_GATE),
-  place('terrazza', 'Terrazza del faro', 'village', TERRACE),
-  place('mint', 'Paese di menta', 'village', MINT_PLAZA),
-  place('violet', 'Paese viola', 'village', VIOLET_PLAZA),
-  place('crystal-town', 'Borgo di cristallo', 'village', CRYSTAL_PLAZA),
-  place('look', 'Belvedere', 'lookout', CRYSTAL_LOOK),
-  place('dune', 'Campo ostacoli', 'venue', DUNE_CAMP),
-  place('lantern', 'Piazza lanterne', 'village', LANTERN_PLAZA),
-  ...BIOMES.map((biome, index) => ({
-    id: `biome-${biome.id}`,
-    name: biome.name,
-    kind: 'biome' as const,
-    colat: 0.86,
-    az: biomeAzimuth(index),
-  })),
+  place('faro', 'Faro', 'pole', FARO_POINT),
+  place('hub', 'Hub', 'hub', HUB_POINT),
+  place('exit', 'Exit → A', 'exit', EXIT_POINT),
+  place('paese-a', 'Paese A', 'node', LANDMARK_POINTS.paeseA),
+  place('arena', 'Arena', 'node', LANDMARK_POINTS.arena),
+  place('paese-b', 'Paese B', 'node', LANDMARK_POINTS.paeseB),
+  place('paese-c', 'Paese C', 'node', LANDMARK_POINTS.paeseC),
+  place('belvedere', 'Belvedere', 'node', LANDMARK_POINTS.belvedere),
 ];
 
-export const GIRO_IDS = ['faro', 'anello', 'pietre', 'belvedere', 'cancello', 'lanterne'] as const;
+export const GIRO_IDS = ['faro', 'bacheca', 'vendor'] as const;
 export const GIRO_BONUS = 25;

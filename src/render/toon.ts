@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /** Quattro fasce nette. Il filtro nearest è ciò che rende il toon leggibile. */
 export function createGradientMap(): THREE.DataTexture {
-  const data = new Uint8Array([72, 142, 206, 255]);
+  const data = new Uint8Array([112, 170, 220, 255]);
   const map = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
   map.magFilter = THREE.NearestFilter;
   map.minFilter = THREE.NearestFilter;

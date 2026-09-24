@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { toonMaterial } from '../render/toon';
-import { CHALLENGES, GIRO_BONUS, GIRO_IDS, biomeOf, type ChallengeDef } from './content';
+import { CHALLENGES, GIRO_BONUS, GIRO_IDS, type ChallengeDef } from './content';
 import { frameQuaternion } from '../world/planet';
 import type { Player } from '../player/player';
 import { grant, type Session } from './session';
@@ -8,6 +8,11 @@ import type { Hud } from '../ui/hud';
 
 const REACH = 6;
 const CLAIMED = 0xb7b1a8;
+const ACCENT: Record<string, number> = {
+  faro: 0xf0a03a,
+  bacheca: 0x3ad4ff,
+  vendor: 0x7dffc4,
+};
 
 type Marker = {
   def: ChallengeDef;
@@ -28,7 +33,7 @@ export function createChallenges(scene: THREE.Scene, gradient: THREE.Texture): C
     update(time, player, interact, session, hud) {
       markers.forEach((marker, index) => {
         const taken = session.claimed.has(marker.def.id);
-        const tint = taken ? CLAIMED : biomeOf(marker.def).plant;
+        const tint = taken ? CLAIMED : accentOf(marker.def);
         for (const material of marker.accents) paint(material, tint);
         const wave = taken ? 0 : Math.sin(time * 2.3 + index * 0.8) * 0.1;
         marker.bob.position.y = marker.baseY + wave;
@@ -52,7 +57,7 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
   const group = new THREE.Group();
   group.position.set(def.x, 0, def.z);
   const accents: THREE.Material[] = [];
-  const tint = biomeOf(def).plant;
+  const tint = accentOf(def);
   const glow = () => {
     const material = new THREE.MeshBasicMaterial({ color: tint });
     accents.push(material);
@@ -73,49 +78,20 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
     group.add(gem);
     bob = gem;
     baseY = 0.85;
-  } else if (def.id === 'anello') {
-    const hoop = new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.1, 8, 18), glow());
-    hoop.position.y = 1.2;
-    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.26, 0), glow());
-    gem.position.y = 1.2;
-    group.add(hoop, gem);
-    bob = gem;
-    baseY = 1.2;
-  } else if (def.id === 'pietre') {
-    const low = new THREE.Mesh(new THREE.DodecahedronGeometry(0.46, 0), toonMaterial(gradient, tint));
-    const mid = new THREE.Mesh(new THREE.DodecahedronGeometry(0.34, 0), toonMaterial(gradient, 0x6a4ec4));
-    const top = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 0), glow());
-    low.position.y = 0.4;
-    mid.position.y = 1.02;
-    top.position.y = 1.55;
-    accents.push(low.material, mid.material);
-    group.add(low, mid, top);
-    bob = top;
-    baseY = 1.55;
-  } else if (def.id === 'belvedere') {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 5), ink);
-    pole.position.y = 1.25;
-    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.42, 0.05), glow());
-    flag.position.set(0.42, 2.2, 0);
-    group.add(pole, flag);
-    bob = flag;
-    baseY = 2.2;
-  } else if (def.id === 'lanterne') {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 2.8, 5), ink);
-    pole.position.y = 1.4;
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 6), glow());
-    lamp.position.y = 2.9;
-    group.add(pole, lamp);
-    bob = lamp;
-    baseY = 2.9;
   } else if (def.id === 'bacheca') {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.7, 0.16), ink);
-    post.position.y = 0.85;
-    const board = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.85, 0.08), glow());
-    board.position.y = 1.85;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.05, 0.18), ink);
+    post.position.y = 1.02;
+    const board = new THREE.Mesh(new THREE.BoxGeometry(2.35, 1.45, 0.08), glow());
+    board.position.set(0, 2.15, 0.42);
     group.add(post, board);
     bob = board;
-    baseY = 1.85;
+    baseY = 2.15;
+  } else if (def.id === 'vendor') {
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), glow());
+    gem.position.set(0, 1.25, 0.55);
+    group.add(gem);
+    bob = gem;
+    baseY = 1.25;
   } else {
     const left = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.9, 0.18), ink);
     const right = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.9, 0.18), ink);
@@ -130,11 +106,15 @@ function buildMarker(def: ChallengeDef, gradient: THREE.Texture, scene: THREE.Sc
     baseY = 1.45;
   }
 
-  const stand = frameQuaternion(def.x, def.y, def.z, 1, 0, 0);
+  const stand = frameQuaternion(def.x, def.y, def.z, def.fx ?? 1, def.fy ?? 0, def.fz ?? 0);
   group.position.set(def.x, def.y, def.z);
   group.quaternion.copy(stand);
   scene.add(group);
   return { def, bob, baseY, accents, ring };
+}
+
+function accentOf(def: ChallengeDef): number {
+  return ACCENT[def.id] ?? 0x3ad4ff;
 }
 
 function paint(material: THREE.Material, hex: number): void {
@@ -172,7 +152,7 @@ function collect(def: ChallengeDef, session: Session, hud: Hud): void {
     return;
   }
   if (def.needsCourse && !session.courseClear) {
-    hud.toast('Corri fino al cerchio ciano, poi torna al cancello.');
+    hud.toast('Prima chiudi il percorso.');
     return;
   }
   session.claimed.add(def.id);
@@ -189,5 +169,5 @@ function payGiro(session: Session, hud: Hud): void {
   session.claimed.add('giro');
   grant(session, GIRO_BONUS);
   hud.sync();
-  hud.toast(`+${GIRO_BONUS} · Giro degli spicchi chiuso.`);
+  hud.toast(`+${GIRO_BONUS} · Giro chiuso.`);
 }
