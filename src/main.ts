@@ -12,6 +12,7 @@ import { createPipeline } from './render/pipeline';
 import { createGradientMap, windTime } from './render/toon';
 import { createHud } from './ui/hud';
 import { createHub } from './world/hub';
+import { loadHubProps } from './world/props';
 import { frameQuaternion, PLANET_R } from './world/planet';
 import { shellLift } from './world/relief';
 
@@ -19,15 +20,19 @@ const canvas = document.querySelector<HTMLCanvasElement>('#view');
 const hudRoot = document.querySelector<HTMLElement>('#hud');
 if (!canvas || !hudRoot) throw new Error('Markup mancante.');
 
-try {
-  boot(canvas, hudRoot);
-} catch (error) {
-  hudRoot.style.pointerEvents = 'auto';
-  hudRoot.style.padding = '24px';
-  hudRoot.textContent = error instanceof Error ? error.message : 'Impossibile avviare Minimondo.';
+void start(canvas, hudRoot);
+
+async function start(view: HTMLCanvasElement, root: HTMLElement): Promise<void> {
+  try {
+    await boot(view, root);
+  } catch (error) {
+    root.style.pointerEvents = 'auto';
+    root.style.padding = '24px';
+    root.textContent = error instanceof Error ? error.message : 'Impossibile avviare Minimondo.';
+  }
 }
 
-function boot(view: HTMLCanvasElement, root: HTMLElement): void {
+async function boot(view: HTMLCanvasElement, root: HTMLElement): Promise<void> {
   const session = createSession();
   let interactQueued = false;
   let startDemo: (mode: EventMode) => void = () => {};
@@ -35,6 +40,7 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
   const gradient = createGradientMap();
   const pipeline = createPipeline(view);
   const hub = createHub(pipeline.scene, gradient);
+  await loadHubProps(pipeline.scene, gradient, hub.blockers);
   const hud = createHud(root, session, {
     onInteract: () => {
       interactQueued = true;

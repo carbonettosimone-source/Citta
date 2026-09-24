@@ -35,3 +35,16 @@ Un cilindro al centro, raggio e altezza della sagoma. Non si attraversa; il salt
 `auditStructures()` rifiuta un filler senza sagoma stabile, con una sola primitiva, o un hub che non varia archetipo.
 
 Paese A, Arena, Belvedere: stesso `structureFor`, altri slot. Non un secondo catalogo.
+
+## Props, stesso seme
+
+Oltre agli archetipi, `propLayout(seed)` in `src/world/props.ts` semina modelli Kenney (CC0, vedi [ASSETS.md](ASSETS.md)). Gli slot sono anelli sul piano tangente di H. Il seme sceglie il modello, lo yaw e la scala. `hubOccupied` tiene libero il nastro e i moduli di sistema.
+
+| Fascia | Distanza da H | Cosa |
+| --- | --- | --- |
+| Nucleo | ~5–10 m | erba, fiori, cespugli bassi, sassi, funghi |
+| Moduli | 10–20 m | cespugli, funghi, tronchi, pini, cactus, sassi |
+| Bordo | 20–28 m | alberi, rocce alte, cactus |
+| Frangia | 28–40 m | pochi alberi e rocce, fuori dal campo `I` ma ancora leggibili |
+
+Non sono case. I filler astratti restano: i modelli li affiancano, non li sostituiscono.

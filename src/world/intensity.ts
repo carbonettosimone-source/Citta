@@ -270,6 +270,11 @@ const BOARD_ROUTE: readonly { n: number; e: number }[] = [
   { n: BOARD_N, e: BOARD_E },
 ];
 
+/** Nastro, piani e moduli di sistema: niente prop né filler qui. */
+export function hubOccupied(north: number, east: number): boolean {
+  return reserved(north, east);
+}
+
 function reserved(north: number, east: number): boolean {
   if (deckHeight(north, east) > 0.12) return true;
   if (Math.hypot(north - EXIT_N, east - EXIT_E) < 3.4) return true;

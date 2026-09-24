@@ -63,7 +63,7 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 ## Cosa c'è in questa versione
 
 - Mini-pianeta di raggio 160. Si cammina sul guscio: il passo è nel piano tangente, la gravità è radiale, la camera tiene l’alto verso il centro. Un giro è circa un chilometro
-- Hub a intensità (vedi `HUB.md`): nucleo, moduli, bordo, una uscita. I filler sono strutture strane (`STRUCTURES.md`), non cubi. Stesso seme `hashText('Mondo-1')`
+- Hub a intensità (vedi `HUB.md`): nucleo, moduli, bordo, una uscita. Filler strani più modelli Kenney CC0 (alberi, sassi, funghi: `ASSETS.md`, `STRUCTURES.md`). Stesso seme `hashText('Mondo-1')`
 - Palo-faro sul polo nord, fuori dai 28 m dell’hub. Piattaforma Q2 per leggerlo insieme alla direzione dell’uscita
 - Avatar snello. Passo e corsa sono animazioni diverse: la corsa piega il busto, allunga il passo e stende il mantello. Doppio salto
 - Nastro e rampe sono la stessa funzione dei piedi (`shellLift`). Fuori dall’hub, rilievo basso e poco dressing. Niente spicchi
