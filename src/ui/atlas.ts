@@ -1,4 +1,4 @@
-import { BIOMES, PLANET_R, angles, biomeAzimuth, onSphere } from '../world/planet';
+import { PLANET_R, angles, onSphere } from '../world/planet';
 import { MAP_PLACES, type MapPlace } from '../game/content';
 import { clearMark, getMark, setMark } from '../game/guide';
 
@@ -13,12 +13,8 @@ export type Atlas = {
 
 const KIND_COLOR: Record<MapPlace['kind'], string> = {
   pole: '#f0a03a',
-  hub: '#ff4d86',
-  village: '#c9b6ff',
-  biome: '#9ad7c4',
-  games: '#e39a32',
-  venue: '#f06a45',
-  lookout: '#7ec8ee',
+  hub: '#d7d2ec',
+  exit: '#f0a03a',
 };
 
 const CAM = 2.55;
@@ -94,7 +90,6 @@ export function createAtlas(root: HTMLElement): Atlas {
   };
 
   for (const place of MAP_PLACES) {
-    if (place.kind === 'biome') continue;
     const item = document.createElement('li');
     const chip = document.createElement('button');
     chip.type = 'button';
@@ -160,7 +155,6 @@ export function createAtlas(root: HTMLElement): Atlas {
     let best: MapPlace | null = null;
     let bestDot = 0.96;
     for (const place of MAP_PLACES) {
-      if (place.kind === 'biome') continue;
       const at = onSphere(place.colat, place.az, 1);
       const dot = at.x * world.x + at.y * world.y + at.z * world.z;
       if (dot > bestDot) {
@@ -250,27 +244,22 @@ function paintGlobe(
 
   type Quad = { z: number; color: string; pts: { x: number; y: number }[] };
   const quads: Quad[] = [];
-  const bands = 9;
-  const slices = 4;
-  for (let i = 0; i < BIOMES.length; i += 1) {
-    const biome = BIOMES[i];
-    if (!biome) continue;
-    const a0 = biomeAzimuth(i) - Math.PI / BIOMES.length;
-    for (let row = 0; row < bands; row += 1) {
-      const c0 = 0.12 + ((Math.PI - 0.24) * row) / bands;
-      const c1 = 0.12 + ((Math.PI - 0.24) * (row + 1)) / bands;
-      for (let col = 0; col < slices; col += 1) {
-        const z0 = a0 + ((Math.PI * 2) / BIOMES.length) * (col / slices);
-        const z1 = a0 + ((Math.PI * 2) / BIOMES.length) * ((col + 1) / slices);
-        const corners = [onSphere(c0, z0, 1), onSphere(c0, z1, 1), onSphere(c1, z1, 1), onSphere(c1, z0, 1)];
-        const projected = corners.map((p) => project(p.x, p.y, p.z));
-        const depth = (projected[0]?.z ?? 0) + (projected[1]?.z ?? 0) + (projected[2]?.z ?? 0) + (projected[3]?.z ?? 0);
-        if (depth < 0.15) continue;
-        const mid = projected[0];
-        if (!mid) continue;
-        const shade = 0.42 + 0.58 * Math.max(0, depth / 4);
-        quads.push({ z: depth, color: shadeHex(biome.ground, shade), pts: projected });
-      }
+  const bands = 8;
+  const slices = 10;
+  for (let row = 0; row < bands; row += 1) {
+    const c0 = 0.08 + ((Math.PI - 0.16) * row) / bands;
+    const c1 = 0.08 + ((Math.PI - 0.16) * (row + 1)) / bands;
+    const lat = (c0 + c1) / 2;
+    const hex = lat < 0.28 ? 0x9eb6ef : lat > 2.5 ? 0x6a5a96 : 0xc6b7a2;
+    for (let col = 0; col < slices; col += 1) {
+      const z0 = -Math.PI + (Math.PI * 2 * col) / slices;
+      const z1 = -Math.PI + (Math.PI * 2 * (col + 1)) / slices;
+      const corners = [onSphere(c0, z0, 1), onSphere(c0, z1, 1), onSphere(c1, z1, 1), onSphere(c1, z0, 1)];
+      const projected = corners.map((p) => project(p.x, p.y, p.z));
+      const depth = (projected[0]?.z ?? 0) + (projected[1]?.z ?? 0) + (projected[2]?.z ?? 0) + (projected[3]?.z ?? 0);
+      if (depth < 0.15) continue;
+      const shade = 0.42 + 0.58 * Math.max(0, depth / 4);
+      quads.push({ z: depth, color: shadeHex(hex, shade), pts: projected });
     }
   }
   quads.sort((a, b) => a.z - b.z);
@@ -286,9 +275,11 @@ function paintGlobe(
   }
 
   ctx.lineCap = 'round';
-  strokeParallel(ctx, project, 0.64, CAPITAL_SPAN, '#f070a8', 3);
-  strokeMeridian(ctx, project, biomeAzimuth(0), 0.28, 1.05, '#f070a8', 3);
-  strokeParallel(ctx, project, Math.PI / 2, Math.PI, 'rgba(255, 228, 242, 0.45)', 1.2);
+  const hubPlace = MAP_PLACES.find((item) => item.id === 'hub');
+  const exitPlace = MAP_PLACES.find((item) => item.id === 'exit');
+  if (hubPlace && exitPlace) {
+    strokeMeridian(ctx, project, hubPlace.az, Math.min(hubPlace.colat, exitPlace.colat), Math.max(hubPlace.colat, exitPlace.colat), '#f0a03a', 2.5);
+  }
 
   const drawn: { x: number; y: number }[] = [];
   const label = (x: number, y: number, text: string) => {
@@ -306,16 +297,7 @@ function paintGlobe(
     ctx.fillText(text, x, y - 8);
   };
 
-  for (let i = 0; i < BIOMES.length; i += 1) {
-    const biome = BIOMES[i];
-    if (!biome) continue;
-    const at = project(...unit(onSphere(0.95, biomeAzimuth(i), 1)));
-    if (at.z < 0.25) continue;
-    label(at.x, at.y, biomeName(biome.id));
-  }
-
   for (const place of MAP_PLACES) {
-    if (place.kind === 'biome') continue;
     const at = project(...unit(onSphere(place.colat, place.az, 1)));
     if (at.z < 0.2) continue;
     ctx.fillStyle = KIND_COLOR[place.kind];
@@ -355,36 +337,6 @@ function paintGlobe(
     ctx.arc(you.x, you.y, 2.2, 0, Math.PI * 2);
     ctx.fill();
   }
-}
-
-const CAPITAL_SPAN = Math.PI / 3;
-
-function strokeParallel(
-  ctx: CanvasRenderingContext2D,
-  project: (x: number, y: number, z: number) => { x: number; y: number; z: number },
-  colat: number,
-  half: number,
-  color: string,
-  width: number,
-): void {
-  const az0 = biomeAzimuth(0);
-  ctx.beginPath();
-  let pen = false;
-  for (let i = 0; i <= 28; i += 1) {
-    const az = colat === Math.PI / 2 ? -Math.PI + (i / 28) * Math.PI * 2 : az0 - half + (2 * half * i) / 28;
-    const p = onSphere(colat, az, 1);
-    const at = project(p.x, p.y, p.z);
-    if (at.z < 0.08) {
-      pen = false;
-      continue;
-    }
-    if (!pen) ctx.moveTo(at.x, at.y);
-    else ctx.lineTo(at.x, at.y);
-    pen = true;
-  }
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.stroke();
 }
 
 function strokeMeridian(
@@ -470,31 +422,10 @@ function shadeHex(hex: number, shade: number): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-function biomeName(id: string): string {
-  if (id === 'coral') return 'Corallo';
-  if (id === 'mint') return 'Menta';
-  if (id === 'violet') return 'Viola';
-  if (id === 'crystal') return 'Cristallo';
-  if (id === 'dune') return 'Dune';
-  return 'Lanterne';
-}
-
 function short(place: MapPlace): string {
-  if (place.kind === 'hub') return 'Piazza';
-  if (place.id === 'quarter') return 'Corallo';
-  if (place.id === 'mercato') return 'Mercato';
-  if (place.kind === 'games') return 'Giochi';
-  if (place.id === 'botteghe') return 'Botteghe';
-  if (place.id === 'porta') return 'Sud';
-  if (place.id === 'east-gate') return 'Est';
-  if (place.id === 'dune-gate') return 'Ovest';
-  if (place.id === 'terrazza') return 'Terrazza';
-  if (place.kind === 'venue') return 'Ostacoli';
-  if (place.kind === 'lookout') return 'Belvedere';
-  if (place.id === 'mint') return 'Menta';
-  if (place.id === 'violet') return 'Viola';
-  if (place.id === 'crystal-town') return 'Cristallo';
-  if (place.id === 'lantern') return 'Lanterne';
+  if (place.kind === 'hub') return 'Hub';
+  if (place.kind === 'exit') return 'Exit';
+  if (place.kind === 'pole') return 'Faro';
   return place.name;
 }
 

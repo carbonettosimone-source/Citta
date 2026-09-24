@@ -17,7 +17,7 @@ export type Biome = {
   plant: number;
 };
 
-/** Sei spicchi. Nessuna pianta terrestre: ogni famiglia è inventata. */
+/** Tinte residue. Il guscio non è più diviso in spicchi: vedi HUB.md. */
 export const BIOMES: readonly Biome[] = [
   { id: 'coral', name: 'Mesa corallo', ground: 0xf25b78, patch: 0xff8faf, deep: 0xd42858, plant: 0xff4d86 },
   { id: 'mint', name: 'Prateria menta', ground: 0x3dce8a, patch: 0x8ef0c4, deep: 0x178a58, plant: 0x1ed98a },
@@ -27,19 +27,8 @@ export const BIOMES: readonly Biome[] = [
   { id: 'lantern', name: 'Bosco di lanterne', ground: 0xf24a9a, patch: 0xff9ad4, deep: 0xd42878, plant: 0xffc43a },
 ];
 
-export const PATH_COLOR = 0xffe4f2;
-export const SEAM_COLOR = 0x4a3b38;
-const RING = 1.02;
-const RING_HALF = 3.1 / PLANET_R;
-const SPOKE_HALF = 2.4;
-
 export function biomeAzimuth(index: number): number {
   return -Math.PI + (index + 0.5) * ((Math.PI * 2) / BIOME_COUNT);
-}
-
-export function biomeIndex(x: number, z: number): number {
-  const u = (Math.atan2(x, z) + Math.PI) / (Math.PI * 2);
-  return Math.min(BIOME_COUNT - 1, Math.max(0, Math.floor(u * BIOME_COUNT)));
 }
 
 export function onSphere(colatitude: number, azimuth: number, radius = PLANET_R): { x: number; y: number; z: number } {
@@ -75,27 +64,6 @@ export function shift(colatitude: number, azimuth: number, northM: number, eastM
   return project(p.x + n.x * northM + e.x * eastM, p.y + n.y * northM + e.y * eastM, p.z + n.z * northM + e.z * eastM);
 }
 
-/** 1 sul selciato, 0 fuori dalla spalla. I piedi e il guscio usano la stessa curva. */
-export function pathBlend(x: number, y: number, z: number): number {
-  const len = Math.hypot(x, y, z) || 1;
-  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
-  const az = Math.atan2(x, z);
-  const ringM = Math.abs(colat - RING) * PLANET_R;
-  const southM = Math.abs(colat - (Math.PI - RING)) * PLANET_R;
-  let w = bandFalloff(ringM, 3.1, 5.6);
-  w = Math.max(w, bandFalloff(southM, 2.6, 4.8));
-  if (colat > 0.1 && colat < 2.9) {
-    let best = Math.PI;
-    for (let i = 0; i < BIOME_COUNT; i += 1) {
-      const d = angleDiff(az, biomeAzimuth(i));
-      if (d < best) best = d;
-    }
-    const spokeM = best * Math.sin(colat) * PLANET_R;
-    w = Math.max(w, bandFalloff(spokeM, SPOKE_HALF, SPOKE_HALF + 2.4));
-  }
-  return w;
-}
-
 export function bandFalloff(dist: number, inner: number, outer: number): number {
   if (dist <= inner) return 1;
   if (dist >= outer) return 0;
@@ -109,32 +77,6 @@ export function angles(x: number, y: number, z: number): { colat: number; az: nu
     colat: Math.acos(Math.min(1, Math.max(-1, y / len))),
     az: Math.atan2(x, z),
   };
-}
-
-export function onPath(x: number, y: number, z: number): boolean {
-  const len = Math.hypot(x, y, z) || 1;
-  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
-  const az = Math.atan2(x, z);
-  if (Math.abs(colat - RING) < RING_HALF) return true;
-  if (Math.abs(colat - (Math.PI - RING)) < RING_HALF * 0.85) return true;
-  if (colat < 0.12 || colat > 2.85) return false;
-  let best = Math.PI;
-  for (let i = 0; i < BIOME_COUNT; i++) {
-    const d = angleDiff(az, biomeAzimuth(i));
-    if (d < best) best = d;
-  }
-  return best * Math.sin(colat) * PLANET_R < SPOKE_HALF;
-}
-
-/** Distanza in metri dal confine di spicchio più vicino. Grande vicino al centro del bioma. */
-export function edgeMeters(x: number, y: number, z: number): number {
-  const len = Math.hypot(x, y, z) || 1;
-  const colat = Math.acos(Math.min(1, Math.max(-1, y / len)));
-  const az = Math.atan2(x, z);
-  const u = ((az + Math.PI) / (Math.PI * 2)) * BIOME_COUNT;
-  const frac = u - Math.floor(u);
-  const edge = Math.min(frac, 1 - frac);
-  return edge * ((Math.PI * 2) / BIOME_COUNT) * Math.sin(colat) * PLANET_R;
 }
 
 /** Punto sul guscio, a `meters` dal centro del segmento, nel piano tangente. */

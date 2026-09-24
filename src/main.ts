@@ -106,7 +106,7 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
           session.courseClear = true;
           if (!courseTold) {
             courseTold = true;
-            hud.toast('Percorso fatto. Il cancello ora paga.');
+            hud.toast('Percorso fatto.');
           }
         }
       }
