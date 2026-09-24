@@ -63,8 +63,8 @@ export function createHud(
 
   const hint = el('p', 'hint');
   hint.textContent = coarse
-    ? 'Levetta a fondo per correre · dito sul mondo per girare · Salta due volte'
-    : 'WASD cammina · Shift corre · M mappa · E raccoglie · spazio, due salti';
+    ? 'Levetta a fondo per correre · dito sul mondo per girare · Vola è l’auto · Salta due volte'
+    : 'WASD cammina · Shift corre · V o Vola è l’auto · trascina per guardare · spazio salta';
 
   const prompt = button('', 'prompt');
   prompt.hidden = true;

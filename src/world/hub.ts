@@ -6,6 +6,7 @@ import { toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
 import { addDress } from './dress';
 import { auditHub, flowMask, geodesicFromHub, HUB_RADIUS } from './intensity';
+import { auditStructures } from './structures';
 import { addHubModules } from './modules';
 import { PLANET_R, frameQuaternion, quatAxisY } from './planet';
 import { terrainSeat } from './relief';
@@ -16,7 +17,7 @@ export type Hub = {
 };
 
 export function createHub(scene: THREE.Scene, gradient: THREE.Texture): Hub {
-  const issues = auditHub();
+  const issues = [...auditHub(), ...auditStructures()];
   if (issues.length > 0) throw new Error(`Hub Mondo-1 fuori regola:\n${issues.join('\n')}`);
 
   const sky = createSky();

@@ -1,17 +1,13 @@
 import * as THREE from 'three';
 import { commit, setInstanceQuat } from '../render/instance';
-import { toonInstances, toonMaterial } from '../render/toon';
+import { toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
-import { WORLD_SEED, unit } from './hash';
 import {
   BOARD_E,
   BOARD_H,
   BOARD_N,
   EXIT_E,
   EXIT_N,
-  HUB_AZ,
-  HUB_COLAT,
-  HUB_MODULES,
   PREP_E,
   PREP_H,
   PREP_N,
@@ -29,8 +25,8 @@ import {
   pathHalf,
   tangentVector,
 } from './intensity';
-import { frameQuaternion, quatAxisY, shift } from './planet';
-import { seat } from './relief';
+import { frameQuaternion, quatAxisY } from './planet';
+import { addStrangeStructures } from './structures';
 
 const STONE = 0xd7d2ec;
 const INK = 0x2a3144;
@@ -56,7 +52,7 @@ export function addHubModules(scene: THREE.Scene, gradient: THREE.Texture, block
   addExit(scene, blockers);
   addSpawn(scene);
   addChevrons(scene);
-  addFillers(scene, gradient, blockers);
+  addStrangeStructures(scene, gradient, blockers);
 }
 
 function addFlow(scene: THREE.Scene, material: THREE.Material): void {
@@ -303,30 +299,6 @@ function addChevrons(scene: THREE.Scene): void {
   scene.add(big);
 }
 
-function addFillers(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocker[]): void {
-  const fillers = HUB_MODULES.filter((mod) => mod.tag === 'filler');
-  if (fillers.length === 0) return;
-  const bodies = new THREE.InstancedMesh(box(1.35, 1.15, 1.35, 0.58), toonInstances(gradient), fillers.length);
-  const caps = new THREE.InstancedMesh(box(1.05, 0.12, 1.05, 1.2), toonInstances(gradient), fillers.length);
-  bodies.frustumCulled = false;
-  caps.frustumCulled = false;
-  fillers.forEach((mod, index) => {
-    const raw = shift(HUB_COLAT, HUB_AZ, mod.north, mod.east);
-    const p = seat(raw.x, raw.y, raw.z);
-    const yaw = unit(WORLD_SEED, mod.slot, 3) * Math.PI * 2;
-    const face = tangentVector(mod.north, mod.east, Math.cos(yaw), Math.sin(yaw));
-    const q = frameQuaternion(p.x, p.y, p.z, face.x, face.y, face.z);
-    const edge = Math.hypot(mod.north, mod.east) >= 20;
-    const s = (edge ? 0.72 : 1) * (0.86 + unit(WORLD_SEED, mod.slot, 8) * 0.28);
-    setInstanceQuat(bodies, index, p.x, p.y, p.z, s, s, s, q.x, q.y, q.z, q.w, edge ? 0x4a556c : 0x343e56);
-    setInstanceQuat(caps, index, p.x, p.y, p.z, s, s, s, q.x, q.y, q.z, q.w, 0x8fd0ff);
-    blockers.push({ x: raw.x, y: raw.y, z: raw.z, r: 0.78 * s, h: 1.35 * s });
-  });
-  commit(bodies);
-  commit(caps);
-  scene.add(bodies, caps);
-}
-
 function stand(
   mesh: THREE.Mesh,
   north: number,
@@ -410,10 +382,4 @@ function pushVert(positions: number[], normals: number[], p: { x: number; y: num
   positions.push(p.x, p.y, p.z);
   const len = Math.hypot(p.x, p.y, p.z) || 1;
   normals.push(p.x / len, p.y / len, p.z / len);
-}
-
-function box(w: number, h: number, d: number, lift: number): THREE.BoxGeometry {
-  const geo = new THREE.BoxGeometry(w, h, d);
-  geo.translate(0, lift, 0);
-  return geo;
 }

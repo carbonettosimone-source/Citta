@@ -6,7 +6,7 @@ La mappa è il globo: si trascina e si tocca Hub, Faro, Exit, o un punto qualsia
 
 Si parte sul nastro, di fronte alla bacheca e all’uscita. Il faro vale 20 monete: bastano per la demo di Ostacoli. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
-Anteprima telefono (tunnel Cloudflare sulla build di produzione, senza garanzia di uptime): [https://herald-velocity-gentleman-kissing.trycloudflare.com](https://herald-velocity-gentleman-kissing.trycloudflare.com). Il workflow `.github/workflows/pages.yml` pubblica il ramo `cursor/minimondo-hub-3bad` su GitHub Pages quando Pages è abilitato: [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/).
+Anteprima telefono (tunnel Cloudflare sulla build di produzione, senza garanzia di uptime): [https://buyer-anaheim-anyway-publishers.trycloudflare.com](https://buyer-anaheim-anyway-publishers.trycloudflare.com). Il workflow `.github/workflows/pages.yml` pubblica il ramo `cursor/minimondo-hub-3bad` su GitHub Pages quando Pages è abilitato: [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/).
 
 English: mobile-first spherical hub, radius 160. One seeded hub, not six village wedges. Slender avatar, double jump, touch stick, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 
@@ -17,13 +17,14 @@ Si parte sul nastro dell’hub. Davanti: la traccia ciano verso la bacheca, e il
 - **Pollice sinistro** sulla levetta per camminare. A fondo corsa: la scritta diventa «corri».
 - **Dito sul mondo** per girare la visuale. Il blocco del puntatore non serve.
 - **Salta** è il tasto tondo a destra. Un secondo tocco in aria fa il doppio salto.
+- **Vola** accende la modalità automobile sullo stesso personaggio: più veloce, sterza con la levetta, non vola via dal guscio. Un altro tocco torna al passo.
 - Il pulsante al centro raccoglie la sfida quando sei vicino. Le monete sul sentiero si prendono da sole.
 - **Mappa** è il globo. Trascinalo per girarlo. Tocca un luogo, un punto del guscio, o un nome nella lista: la mappa si chiude, ti volti, e la freccia in alto segue l’arco più corto. L’anello segna il punto a terra.
 - **Giochi** → scegli il modo → vedi la puntata → **Entra (demo)**. La bacheca sull’hub apre lo stesso pannello.
 
 Le tre quote, senza aprire la mappa: dall’anello di spawn segui la traccia ciano fino alla bacheca (meno di un quarto di minuto a passo); il nastro d’oro continua fino al cerchio Exit (meno di venti secondi); la rampa a ovest sale al piano Q2, da cui si vedono il faro a nord e la punta del piano verso l’uscita.
 
-Tastiera, se c'è: WASD o frecce camminano, Shift corre, trascina per guardare, E raccoglie, spazio salta, M apre la mappa, Q e R ruotano.
+Tastiera, se c'è: WASD o frecce camminano, Shift corre, V è Vola, trascina per guardare anche mentre cammini, E raccoglie, spazio salta, M apre la mappa, Q e R ruotano.
 
 Portrait e landscape usano gli stessi controlli. I pannelli rispettano le safe area.
 
@@ -62,7 +63,7 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 ## Cosa c'è in questa versione
 
 - Mini-pianeta di raggio 160. Si cammina sul guscio: il passo è nel piano tangente, la gravità è radiale, la camera tiene l’alto verso il centro. Un giro è circa un chilometro
-- Hub a intensità (vedi `HUB.md`): nucleo, moduli, bordo, una uscita. Stesso seme `hashText('Mondo-1')`
+- Hub a intensità (vedi `HUB.md`): nucleo, moduli, bordo, una uscita. I filler sono strutture strane (`STRUCTURES.md`), non cubi. Stesso seme `hashText('Mondo-1')`
 - Palo-faro sul polo nord, fuori dai 28 m dell’hub. Piattaforma Q2 per leggerlo insieme alla direzione dell’uscita
 - Avatar snello. Passo e corsa sono animazioni diverse: la corsa piega il busto, allunga il passo e stende il mantello. Doppio salto
 - Nastro e rampe sono la stessa funzione dei piedi (`shellLift`). Fuori dall’hub, rilievo basso e poco dressing. Niente spicchi

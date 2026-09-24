@@ -62,3 +62,5 @@ Il nastro d’oro a terra punta solo verso l’uscita. Una traccia ciano stacca 
 Niente piazze, quartieri, cardo/decumano, porte-monumento, kit di case. Niente sei spicchi uguali. Il colore del guscio può restare temporaneo. Sulla mappa solo **Hub**, **Faro**, **Exit → A**.
 
 Codice: `src/world/intensity.ts` (regola), `src/world/modules.ts` (mesh), `src/world/relief.ts` (i piedi seguono i piani). La vecchia capitale in `city.ts` / `towns.ts` non c’è più.
+
+I filler non sono cubi sparsi: sono strutture strane, stessa grammatica (`box`, `ring`, `gem`) descritta in [STRUCTURES.md](STRUCTURES.md). Lo slot a intensità massima è solo più grande.

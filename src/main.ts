@@ -91,6 +91,7 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
       }
     } else guideMark.visible = false;
     const frozen = hud.blocksPlay();
+    if (match.locksWorld() && controls.drive) controls.setDrive(false);
     if (!reduceMotion) windTime.value = now / 1000;
     player.update(dt, hub.blockers, frozen);
 
@@ -129,6 +130,8 @@ function boot(view: HTMLCanvasElement, root: HTMLElement): void {
       view.dataset['pz'] = player.z.toFixed(2);
       view.dataset['yaw'] = controls.yaw.toFixed(3);
       view.dataset['gait'] = player.gait;
+      view.dataset['spd'] = player.speed.toFixed(2);
+      view.dataset['drive'] = controls.drive ? '1' : '0';
       view.dataset['feet'] = player.radius.toFixed(3);
       view.dataset['hx'] = aim.x.toFixed(3);
       view.dataset['hy'] = aim.y.toFixed(3);

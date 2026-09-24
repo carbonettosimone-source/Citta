@@ -6,14 +6,15 @@ import { resolve, type Blocker } from '../world/collide';
 import { frameQuaternion, PLANET_R } from '../world/planet';
 import { shellLift } from '../world/relief';
 
-const WALK = 2.35;
-const RUN = 4.7;
-const GRAVITY = 27;
-const JUMP = 5.15;
-const JUMP2 = 3.85;
+const WALK = 2.55;
+const RUN = 5.15;
+const DRIVE = 9.6;
+const DRIVE_BACK = 3.6;
+const GRAVITY = 34;
+const JUMP = 5.6;
+const JUMP2 = 4.15;
 const RADIUS = 0.09;
 const STEP = 1 / 90;
-const FOLLOW = 9;
 
 export type Gait = 'idle' | 'walk' | 'run' | 'air';
 
@@ -30,6 +31,7 @@ export type Player = {
   teleport(x: number, y: number, z: number, faceX: number, faceY: number, faceZ: number): void;
   lookToward(x: number, y: number, z: number): void;
   aim(): { x: number; y: number; z: number };
+  readonly speed: number;
 };
 
 const up = new THREE.Vector3();
@@ -37,6 +39,11 @@ const head = new THREE.Vector3();
 const right = new THREE.Vector3();
 const spin = new THREE.Quaternion();
 const look = new THREE.Vector3();
+const vel = new THREE.Vector3();
+const wish = new THREE.Vector3();
+const delta = new THREE.Vector3();
+const camPos = new THREE.Vector3();
+const camLook = new THREE.Vector3();
 
 export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, controls: Controls): Player {
   let x = SPAWN.x;
@@ -52,9 +59,11 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
   let interactEdge = false;
   let gait: Gait = 'idle';
   let rendered = PLANET_R;
+  let glide = 0;
+  let driving = false;
+  let camInit = false;
   const basis = new THREE.Vector3(SPAWN_FACE.x, SPAWN_FACE.y, SPAWN_FACE.z).normalize();
   const face = basis.clone();
-  const follow = new THREE.Vector3(x, y, z).normalize();
 
   const body = buildAvatar(scene, gradient);
   const shadow = new THREE.Mesh(
@@ -92,21 +101,34 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     get radius() {
       return rendered;
     },
+    get speed() {
+      return Math.hypot(vel.x, vel.y, vel.z);
+    },
     update(dt, blockers, frozen) {
       const input = controls.sample(Math.min(dt, 0.05));
       if (!frozen && input.interact) interactEdge = true;
       const wantJump = !frozen && input.jump;
       if (!wantJump) jumpLatch = false;
-      const run = !frozen && input.run;
+      const wantDrive = !frozen && controls.drive;
+      if (wantDrive && !driving) {
+        heading(head);
+        basis.copy(head);
+        controls.setYaw(0);
+        glide = THREE.MathUtils.clamp(vel.dot(basis), -DRIVE_BACK, DRIVE);
+      }
+      if (!wantDrive && driving) glide = 0;
+      driving = wantDrive;
+      const run = !frozen && input.run && !driving;
       let left = Math.min(dt, 0.05);
       while (left > 0) {
         const h = Math.min(STEP, left);
         left -= h;
         integrate(h, blockers, frozen ? 0 : input.strafe, frozen ? 0 : input.forward, wantJump, run);
       }
-      const moving = !frozen && grounded && Math.abs(input.strafe) + Math.abs(input.forward) > 0.08;
-      const running = moving && run;
-      if (moving) phase += dt * (running ? 15.5 : 7.6);
+      const speed = Math.hypot(vel.x, vel.y, vel.z);
+      const moving = !frozen && grounded && (driving ? Math.abs(glide) > 0.45 : speed > 0.35);
+      const running = driving ? Math.abs(glide) > 3.1 : moving && run;
+      if (moving) phase += dt * (running ? 15.5 : 8.4);
       const bob = moving ? Math.sin(phase * 2) * (running ? 0.02 : 0.01) : 0;
       if (!grounded && alt > 0.08) gait = 'air';
       else if (running) gait = 'run';
@@ -122,24 +144,33 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       return hit;
     },
     syncCamera(camera, dt) {
-      const k = 1 - Math.exp(-dt * FOLLOW);
       up.set(x, y, z).normalize();
-      follow.lerp(up, k).normalize();
       heading(head);
+      right.crossVectors(head, up);
+      if (right.lengthSq() < 1e-8) right.set(1, 0, 0);
+      right.normalize();
+      head.crossVectors(up, right).normalize();
       const portrait = window.innerHeight > window.innerWidth;
-      const dist = portrait ? 3.15 : 3.7;
-      const horiz = Math.cos(controls.pitch) * dist;
+      const dist = driving ? (portrait ? 3.7 : 4.25) : portrait ? 3.15 : 3.7;
+      const back = Math.cos(controls.pitch) * dist;
+      const rise = 0.55 + Math.sin(controls.pitch) * dist * 0.62;
       const anchor = Math.hypot(x, y, z);
+      wish.copy(up).multiplyScalar(anchor + rise).addScaledVector(head, -back);
+      look.copy(up).multiplyScalar(anchor + 1.05).addScaledVector(head, 1.15);
+      if (!camInit) {
+        camPos.copy(wish);
+        camLook.copy(look);
+        camInit = true;
+      } else {
+        const k = 1 - Math.exp(-Math.min(dt, 0.05) * 22);
+        camPos.lerp(wish, k);
+        camLook.lerp(look, k);
+      }
       camera.fov = portrait ? 70 : 60;
       camera.updateProjectionMatrix();
-      camera.position
-        .copy(follow)
-        .multiplyScalar(anchor)
-        .addScaledVector(follow, 0.7 + Math.sin(controls.pitch) * dist * 0.72)
-        .addScaledVector(head, -horiz);
-      camera.up.copy(follow);
-      look.copy(follow).multiplyScalar(anchor).addScaledVector(follow, 0.2).addScaledVector(head, 1.45);
-      camera.lookAt(look);
+      camera.position.copy(camPos);
+      camera.up.copy(up);
+      camera.lookAt(camLook);
     },
     aim() {
       heading(head);
@@ -161,8 +192,10 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
       basis.normalize();
       face.copy(basis);
+      vel.set(0, 0, 0);
+      glide = 0;
       controls.setYaw(0, 0.4);
-      follow.copy(up);
+      camInit = false;
       place();
     },
     lookToward(tx, ty, tz) {
@@ -173,8 +206,22 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
       basis.normalize();
       face.copy(basis);
       controls.setYaw(0, 0.42);
+      camInit = false;
     },
   };
+
+  function approach(current: number, target: number, maxDelta: number): number {
+    const diff = target - current;
+    if (Math.abs(diff) <= maxDelta) return target;
+    return current + Math.sign(diff) * maxDelta;
+  }
+
+  function approachVec(current: THREE.Vector3, target: THREE.Vector3, maxDelta: number): void {
+    delta.set(target.x - current.x, target.y - current.y, target.z - current.z);
+    const len = delta.length();
+    if (len <= maxDelta || len < 1e-8) current.copy(target);
+    else current.addScaledVector(delta, maxDelta / len);
+  }
 
   function heading(out: THREE.Vector3): void {
     up.set(x, y, z).normalize();
@@ -194,21 +241,59 @@ export function createPlayer(scene: THREE.Scene, gradient: THREE.Texture, contro
     run: boolean,
   ): void {
     up.set(x, y, z).normalize();
-    heading(head);
-    right.crossVectors(head, up).normalize();
-    if (strafe !== 0 || forward !== 0) {
-      face.copy(right).multiplyScalar(strafe).addScaledVector(head, forward);
-      const mag = Math.min(1, face.length());
-      face.normalize();
-      const pace = run ? RUN : WALK;
-      x += face.x * pace * h * mag;
-      y += face.y * pace * h * mag;
-      z += face.z * pace * h * mag;
+    vel.addScaledVector(up, -vel.dot(up));
+    if (driving) {
+      basis.addScaledVector(up, -basis.dot(up));
+      if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
+      basis.normalize();
+      const speedAbs = Math.abs(glide);
+      const steerRate = THREE.MathUtils.lerp(2.7, 0.95, Math.min(1, speedAbs / DRIVE));
+      if (Math.abs(strafe) > 0.05) {
+        spin.setFromAxisAngle(up, -strafe * steerRate * h);
+        basis.applyQuaternion(spin);
+        basis.addScaledVector(up, -basis.dot(up)).normalize();
+      }
+      const target = forward > 0.08 ? DRIVE * Math.min(1, forward) : forward < -0.08 ? DRIVE_BACK * Math.max(-1, forward) : 0;
+      const braking = target === 0 || target * glide < 0;
+      glide = approach(glide, target, (braking ? 18 : 12) * h);
+      vel.copy(basis).multiplyScalar(glide);
+      face.copy(basis);
+    } else {
+      heading(head);
+      right.crossVectors(head, up);
+      if (right.lengthSq() < 1e-8) right.set(1, 0, 0);
+      right.normalize();
+      wish.copy(right).multiplyScalar(strafe).addScaledVector(head, forward);
+      const len = wish.length();
+      if (len > 0.04) wish.multiplyScalar(((run ? RUN : WALK) * Math.min(1, len)) / len);
+      else wish.set(0, 0, 0);
+      const slowing = wish.lengthSq() + 1e-4 < vel.lengthSq();
+      approachVec(vel, wish, (slowing ? 62 : grounded ? 48 : 22) * h);
+      if (vel.lengthSq() > 0.04) {
+        wish.copy(vel).addScaledVector(up, -vel.dot(up)).normalize();
+        const turn = 1 - Math.exp(-h * 18);
+        face.lerp(wish, turn);
+      }
     }
+    const ox = x;
+    const oy = y;
+    const oz = z;
+    x += vel.x * h;
+    y += vel.y * h;
+    z += vel.z * h;
     const solved = resolve(x, y, z, alt, RADIUS, blockers);
     x = solved.x;
     y = solved.y;
     z = solved.z;
+    const span = Math.hypot(ox, oy, oz) || 1;
+    const next = Math.hypot(x, y, z) || 1;
+    const along = Math.min(1, Math.max(-1, (ox * x + oy * y + oz * z) / (span * next)));
+    const moved = Math.acos(along) * PLANET_R;
+    const expect = Math.hypot(vel.x, vel.y, vel.z) * h;
+    if (expect > 0.004 && moved < expect * 0.45) {
+      vel.multiplyScalar(0.4);
+      if (driving) glide *= 0.4;
+    }
     up.set(x, y, z).normalize();
     basis.addScaledVector(up, -basis.dot(up));
     if (basis.lengthSq() < 1e-6) basis.set(1, 0, 0).addScaledVector(up, -up.x);
