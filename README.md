@@ -6,7 +6,7 @@ La mappa è il globo: si trascina e si tocca Hub, Faro, Exit, o un punto qualsia
 
 Si parte sul nastro, di fronte alla bacheca e all’uscita. Il faro vale 20 monete: bastano per la demo di Ostacoli. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
-Anteprima telefono (tunnel Cloudflare sulla build di produzione, senza garanzia di uptime): [https://buyer-anaheim-anyway-publishers.trycloudflare.com](https://buyer-anaheim-anyway-publishers.trycloudflare.com). Il workflow `.github/workflows/pages.yml` pubblica il ramo `cursor/minimondo-hub-3bad` su GitHub Pages quando Pages è abilitato: [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/).
+Anteprima telefono (tunnel Cloudflare sulla build di produzione, senza garanzia di uptime): [https://efficient-dressed-closely-ridge.trycloudflare.com](https://efficient-dressed-closely-ridge.trycloudflare.com). Il workflow `.github/workflows/pages.yml` pubblica il ramo `cursor/minimondo-hub-3bad` su GitHub Pages quando Pages è abilitato: [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/).
 
 English: mobile-first spherical hub, radius 160. One seeded hub, not six village wedges. Slender avatar, double jump, touch stick, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 
@@ -63,7 +63,7 @@ La base degli asset è `/` in locale e nel tunnel. Il sito GitHub Pages usa `VIT
 ## Cosa c'è in questa versione
 
 - Mini-pianeta di raggio 160. Si cammina sul guscio: il passo è nel piano tangente, la gravità è radiale, la camera tiene l’alto verso il centro. Un giro è circa un chilometro
-- Hub a intensità (vedi `HUB.md`): nucleo, moduli, bordo, una uscita. Filler strani più modelli Kenney CC0 (alberi, sassi, funghi: `ASSETS.md`, `STRUCTURES.md`). Stesso seme `hashText('Mondo-1')`
+- Hub a intensità (vedi `HUB.md`, `PLACE.md`): radura di spawn, nastro incorniciato, tre boschetti, due giardini di sassi, cinque strutture strane. Modelli Kenney CC0 ricolorati (`ASSETS.md`). Stesso seme `hashText('Mondo-1')`
 - Palo-faro sul polo nord, fuori dai 28 m dell’hub. Piattaforma Q2 per leggerlo insieme alla direzione dell’uscita
 - Avatar snello. Passo e corsa sono animazioni diverse: la corsa piega il busto, allunga il passo e stende il mantello. Doppio salto
 - Nastro e rampe sono la stessa funzione dei piedi (`shellLift`). Fuori dall’hub, rilievo basso e poco dressing. Niente spicchi

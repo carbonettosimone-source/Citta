@@ -38,13 +38,6 @@ Paese A, Arena, Belvedere: stesso `structureFor`, altri slot. Non un secondo cat
 
 ## Props, stesso seme
 
-Oltre agli archetipi, `propLayout(seed)` in `src/world/props.ts` semina modelli Kenney (CC0, vedi [ASSETS.md](ASSETS.md)). Gli slot sono anelli sul piano tangente di H. Il seme sceglie il modello, lo yaw e la scala. `hubOccupied` tiene libero il nastro e i moduli di sistema.
+`propLayout(seed)` in `src/world/props.ts` veste il hub con modelli Kenney (CC0, vedi [ASSETS.md](ASSETS.md)), ricolorati su una tavolozza sola. Non è un anello. I ciuffi sono foci fissi: tre boschetti, due giardini di sassi, spalle del nastro, un orlo d’erba intorno alla radura, due ciuffi bassi ai lati di Q2. Dentro ogni focus il seme sceglie angolo, raggio (più fitto al centro), modello, yaw e scala. `hubOccupied` e il nastro d’oro restano vuoti. La vista da Q2 verso nord non prende alberi.
 
-| Fascia | Distanza da H | Cosa |
-| --- | --- | --- |
-| Nucleo | ~5–10 m | erba, fiori, cespugli bassi, sassi, funghi |
-| Moduli | 10–20 m | cespugli, funghi, tronchi, pini, cactus, sassi |
-| Bordo | 20–28 m | alberi, rocce alte, cactus |
-| Frangia | 28–40 m | pochi alberi e rocce, fuori dal campo `I` ma ancora leggibili |
-
-Non sono case. I filler astratti restano: i modelli li affiancano, non li sostituiscono.
+Composizione in [PLACE.md](PLACE.md). I cinque filler astratti restano i pezzi eroici: i modelli li affiancano, non li sostituiscono.

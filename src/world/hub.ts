@@ -5,7 +5,7 @@ import { createSky } from '../render/sky';
 import { toonMaterial } from '../render/toon';
 import type { Blocker } from './collide';
 import { addDress } from './dress';
-import { auditHub, flowMask, geodesicFromHub, HUB_RADIUS } from './intensity';
+import { auditHub, flowMask, geodesicFromHub, HUB_RADIUS, smoothstep } from './intensity';
 import { auditProps } from './props';
 import { auditStructures } from './structures';
 import { addHubModules } from './modules';
@@ -69,9 +69,11 @@ function vertexColor(x: number, y: number, z: number): number {
   const tone = shellTone(colat, az);
   const dist = geodesicFromHub(x, y, z);
   let hex = tone;
-  if (dist < HUB_RADIUS) {
-    const quiet = 1 - dist / HUB_RADIUS;
-    hex = mixHex(hex, 0xc8c2b4, quiet * 0.28);
+  if (dist < HUB_RADIUS + 1.4) {
+    const band = dist < 8 ? 0xd5d0c2 : dist < 18 ? 0xc5cbb8 : 0xb7c0ae;
+    const strength = dist < 8 ? 0.74 : dist < 18 ? 0.62 : 0.5;
+    const edge = smoothstep(HUB_RADIUS - 1.2, HUB_RADIUS + 1.4, dist);
+    hex = mixHex(hex, band, strength * (1 - edge));
   }
   const flow = flowMask(x, y, z);
   if (flow > 0.04) hex = mixHex(hex, 0xd5d0ea, flow);

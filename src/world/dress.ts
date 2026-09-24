@@ -57,7 +57,7 @@ export function addDress(scene: THREE.Scene, gradient: THREE.Texture, blockers: 
 }
 
 function skip(x: number, y: number, z: number): boolean {
-  if (geodesicFromHub(x, y, z) < HUB_RADIUS + 3) return true;
+  if (geodesicFromHub(x, y, z) < HUB_RADIUS + 18) return true;
   const dx = x - FINISH.x;
   const dy = y - FINISH.y;
   const dz = z - FINISH.z;

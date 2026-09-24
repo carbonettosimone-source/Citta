@@ -38,12 +38,12 @@ export function createPipeline(canvas: HTMLCanvasElement): Pipeline {
   renderer.autoClear = true;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(FOG_COLOR, 18, 98);
-  scene.add(new THREE.HemisphereLight(0xd7e4ff, 0xe7a8d0, 0.62));
-  const sun = new THREE.DirectionalLight(0xffd0c2, 1.05);
+  scene.fog = new THREE.Fog(FOG_COLOR, 22, 86);
+  scene.add(new THREE.HemisphereLight(0xfff1e4, 0xc8b89a, 0.55));
+  const sun = new THREE.DirectionalLight(0xffe2c4, 1.15);
   sun.position.set(-16, 11, 9);
   scene.add(sun);
-  const fill = new THREE.DirectionalLight(0x9eb4ff, 0.58);
+  const fill = new THREE.DirectionalLight(0xb7c4e8, 0.28);
   fill.position.set(14, 6, -12);
   scene.add(fill);
 

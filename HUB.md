@@ -63,4 +63,4 @@ Niente piazze, quartieri, cardo/decumano, porte-monumento, kit di case. Niente s
 
 Codice: `src/world/intensity.ts` (regola), `src/world/modules.ts` (mesh), `src/world/relief.ts` (i piedi seguono i piani). La vecchia capitale in `city.ts` / `towns.ts` non c’è più.
 
-I filler non sono cubi sparsi: sono strutture strane, stessa grammatica (`box`, `ring`, `gem`) descritta in [STRUCTURES.md](STRUCTURES.md). Lo slot a intensità massima è solo più grande. Intorno, modelli Kenney CC0 (alberi, sassi, funghi) occupano gli stessi anelli di seme, più una frangia rada fino a 40 m. Licenza in [ASSETS.md](ASSETS.md).
+I filler non sono cubi sparsi: sono cinque strutture strane, stessa grammatica (`box`, `ring`, `gem`) descritta in [STRUCTURES.md](STRUCTURES.md), piazzate accanto ai moduli e non a anello. Lo slot a intensità massima è solo più grande. Intorno, il vestito è una radura di transito: tre boschetti, due giardini di sassi, spalle sul nastro. Vedi [PLACE.md](PLACE.md). Licenza dei modelli in [ASSETS.md](ASSETS.md).

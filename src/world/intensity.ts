@@ -286,51 +286,32 @@ function reserved(north: number, east: number): boolean {
   return false;
 }
 
+/**
+ * Cinque pezzi eroici, non un anello di lotteria.
+ * Quattro in fascia moduli (bacheca, Q2, terminale, nord-est) e uno sul bordo, fuori dall'uscita.
+ * Gli slot sono fissi così l'archetipo (`unit(seed, slot, 19)`) non cambia tra i clone.
+ */
+const HEROES: readonly { slot: number; north: number; east: number }[] = [
+  { slot: 4, north: -11.2, east: 12.4 },
+  { slot: 6, north: 1.4, east: -16.8 },
+  { slot: 12, north: -9.5, east: -16.2 },
+  { slot: 14, north: 13.5, east: 9.2 },
+  { slot: 22, north: -21.4, east: 7.6 },
+];
+
 function buildFillers(): HubModule[] {
-  const placed: HubModule[] = [];
-  let slot = 0;
-  let band = 0;
-  let edge = 0;
-  const rings = [11.2, 14.4, 17.6, 21.8, 25.2];
-  const steps = 12;
-  for (const dist of rings) {
-    for (let k = 0; k < steps; k += 1) {
-      const bearing = (k + 0.5) * ((Math.PI * 2) / steps);
-      const north = dist * Math.cos(bearing);
-      const east = dist * Math.sin(bearing);
-      const id = slot;
-      slot += 1;
-      if (Math.abs(east) < 5.4 && north < 12.4 && north > -27) continue;
-      if (dist < CORE_R - 0.4) continue;
-      if (reserved(north, east)) continue;
-      const jitterN = (unit(WORLD_SEED, id, 17) - 0.5) * 0.7;
-      const jitterE = (unit(WORLD_SEED, id, 29) - 0.5) * 0.7;
-      const n = north + jitterN;
-      const e = east + jitterE;
-      const d = Math.hypot(n, e);
-      const field = intensity(d);
-      if (field < I_MIN.filler || d > HUB_RADIUS - 0.4 || d < CORE_R) continue;
-      if (reserved(n, e)) continue;
-      const roll = unit(WORLD_SEED, id, 41);
-      const onEdge = d >= MODULE_R;
-      const accept = onEdge ? 0.34 : 0.72;
-      if (roll > accept) continue;
-      if (onEdge && edge >= 2) continue;
-      if (!onEdge && band >= 8) continue;
-      placed.push({
-        tag: 'filler',
-        iMin: I_MIN.filler,
-        north: n,
-        east: e,
-        intensity: field,
-        deck: 0,
-        slot: id,
-      });
-      if (onEdge) edge += 1;
-      else band += 1;
-    }
-  }
-  return placed;
+  return HEROES.map((hero) => {
+    const dist = Math.hypot(hero.north, hero.east);
+    return {
+      tag: 'filler',
+      iMin: I_MIN.filler,
+      north: hero.north,
+      east: hero.east,
+      intensity: intensity(dist),
+      deck: 0,
+      slot: hero.slot,
+    };
+  });
 }
 
 function functional(): HubModule[] {
@@ -428,6 +409,7 @@ export function auditHub(): string[] {
   for (const mod of fillers) {
     const d = bandOf(mod.north, mod.east);
     if (d < CORE_R || d > HUB_RADIUS) problems.push('filler fuori fascia');
+    if (reserved(mod.north, mod.east)) problems.push('filler sul nastro');
   }
 
   const boardMeters = polyline(BOARD_ROUTE);

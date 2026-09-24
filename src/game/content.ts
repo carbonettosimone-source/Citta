@@ -16,7 +16,7 @@ import {
 export const WORLD_ID = 'Mondo-1';
 
 /** Alza se il layout dello shard cambia: un server futuro rifiuta i client diversi. */
-export const PROTO = 15;
+export const PROTO = 16;
 
 export const SPAWN = SPAWN_POINT;
 export const SPAWN_FACE = SPAWN_FORWARD;

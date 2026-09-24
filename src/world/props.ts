@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { setInstanceQuat, commit } from '../render/instance';
 import { toonMaterial, withWind } from '../render/toon';
-import cactusUrl from '../../assets/kenney/nature/cactus_tall.glb?url';
 import flowerUrl from '../../assets/kenney/nature/flower_yellowA.glb?url';
 import grassUrl from '../../assets/kenney/nature/grass.glb?url';
 import logUrl from '../../assets/kenney/nature/log.glb?url';
@@ -14,7 +13,6 @@ import rockLargeUrl from '../../assets/kenney/nature/rock_largeA.glb?url';
 import rockSmallUrl from '../../assets/kenney/nature/rock_smallA.glb?url';
 import rockTallUrl from '../../assets/kenney/nature/rock_tallA.glb?url';
 import stumpUrl from '../../assets/kenney/nature/stump_round.glb?url';
-import blocksUrl from '../../assets/kenney/nature/tree_blocks.glb?url';
 import treeFatUrl from '../../assets/kenney/nature/tree_fat.glb?url';
 import pineUrl from '../../assets/kenney/nature/tree_pineSmallC.glb?url';
 import treeUrl from '../../assets/kenney/nature/tree_simple.glb?url';
@@ -22,24 +20,22 @@ import treeTallUrl from '../../assets/kenney/nature/tree_tall.glb?url';
 import type { Blocker } from './collide';
 import { WORLD_SEED, unit } from './hash';
 import {
-  CORE_R,
   HUB_AZ,
   HUB_COLAT,
   HUB_MODULES,
-  HUB_RADIUS,
-  MODULE_R,
+  SPAWN_E,
+  SPAWN_N,
   hubOccupied,
+  pathHalf,
   tangentVector,
 } from './intensity';
 import { frameQuaternion, shift } from './planet';
 import { seat } from './relief';
 
 /**
- * Props Kenney sul campo di intensità e sulla frangia leggibile.
- * Stesso seme ⇒ stessi slot. Non sono case. Vedi ASSETS.md e STRUCTURES.md.
+ * Diorama del hub: radura, spalle del nastro, tre boschetti, due giardini di sassi.
+ * Stesso seme ⇒ stessi ciuffi. Non è un anello uniforme. Vedi PLACE.md e ASSETS.md.
  */
-
-const FRINGE = 40;
 
 const MODELS = {
   grass: { url: grassUrl, scale: 2.35, radius: 0, height: 0.25, wind: true },
@@ -51,8 +47,6 @@ const MODELS = {
   stump: { url: stumpUrl, scale: 2.1, radius: 0.28, height: 0.21, wind: false },
   log: { url: logUrl, scale: 2.2, radius: 0.22, height: 0.17, wind: false },
   pine: { url: pineUrl, scale: 1.45, radius: 0.16, height: 1.12, wind: false },
-  blocks: { url: blocksUrl, scale: 1.55, radius: 0.2, height: 1.19, wind: false },
-  cactus: { url: cactusUrl, scale: 2.15, radius: 0.16, height: 0.75, wind: false },
   rockSmall: { url: rockSmallUrl, scale: 1.9, radius: 0.22, height: 0.19, wind: false },
   rockLarge: { url: rockLargeUrl, scale: 1.85, radius: 0.42, height: 0.26, wind: false },
   rockTall: { url: rockTallUrl, scale: 1.55, radius: 0.38, height: 1, wind: false },
@@ -62,19 +56,48 @@ const MODELS = {
 } as const;
 
 type PropId = keyof typeof MODELS;
-type Band = 'core' | 'band' | 'edge' | 'wild';
+type FocusKind = 'grove' | 'rocks' | 'shoulder' | 'clearing' | 'q2';
 
-const POOLS: Record<Band, readonly PropId[]> = {
-  core: ['grass', 'flower', 'bushSmall', 'rockSmall', 'mushroom'],
-  band: ['bush', 'bushSmall', 'mushroom', 'mushroomTall', 'stump', 'log', 'pine', 'blocks', 'rockSmall', 'rockLarge', 'cactus', 'grass', 'flower'],
-  edge: ['tree', 'treeFat', 'pine', 'blocks', 'cactus', 'rockTall', 'rockLarge', 'mushroomTall', 'stump'],
-  wild: ['treeTall', 'tree', 'rockLarge', 'rockTall', 'cactus', 'pine'],
+const GROVE: readonly PropId[] = ['treeFat', 'tree', 'pine', 'bush', 'bushSmall', 'mushroom', 'mushroomTall', 'grass', 'flower', 'rockSmall', 'stump'];
+const ROCKS: readonly PropId[] = ['rockTall', 'rockLarge', 'rockSmall', 'grass', 'log'];
+const SHOULDER: readonly PropId[] = ['bushSmall', 'bush', 'rockSmall'];
+const LAWN: readonly PropId[] = ['grass', 'flower'];
+const THIN: readonly PropId[] = ['bushSmall', 'grass', 'flower'];
+const TALL = new Set<PropId>(['tree', 'treeFat', 'treeTall', 'pine', 'rockTall', 'mushroomTall']);
+
+type Focus = {
+  id: string;
+  kind: FocusKind;
+  n: number;
+  e: number;
+  r: number;
+  count: number;
+  pool: readonly PropId[];
+  /** Raggio minimo, frazione di r. I boschetti sono più densi al centro. */
+  inner: number;
 };
 
-const CAP: Record<Band, number> = { core: 18, band: 42, edge: 22, wild: 16 };
+/** Foci in metri locali (nord, est). La radura di spawn non è un focus pieno: solo un orlo d'erba. */
+const FOCI: readonly Focus[] = [
+  { id: 'grove-east', kind: 'grove', n: 4, e: 15.2, r: 3.15, count: 9, pool: GROVE, inner: 0.12 },
+  { id: 'grove-west', kind: 'grove', n: -3.2, e: -18.4, r: 3.05, count: 8, pool: GROVE, inner: 0.12 },
+  { id: 'grove-south', kind: 'grove', n: -18.6, e: 14.4, r: 2.7, count: 8, pool: GROVE, inner: 0.14 },
+  { id: 'rocks-ne', kind: 'rocks', n: 16.2, e: 3.6, r: 2.15, count: 6, pool: ROCKS, inner: 0.08 },
+  { id: 'rocks-sw', kind: 'rocks', n: -15.4, e: -13.6, r: 2.05, count: 5, pool: ROCKS, inner: 0.08 },
+  { id: 'sh-n-w', kind: 'shoulder', n: 10.8, e: -5.5, r: 0.65, count: 3, pool: SHOULDER, inner: 0.25 },
+  { id: 'sh-n-e', kind: 'shoulder', n: 4.2, e: 7.6, r: 0.8, count: 3, pool: SHOULDER, inner: 0.2 },
+  { id: 'sh-m-w', kind: 'shoulder', n: -4.2, e: -6.8, r: 0.8, count: 3, pool: SHOULDER, inner: 0.2 },
+  { id: 'sh-m-e', kind: 'shoulder', n: -2.4, e: 8.6, r: 0.75, count: 2, pool: SHOULDER, inner: 0.25 },
+  { id: 'sh-s-w', kind: 'shoulder', n: -16.2, e: -5.6, r: 0.85, count: 2, pool: SHOULDER, inner: 0.2 },
+  { id: 'sh-s-e', kind: 'shoulder', n: -16.4, e: 5.8, r: 0.85, count: 2, pool: SHOULDER, inner: 0.2 },
+  { id: 'clearing', kind: 'clearing', n: SPAWN_N, e: SPAWN_E, r: 5.4, count: 8, pool: LAWN, inner: 0.72 },
+  { id: 'q2-w', kind: 'q2', n: 3.4, e: -16.4, r: 1.05, count: 3, pool: THIN, inner: 0.15 },
+  { id: 'q2-s', kind: 'q2', n: 1.2, e: -14.6, r: 0.95, count: 2, pool: THIN, inner: 0.2 },
+];
 
 export type PropPlacement = {
   model: PropId;
+  focus: string;
   north: number;
   east: number;
   yaw: number;
@@ -84,37 +107,34 @@ export type PropPlacement = {
 
 export function propLayout(seed: number): PropPlacement[] {
   const placed: PropPlacement[] = [];
-  const counts: Record<Band, number> = { core: 0, band: 0, edge: 0, wild: 0 };
   let slot = 0;
-  for (let dist = 5.2; dist <= FRINGE - 0.4; dist += 2.15) {
-    const spacing = dist < CORE_R ? 2.05 : dist < MODULE_R ? 2.3 : dist < HUB_RADIUS ? 3.05 : 4.5;
-    const steps = Math.max(6, Math.round((Math.PI * 2 * dist) / spacing));
-    for (let k = 0; k < steps; k += 1) {
+  for (const focus of FOCI) {
+    let accepted = 0;
+    let attempts = 0;
+    while (accepted < focus.count && attempts < focus.count * 10) {
       const id = slot;
       slot += 1;
-      const turn = (Math.PI * 2) / steps;
-      const bearing = (k + 0.5) * turn + (unit(seed, id, 3) - 0.5) * turn * 0.5;
-      const north = dist * Math.cos(bearing) + (unit(seed, id, 5) - 0.5) * 0.7;
-      const east = dist * Math.sin(bearing) + (unit(seed, id, 7) - 0.5) * 0.7;
-      const d = Math.hypot(north, east);
-      const where = bandAt(d);
-      if (!where || counts[where] >= CAP[where]) continue;
-      if (hubOccupied(north, east) || nearModule(north, east)) continue;
-      const accept = where === 'core' ? 0.48 : where === 'band' ? 0.64 : where === 'edge' ? 0.42 : 0.24;
-      if (unit(seed, id, 11) > accept) continue;
-      const pool = POOLS[where];
-      const model = pool[Math.floor(unit(seed, id, 13) * pool.length)] ?? pool[0];
-      if (!model) continue;
+      attempts += 1;
+      const ang = unit(seed, id, 3) * Math.PI * 2;
+      const u = unit(seed, id, 5);
+      const rad = focus.r * (focus.inner + (1 - focus.inner) * Math.sqrt(u));
+      const north = focus.n + Math.cos(ang) * rad;
+      const east = focus.e + Math.sin(ang) * rad;
+      if (!fits(north, east, placed)) continue;
+      const model = pickModel(seed, id, focus, accepted);
+      if (TALL.has(model) && blocksFaro(north, east)) continue;
+      if (TALL.has(model) && inClearing(north, east)) continue;
       const spec = MODELS[model];
       placed.push({
         model,
+        focus: focus.id,
         north,
         east,
         yaw: unit(seed, id, 17) * Math.PI * 2,
-        scale: spec.scale * (0.86 + unit(seed, id, 19) * 0.28),
+        scale: spec.scale * (0.9 + unit(seed, id, 19) * 0.18),
         slot: id,
       });
-      counts[where] += 1;
+      accepted += 1;
     }
   }
   return placed;
@@ -130,20 +150,30 @@ export function auditProps(): string[] {
     const left = a[i];
     const right = b[i];
     if (!left || !right) continue;
-    if (left.model !== right.model || Math.abs(left.north - right.north) > 1e-6) {
+    if (left.model !== right.model || left.focus !== right.focus || Math.abs(left.north - right.north) > 1e-6) {
       problems.push('props instabili');
       break;
     }
   }
   const live = propLayoutFromWorld();
-  if (live.length < 48) problems.push(`props troppo radi (${live.length})`);
-  if (live.length > 120) problems.push(`props troppo fitti (${live.length})`);
+  if (live.length < 28) problems.push(`diorama troppo rado (${live.length})`);
+  if (live.length > 70) problems.push(`diorama troppo fitto (${live.length})`);
   const ids = new Set(live.map((item) => item.model));
-  if (ids.size < 8) problems.push('catalogo props troppo stretto');
+  if (ids.size < 6) problems.push('catalogo props troppo stretto');
+  for (const name of ['grove-east', 'grove-west', 'grove-south']) {
+    const n = live.filter((item) => item.focus === name).length;
+    if (n < 5) problems.push(`boschetto ${name} troppo rado (${n})`);
+  }
+  for (const name of ['rocks-ne', 'rocks-sw']) {
+    const n = live.filter((item) => item.focus === name).length;
+    if (n < 3) problems.push(`giardino ${name} troppo rado (${n})`);
+  }
+  const shoulders = live.filter((item) => item.focus.startsWith('sh-')).length;
+  if (shoulders < 6) problems.push(`spalle del nastro troppo rade (${shoulders})`);
   for (const item of live) {
-    if (hubOccupied(item.north, item.east)) problems.push('prop sul nastro');
-    const d = Math.hypot(item.north, item.east);
-    if (d < 4.6 || d > FRINGE) problems.push('prop fuori frangia');
+    if (hubOccupied(item.north, item.east) || onRibbon(item.north, item.east)) problems.push('prop sul nastro');
+    if (TALL.has(item.model) && inClearing(item.north, item.east)) problems.push('albero nella radura');
+    if (TALL.has(item.model) && blocksFaro(item.north, item.east)) problems.push('vista del faro chiusa');
   }
   return problems;
 }
@@ -196,13 +226,42 @@ function propLayoutFromWorld(): PropPlacement[] {
   return propLayout(WORLD_SEED);
 }
 
-function bandAt(dist: number): Band | null {
-  if (dist < 4.8) return null;
-  if (dist < CORE_R) return 'core';
-  if (dist < MODULE_R) return 'band';
-  if (dist < HUB_RADIUS) return 'edge';
-  if (dist <= FRINGE) return 'wild';
-  return null;
+function pickModel(seed: number, id: number, focus: Focus, accepted: number): PropId {
+  if (focus.kind === 'grove' && accepted < 2) {
+    const trees: Partial<Record<string, readonly PropId[]>> = {
+      'grove-east': ['treeTall', 'pine'],
+      'grove-west': ['treeFat', 'tree'],
+      'grove-south': ['pine', 'treeFat'],
+    };
+    return trees[focus.id]?.[accepted] ?? 'tree';
+  }
+  if (focus.kind === 'rocks' && accepted === 0) return 'rockTall';
+  return focus.pool[Math.floor(unit(seed, id, 13) * focus.pool.length)] ?? focus.pool[0] ?? 'grass';
+}
+
+function fits(north: number, east: number, placed: readonly PropPlacement[]): boolean {
+  if (hubOccupied(north, east) || onRibbon(north, east) || nearModule(north, east)) return false;
+  for (const item of placed) {
+    if (Math.hypot(north - item.north, east - item.east) < 0.58) return false;
+  }
+  return true;
+}
+
+/** Nastro d'oro: la fascia camminabile resta vuota, le spalle stanno fuori. */
+function onRibbon(north: number, east: number): boolean {
+  if (north > 12.2 || north < -26.8) return false;
+  return Math.abs(east) < pathHalf(north) - 0.15;
+}
+
+/** Disco interno della radura di spawn, e il corridoio che guarda il nastro. */
+function inClearing(north: number, east: number): boolean {
+  if (Math.hypot(north - SPAWN_N, east - SPAWN_E) < 5.6) return true;
+  return north < 12 && north > 0.5 && Math.abs(east) < 3.1;
+}
+
+/** Cuneo a nord di Q2: il faro sta sul polo, stessa longitudine dell'hub. */
+function blocksFaro(north: number, east: number): boolean {
+  return north > 7.2 && Math.abs(east + 11.2) < 5.2;
 }
 
 function nearModule(north: number, east: number): boolean {
@@ -248,6 +307,21 @@ function sliceGeometry(source: THREE.BufferGeometry, start: number, count: numbe
 }
 
 function colorOf(material: THREE.Material | undefined): number {
-  if (material && 'color' in material && material.color instanceof THREE.Color) return material.color.getHex();
-  return 0xffffff;
+  if (material && 'color' in material && material.color instanceof THREE.Color) return recolor(material.color);
+  return 0xf4efe6;
+}
+
+/** Kenney Nature Kit riletto su una tavolozza sola: salvia, mora, legno, carta, pietra. */
+function recolor(color: THREE.Color): number {
+  const hsl = { h: 0, s: 0, l: 0 };
+  color.getHSL(hsl);
+  if (hsl.s < 0.16) return hsl.l > 0.62 ? 0xd7d2c6 : 0x8d8a86;
+  if (hsl.h > 0.18 && hsl.h < 0.48) return hsl.l > 0.42 ? 0x8faf86 : 0x6f8d68;
+  if (hsl.h < 0.04 || hsl.h > 0.94) return hsl.l > 0.72 ? 0xf4efe6 : 0xc46b6b;
+  if (hsl.h < 0.16) {
+    if (hsl.l > 0.72) return 0xf4efe6;
+    if (hsl.l > 0.55 && hsl.s > 0.45) return 0xe6c56a;
+    return hsl.l > 0.48 ? 0xd7c4a8 : 0xb08968;
+  }
+  return color.getHex();
 }
