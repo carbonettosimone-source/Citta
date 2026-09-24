@@ -81,7 +81,8 @@ type Focus = {
 const FOCI: readonly Focus[] = [
   { id: 'grove-east', kind: 'grove', n: 4, e: 15.2, r: 3.15, count: 9, pool: GROVE, inner: 0.12 },
   { id: 'grove-west', kind: 'grove', n: -3.2, e: -18.4, r: 3.05, count: 8, pool: GROVE, inner: 0.12 },
-  { id: 'grove-south', kind: 'grove', n: -18.6, e: 14.4, r: 2.7, count: 8, pool: GROVE, inner: 0.14 },
+  { id: 'grove-south', kind: 'grove', n: -19.2, e: 6.6, r: 1.85, count: 7, pool: GROVE, inner: 0.16 },
+  { id: 'grove-exit', kind: 'grove', n: -20.4, e: -4.3, r: 1.55, count: 6, pool: GROVE, inner: 0.18 },
   { id: 'rocks-ne', kind: 'rocks', n: 16.2, e: 3.6, r: 2.15, count: 6, pool: ROCKS, inner: 0.08 },
   { id: 'rocks-sw', kind: 'rocks', n: -15.4, e: -13.6, r: 2.05, count: 5, pool: ROCKS, inner: 0.08 },
   { id: 'sh-n-w', kind: 'shoulder', n: 10.8, e: -5.5, r: 0.65, count: 3, pool: SHOULDER, inner: 0.25 },
@@ -131,7 +132,7 @@ export function propLayout(seed: number): PropPlacement[] {
         north,
         east,
         yaw: unit(seed, id, 17) * Math.PI * 2,
-        scale: spec.scale * (0.9 + unit(seed, id, 19) * 0.18),
+        scale: spec.scale * (0.9 + unit(seed, id, 19) * 0.18) * (focus.id === 'grove-south' || focus.id === 'grove-exit' ? 1.85 : 1),
         slot: id,
       });
       accepted += 1;
@@ -160,7 +161,7 @@ export function auditProps(): string[] {
   if (live.length > 70) problems.push(`diorama troppo fitto (${live.length})`);
   const ids = new Set(live.map((item) => item.model));
   if (ids.size < 6) problems.push('catalogo props troppo stretto');
-  for (const name of ['grove-east', 'grove-west', 'grove-south']) {
+  for (const name of ['grove-east', 'grove-west', 'grove-south', 'grove-exit']) {
     const n = live.filter((item) => item.focus === name).length;
     if (n < 5) problems.push(`boschetto ${name} troppo rado (${n})`);
   }
@@ -231,7 +232,8 @@ function pickModel(seed: number, id: number, focus: Focus, accepted: number): Pr
     const trees: Partial<Record<string, readonly PropId[]>> = {
       'grove-east': ['treeTall', 'pine'],
       'grove-west': ['treeFat', 'tree'],
-      'grove-south': ['pine', 'treeFat'],
+      'grove-south': ['pine', 'treeTall'],
+      'grove-exit': ['tree', 'pine'],
     };
     return trees[focus.id]?.[accepted] ?? 'tree';
   }
@@ -316,7 +318,7 @@ function recolor(color: THREE.Color): number {
   const hsl = { h: 0, s: 0, l: 0 };
   color.getHSL(hsl);
   if (hsl.s < 0.16) return hsl.l > 0.62 ? 0xd7d2c6 : 0x8d8a86;
-  if (hsl.h > 0.18 && hsl.h < 0.48) return hsl.l > 0.42 ? 0x8faf86 : 0x6f8d68;
+  if (hsl.h > 0.18 && hsl.h < 0.48) return hsl.l > 0.42 ? 0x8ed67a : 0x62b85a;
   if (hsl.h < 0.04 || hsl.h > 0.94) return hsl.l > 0.72 ? 0xf4efe6 : 0xc46b6b;
   if (hsl.h < 0.16) {
     if (hsl.l > 0.72) return 0xf4efe6;

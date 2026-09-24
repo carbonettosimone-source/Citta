@@ -17,6 +17,6 @@ Nel repo ci sono solo i GLB usati dal hub, non lo zip intero (niente isometriche
 
 Scala nativa del kit (gli alberi sono circa 1,2–1,7 m, origine a terra). Il personaggio è snello, circa un quinto di una figura da un metro: questi modelli restano più alti di lui e più bassi dei piani Q1/Q2. `propLayout` alza un po’ funghi e erba così si leggono dal pollice.
 
-I materiali del GLB non restano nei colori di Kenney. `recolor` li porta su salvia (`#6f8d68`, `#8faf86`), mora (`#c46b6b`), legno (`#b08968`, `#d7c4a8`), carta (`#f4efe6`) e pietra (`#8d8a86`, `#d7d2c6`). Così alberi, funghi e sassi leggono come un posto solo. Non è stato aggiunto un secondo kit: la composizione sta in [PLACE.md](PLACE.md).
+I materiali del GLB non restano nei colori di Kenney. `recolor` li porta su verde diorama (`#62b85a`, `#8ed67a`), mora (`#c46b6b`), legno (`#b08968`, `#d7c4a8`), carta (`#f4efe6`) e pietra (`#8d8a86`, `#d7d2c6`). Il verde resta più scuro del prato, così i boschetti si staccano dal pad. Non è stato aggiunto un secondo kit: la composizione sta in [PLACE.md](PLACE.md).
 
 Posa: `seat` sul guscio, yaw dal seme `Mondo-1`. Stesso seme, stesso mondo.

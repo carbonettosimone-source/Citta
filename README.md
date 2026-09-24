@@ -6,7 +6,7 @@ La mappa è il globo: si trascina e si tocca Hub, Faro, Exit, o un punto qualsia
 
 Si parte sul nastro, di fronte alla bacheca e all’uscita. Il faro vale 20 monete: bastano per la demo di Ostacoli. Doppio salto da terra e in aria. Le monete restano nel gioco. Niente cashout, niente soldi veri. IP originale: niente personaggi, testi o asset di altri franchise.
 
-Anteprima telefono (tunnel Cloudflare sulla build di produzione, senza garanzia di uptime): [https://efficient-dressed-closely-ridge.trycloudflare.com](https://efficient-dressed-closely-ridge.trycloudflare.com). Il workflow `.github/workflows/pages.yml` pubblica il ramo `cursor/minimondo-hub-3bad` su GitHub Pages quando Pages è abilitato: [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/).
+Anteprima telefono (tunnel Cloudflare sulla build di produzione, senza garanzia di uptime): [https://fortune-key-troubleshooting-centres.trycloudflare.com](https://fortune-key-troubleshooting-centres.trycloudflare.com). Il workflow `.github/workflows/pages.yml` pubblica il ramo `cursor/minimondo-hub-3bad` su GitHub Pages quando Pages è abilitato: [https://carbonettosimone-source.github.io/Citta/](https://carbonettosimone-source.github.io/Citta/).
 
 English: mobile-first spherical hub, radius 160. One seeded hub, not six village wedges. Slender avatar, double jump, touch stick, one finishable obstacle demo. Coins are a session stub. `npm install && npm run dev`.
 

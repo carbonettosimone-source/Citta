@@ -111,7 +111,7 @@ function addBeacon(scene: THREE.Scene, gradient: THREE.Texture, blockers: Blocke
   shaft.position.y = y0 + 7.5;
   const lamp = new THREE.Mesh(
     new THREE.CylinderGeometry(1.45, 1.45, 1.35, 8),
-    new THREE.MeshBasicMaterial({ color: 0xf0a03a }),
+    new THREE.MeshBasicMaterial({ color: 0xf0a03a, fog: false }),
   );
   lamp.position.y = y0 + 15.4;
   const cap = new THREE.Mesh(new THREE.ConeGeometry(1.9, 1.3, 8), toonMaterial(gradient, 0xff4d6a));

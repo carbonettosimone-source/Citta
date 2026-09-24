@@ -18,7 +18,8 @@ Regole, in ordine:
 | Spalle | `e ≈ ±6…9`, tre quote sul nastro | cespugli e sassi bassi che incorniciano, senza entrare nella fascia camminabile |
 | Boschetto est | `(4, 15)` | alberi, cespugli, funghi |
 | Boschetto ovest | `(-3, -18)` | stesso linguaggio, oltre il Q2 |
-| Boschetto sud | `(-19, 14)` | stesso linguaggio, oltre la bacheca |
+| Boschetto sud | `(-19, 7)` | più alto degli altri: sta nel cono dello spawn, a est del nastro che si stringe |
+| Boschetto uscita | `(-20, -4)` | stessa scala, sull’altra spalla verso l’uscita |
 | Giardino nord-est | `(16, 4)` | rocce alte e basse |
 | Giardino sud-ovest | `(-15, -14)` | idem, più piccolo |
 | Eroi | cinque slot fissi | una struttura strana accanto a bacheca, Q2, terminale, un landmark a nord-est, uno più piccolo sul bordo lontano dall’uscita |
