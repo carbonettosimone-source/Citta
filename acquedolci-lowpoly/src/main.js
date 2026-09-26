@@ -372,7 +372,10 @@ async function load() {
     cityConfig,
     horizon: city.horizon,
     // niente tempo reale: ora del giorno scelta (default: luce di fine pomeriggio)
-    timeOverride: new URLSearchParams(location.search).get('ora') || '17:30',
+    // "16:30" = ora solare locale della città (vedi sun.js): equivalente a circa le 17:30
+    // dell'orologio civile ad Acquedolci in questa stagione, ma corretto per qualunque città
+    // del mondo (prima usava il fuso orario del dispositivo, sbagliato per una città lontana).
+    timeOverride: new URLSearchParams(location.search).get('ora') || '16:30',
   });
   // rimuovi luci default residue se presenti
   scene.traverse((o) => {

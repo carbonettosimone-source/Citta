@@ -50,7 +50,12 @@ export function pickSunMoment(now, lat, lon, override = null) {
   let mode = 'reale';
   if (override && /^\d{1,2}:\d{2}$/.test(override)) {
     const [h, m] = override.split(':').map(Number);
-    date.setHours(h, m, 0, 0);
+    // "HH:MM" è l'ora solare locale della CITTÀ (da longitudine), non il fuso del dispositivo:
+    // altrimenti una città generata dall'altra parte del mondo prendeva il fuso di chi guarda
+    // (es. Tokyo vista da un telefono italiano finiva col sole di un'altra ora del giorno).
+    const midnightUTC = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    const utcHours = h + m / 60 - lon / 15;
+    date = new Date(midnightUTC + utcHours * 3600000);
     mode = 'scelta';
   }
   let pos = sunPosition(date, lat, lon);

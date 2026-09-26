@@ -464,6 +464,44 @@ function facadeQuad(mx, mz, y, nx, nz, width, height) {
   return geo;
 }
 
+/**
+ * Davanzale come mensola orizzontale (2 triangoli, non i 12 di una scatola): la normale rivolta
+ * in su prende la luce in modo diverso dal muro verticale, la stessa riga d'ombra di un vero
+ * aggetto ma al costo di una finestra in più, non di 6× una finestra.
+ */
+function sillLedge(mx, mz, yBottom, nx, nz, width, depth) {
+  const geo = new THREE.PlaneGeometry(width, depth);
+  geo.rotateX(-Math.PI / 2);
+  const m = new THREE.Matrix4();
+  const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(nx, nz));
+  m.compose(new THREE.Vector3(mx + nx * (depth * 0.5 + 0.02), yBottom, mz + nz * (depth * 0.5 + 0.02)), quat, new THREE.Vector3(1, 1, 1));
+  geo.applyMatrix4(m);
+  geo.deleteAttribute('uv');
+  return geo;
+}
+
+// Persiane/infissi mediterranei: qualche tinta plausibile invece di un blu-grigio unico su
+// tutta la città. Una per edificio (non per finestra): coerente sulla stessa facciata.
+const WINDOW_TINTS = [
+  [0x5a, 0x7a, 0x9a], // blu-grigio (originale)
+  [0x4f, 0x6b, 0x4a], // persiana verde scuro
+  [0x6b, 0x4a, 0x3a], // legno/persiana marrone
+  [0xc9, 0xc2, 0xb0], // infisso chiaro/crema
+  [0x3d, 0x5a, 0x5c], // petrolio/teal spento
+];
+function pickWindowTint(seed) {
+  const rgb = WINDOW_TINTS[Math.floor(unit(hash32(`${seed}:wtint`)) * WINDOW_TINTS.length) % WINDOW_TINTS.length];
+  return [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
+}
+/** Colora tutti i vertici di una geometria con un rgb fisso (0..1): per la varietà di tinta. */
+function tintGeometry(geo, rgb) {
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = rgb[0]; arr[i * 3 + 1] = rgb[1]; arr[i * 3 + 2] = rgb[2]; }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(arr, 3));
+  return geo;
+}
+
 function facadeBox(mx, mz, y, nx, nz, width, height, depth) {
   const geo = new THREE.BoxGeometry(width, height, depth);
   const m = new THREE.Matrix4();
@@ -478,7 +516,7 @@ function facadeBox(mx, mz, y, nx, nz, width, height, depth) {
   return geo;
 }
 
-function addFacadeDetails(pts, height, floors, streetIdx, collectors, baseY, props, isParty = null) {
+function addFacadeDetails(pts, height, floors, streetIdx, collectors, baseY, props, isParty = null, seed = '0') {
   let cx = 0;
   let cz = 0;
   for (const p of pts) {
@@ -491,7 +529,11 @@ function addFacadeDetails(pts, height, floors, streetIdx, collectors, baseY, pro
   const t = (props.building || '').toLowerCase();
   const isChurch = t === 'church' || t === 'cathedral' || t === 'chapel';
   const isGarage = t === 'garage' || t === 'shed';
-  const winScale = isChurch ? 1.25 : isGarage ? 0.6 : 1;
+  // Varietà per edificio (non per finestra, coerente sulla stessa facciata): dimensione ±15% e
+  // tinta di infissi/persiane. Prima ogni finestra della città era un rettangolo identico.
+  const sizeJitter = 0.85 + unit(hash32(`${seed}:wsize`)) * 0.3;
+  const winScale = (isChurch ? 1.25 : isGarage ? 0.6 : 1) * sizeJitter;
+  const winTint = pickWindowTint(seed);
 
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i];
@@ -538,9 +580,12 @@ function addFacadeDetails(pts, height, floors, streetIdx, collectors, baseY, pro
       for (let k = 0; k < nWin; k++) {
         const tt = margin + ((k + 0.5) / nWin) * usable;
         if (isStreet && floor === 0 && Math.abs(tt - len * 0.5) < 1.2) continue;
-        collectors.windows.push(
-          facadeQuad(a.x + tx * tt, a.z + tz * tt, yCenter, nx, nz, 0.9 * winScale, 1.15 * winScale),
-        );
+        const wx = a.x + tx * tt, wz = a.z + tz * tt;
+        const wW = 0.9 * winScale, wH = 1.15 * winScale;
+        collectors.windows.push(tintGeometry(facadeQuad(wx, wz, yCenter, nx, nz, wW, wH), winTint));
+        // Davanzale: piccola mensola in aggetto sotto il vetro — la linea d'ombra che manca a
+        // un rettangolo piatto è quello che fa leggere una finestra vera, non un adesivo sul muro.
+        collectors.sills.push(sillLedge(wx, wz, yCenter - wH * 0.5 - 0.03, nx, nz, wW + 0.22, 0.14));
       }
 
       // Balconi su piani superiori, più densi sugli appartamenti
@@ -668,7 +713,7 @@ export function buildBuildings(features, scene, roadPolylines, playerRadius, sty
   const group = new THREE.Group();
   group.name = 'buildings';
   const aabbs = [];
-  const collectors = { windows: [], doors: [], balconies: [], rails: [], cornices: [] };
+  const collectors = { windows: [], doors: [], balconies: [], rails: [], cornices: [], sills: [] };
 
   // Pre-passata: tutte le piante, per riconoscere i muri condivisi (edifici in aderenza)
   const allFp = [];
@@ -918,6 +963,7 @@ export function buildBuildings(features, scene, roadPolylines, playerRadius, sty
           if (hit >= 2) { partyEdges++; return true; }
           return false;
         },
+        String(f.properties.id),
       );
     }
     count++;
@@ -946,23 +992,37 @@ export function buildBuildings(features, scene, roadPolylines, playerRadius, sty
     }
   }
 
-  function addMerged(list, color, cast = true) {
+  function addMerged(list, color, cast = true, name = '') {
     if (!list.length) return;
     const merged = mergeGeometries(list, false);
     list.forEach((g) => g.dispose());
     if (!merged) return;
     const mesh = new THREE.Mesh(merged, new THREE.MeshLambertMaterial({ color, flatShading: true }));
+    mesh.name = name;
+    mesh.castShadow = cast;
+    group.add(mesh);
+  }
+
+  /** Come addMerged ma la tinta è già nei vertici (una per edificio: pickWindowTint/tintGeometry). */
+  function addMergedVertexColor(list, cast = true, name = '') {
+    if (!list.length) return;
+    const merged = mergeGeometries(list, false);
+    list.forEach((g) => g.dispose());
+    if (!merged) return;
+    const mesh = new THREE.Mesh(merged, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+    mesh.name = name;
     mesh.castShadow = cast;
     group.add(mesh);
   }
 
   // Finestre e porte sono quasi complanari ai muri: niente ombra portata
   // (erano i "denti di sega" su mobile) e un passaggio d'ombra in meno.
-  addMerged(collectors.windows, 0x5a7a9a, false);
-  addMerged(collectors.doors, 0x5a4030, false);
-  addMerged(collectors.balconies, 0xd8c8b0);
-  addMerged(collectors.rails, 0xe8e4dc, false);
-  addMerged(collectors.cornices, 0xe9e1d2); // cornicioni: proiettano ombra (linea sotto la gronda)
+  addMergedVertexColor(collectors.windows, false, 'buildings-windows'); // tinta per edificio, non un blu-grigio unico
+  addMerged(collectors.doors, 0x5a4030, false, 'buildings-doors');
+  addMerged(collectors.balconies, 0xd8c8b0, true, 'buildings-balconies');
+  addMerged(collectors.rails, 0xe8e4dc, false, 'buildings-rails');
+  addMerged(collectors.cornices, 0xe9e1d2, true, 'buildings-cornices'); // cornicioni: proiettano ombra (linea sotto la gronda)
+  addMerged(collectors.sills, 0xe8ddc7, true, 'buildings-sills'); // davanzali: la linea d'ombra che rende reali le finestre
 
   group.add(poiGroup);
   scene.add(group);
