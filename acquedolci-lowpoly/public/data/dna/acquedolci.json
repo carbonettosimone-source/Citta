@@ -1,0 +1,63 @@
+{
+  "source": "Sentinel-2 L2A summer (Element84 Earth Search item S2A_33SVC_20240908) + Sicilian coastal priors",
+  "note": "S2 tile thumbnail is mostly open sea for 33SVC; roof/wall/plaza hues blend measured pavement/sea cues with Mediterranean priors so town fabric stays recognizable.",
+  "itemId": "S2A_33SVC_20240908_0_L2A",
+  "bbox": [
+    14.575,
+    38.048,
+    14.595,
+    38.064
+  ],
+  "thumbnail": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/33/S/VC/2024/9/S2A_33SVC_20240908_0_L2A/thumbnail.jpg",
+  "palette": {
+    "roofRgb": [
+      186,
+      92,
+      55
+    ],
+    "wallRgb": [
+      236,
+      222,
+      198
+    ],
+    "pavementRgb": [
+      40,
+      45,
+      40
+    ],
+    "plazaRgb": [
+      148,
+      132,
+      108
+    ],
+    "sidewalkRgb": [
+      210,
+      204,
+      190
+    ],
+    "vegRgb": [
+      57,
+      85,
+      42
+    ],
+    "seaRgb": [
+      86,
+      148,
+      172
+    ],
+    "terrainRgb": [
+      168,
+      154,
+      112
+    ]
+  },
+  "appearanceRefresh": {
+    "at": "2026-09-24T14:17:31.212Z",
+    "s2Item": "S2B_33SVC_20250908_0_L2A",
+    "contextCounts": {
+      "pavement": 165,
+      "plaza": 95,
+      "veg": 15
+    }
+  }
+}

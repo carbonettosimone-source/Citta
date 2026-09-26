@@ -1,0 +1,40 @@
+{
+  "id": "acquedolci",
+  "name": "Acquedolci",
+  "region": "Messina, Sicilia",
+  "stylePack": "mediterranean-coast",
+  "origin": {
+    "lat": 38.056,
+    "lon": 14.585
+  },
+  "bbox": {
+    "south": 38.048,
+    "west": 14.575,
+    "north": 38.064,
+    "east": 14.595
+  },
+  "data": {
+    "osm": "/data/acquedolci.json",
+    "demMeta": "/data/dem/meta.json"
+  },
+  "spawn": {
+    "offsetX": 8,
+    "offsetZ": 35
+  },
+  "landmarks": {
+    "maxLabels": 12
+  },
+  "terrain": {
+    "step": 10
+  },
+  "buildings": {
+    "roadClearance": 1.1
+  },
+  "dna": "/data/dna/acquedolci.json",
+  "look": {
+    "post": true,
+    "bloom": true
+  },
+  "appearance": "/data/appearance/acquedolci.json",
+  "regionProfile": "/data/region/acquedolci.json"
+}

@@ -1,0 +1,34 @@
+{
+  "source": "AWS Terrain Tiles (Terrarium PNG) https://registry.opendata.aws/terrain-tiles/",
+  "encoding": "terrarium",
+  "formula": "elevation = R*256 + G + B/256 - 32768",
+  "z": 14,
+  "bbox": {
+    "south": 38.048,
+    "west": 14.575,
+    "north": 38.064,
+    "east": 14.595
+  },
+  "tiles": {
+    "x0": 8855,
+    "x1": 8856,
+    "y0": 6316,
+    "y1": 6317
+  },
+  "tileSize": 256,
+  "mosaic": {
+    "west": 14.56787109375,
+    "east": 14.61181640625,
+    "north": 38.06539235133249,
+    "south": 38.03078569382295
+  },
+  "width": 512,
+  "height": 512,
+  "minElev": -2.0625,
+  "maxElev": 711.71484375,
+  "heightmap": "heightmap.bin",
+  "origin": {
+    "lat": 38.056,
+    "lon": 14.585
+  }
+}

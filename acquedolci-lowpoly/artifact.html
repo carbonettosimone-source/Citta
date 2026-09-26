@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <title>Acquedolci — prototipo low poly</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="ui">
+        <header role="button" aria-label="Cerca vie, piazze o un'altra città">
+          <button type="button" class="h-search" tabindex="-1" aria-hidden="true">🔍</button>
+          <div class="h-text">
+            <h1>Città low poly</h1>
+            <p class="subtitle">OpenStreetMap</p>
+          </div>
+        </header>
+        <button type="button" id="info-btn" aria-label="Informazioni sulla città">i</button>
+        <div id="hint">
+          <span class="hint-desktop"
+            ><strong>PC:</strong> WASD / frecce · Shift corri · trascina orbita · rotella zoom</span
+          >
+          <span class="hint-mobile"
+            ><strong>Mobile:</strong> joystick sinistro — cammina · trascina a destra — guarda · ⚡ corri · +/− zoom</span
+          >
+        </div>
+        <div id="stats">Caricamento…</div>
+      </div>
+      <canvas id="c"></canvas>
+      <div id="loader"><div class="l-card"><h2>Preparo la città…</h2><p id="loader-msg">Caricamento</p><div class="l-bar"><i></i></div></div></div>
+    </div>
+    <script type="module" src="/src/artifact/entry.js"></script>
+  </body>
+</html>
