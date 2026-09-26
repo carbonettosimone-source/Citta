@@ -26,20 +26,37 @@ function pointInRing(x, z, pts) {
  * @param {(x:number,z:number)=>object|null} o.surfaceAt
  * @param {(x:number,z:number,r:number)=>boolean} o.nearBuilding
  * @param {(c:number[])=>{x:number,z:number}[]} o.ringLocal lon/lat → locale
+ * @param {{x:number,z:number}[]} [o.measuredTrees] alberi veri già noti (OSM + mappa chiome): le
+ *   regole riempiono solo i vuoti, non piantano un albero finto sopra uno reale.
  */
-export function planTrees({ roads, features, level, surfaceAt, nearBuilding, ringLocal }) {
+export function planTrees({ roads, features, level, surfaceAt, nearBuilding, ringLocal, measuredTrees = [] }) {
   const out = [];
-  const taken = [];
+  // Griglia spaziale (non una finestra scorrevole sugli ultimi N): con migliaia di alberi veri
+  // già seminati (measuredTrees, dalla mappa delle chiome) un controllo "solo gli ultimi 400" non
+  // vedrebbe quasi nessuno di loro. Cella 4 m, cerco negli anelli di celle che coprono minGap.
+  const CELL = 4;
+  const cellsOf = new Map();
+  const cellKey = (x, z) => `${Math.floor(x / CELL)}:${Math.floor(z / CELL)}`;
+  const seed = (x, z) => {
+    const k = cellKey(x, z);
+    let a = cellsOf.get(k); if (!a) cellsOf.set(k, (a = [])); a.push([x, z]);
+  };
+  for (const t of measuredTrees) seed(t.x, t.z);
   const farFromOthers = (x, z, d) => {
-    for (let k = taken.length - 1; k >= Math.max(0, taken.length - 400); k--) {
-      if (Math.hypot(taken[k][0] - x, taken[k][1] - z) < d) return false;
+    const ci = Math.floor(x / CELL), cj = Math.floor(z / CELL), rc = Math.ceil(d / CELL);
+    for (let i = -rc; i <= rc; i++) {
+      for (let j = -rc; j <= rc; j++) {
+        const a = cellsOf.get(`${ci + i}:${cj + j}`);
+        if (!a) continue;
+        for (const [px, pz] of a) if (Math.hypot(px - x, pz - z) < d) return false;
+      }
     }
     return true;
   };
   const add = (x, z, habitat, minGap) => {
     if (!farFromOthers(x, z, minGap)) return;
     out.push({ x, z, habitat });
-    taken.push([x, z]);
+    seed(x, z);
   };
   const stats = { avenue: 0, orchard: 0, garden: 0 };
 

@@ -52,7 +52,11 @@ export const mediterraneanCoast = {
   softVegY: 0.03,
   barriers: { yOffset: 0.30, defaultHeight: 1.2 },
   landmarks: { maxLabels: 10 },
-  maxTrees: 2200,
+  // Alzato da 2.200 (M5): con gli alberi veri della mappa delle chiome (fetch-canopy.mjs) il
+  // budget precedente tagliava via la maggioranza dei dati misurati. Non verificato su GPU reale:
+  // 6.000 istanze low-poly ~= 1 scena in più di triangoli del solo terreno (poche decine di draw
+  // call totali, l'instancing è per specie) — da confermare con un profiling su telefono vero.
+  maxTrees: 6000,
   fogNear: 280,
   fogFar: 1500,
   fogNear: 300,

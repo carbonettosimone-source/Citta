@@ -219,6 +219,10 @@ export async function buildCity(cityConfig, scene, camera, opts = {}) {
   const coast = level ? buildCoastFeatures(levelData, scene, style, seaY) : { cliffCount: 0, pierCount: 0 };
 
   progress('Alberi…');
+  // Alberi veri (M5): picchi della mappa globale delle chiome (Meta/WRI, 1 m, CC BY 4.0), già
+  // fusi con gli OSM a monte in fetch-canopy.mjs solo per il filtro strade/edifici — la fusione
+  // vera e propria (facts/resolveFacts.js) avviene qui, alberi OSM + misurati insieme.
+  const canopy = await tryJSON(cityConfig.canopy || `/data/canopy/${cityConfig.id}.json`);
   let treePlan = null;
   if (level) {
     const G = buildings.footprintGrid;
@@ -241,6 +245,7 @@ export async function buildCity(cityConfig, scene, camera, opts = {}) {
         return false;
       }),
       ringLocal: ringToLocalPts,
+      measuredTrees: canopy?.trees || [],
     });
   }
   const vegetation = buildVegetation(features, scene, style, buildings.aabbs, {
@@ -248,6 +253,7 @@ export async function buildCity(cityConfig, scene, camera, opts = {}) {
     trees: true,
     levelMode: !!level,
     extraPlacements: treePlan?.placements || [],
+    canopy,
   }, roads.polylines);
 
   progress('Landmark…');

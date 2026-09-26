@@ -6,6 +6,8 @@ import { hash32, hashXZ, mulberry32, unit } from '../rng.js';
 import { pickSpecies, speciesFromTags, habitatOf, SPECIES_BY_ID } from '../region/vegetation.js';
 import { isSoftVegetation, shouldSkipGroundFill, LAYER } from '../layers.js';
 import { distToRoads, nearestRoad } from '../roads/RoadBuilder.js';
+import { resolveFacts } from '../facts/resolveFacts.js';
+import { sourceRank } from '../facts/priority.js';
 
 function vegColor(subtype, colors) {
   switch (subtype) {
@@ -98,7 +100,7 @@ export function buildVegetation(features, scene, style = {}, buildingAabbs = [],
   const doGround = opts.ground !== false;
   const doTrees = opts.trees !== false;
   const colors = style.colors || {};
-  const maxTrees = style.maxTrees ?? 2200;
+  const baseMaxTrees = style.maxTrees ?? 2200;
   const group = new THREE.Group();
   group.name = 'vegetation';
   group.renderOrder = LAYER.SOFT_VEG;
@@ -182,16 +184,38 @@ export function buildVegetation(features, scene, style = {}, buildingAabbs = [],
     return pickSpecies(vegProfile, t, habitat, unit(hashXZ(x, z, salt)));
   };
 
-  // 1) Alberi mappati singolarmente: specie dal tag se c'è, altrimenti dal punto
+  // 1) Alberi VERI: nodi OSM (source osm, tag esplicito) fusi con i picchi misurati dalla mappa
+  // globale delle chiome (source measured, scripts/fetch-canopy.mjs — altezza e raggio di chioma
+  // reali, non stimati). facts/resolveFacts.js decide chi vince quando descrivono lo stesso albero
+  // (raggio 2,5 m) e presta l'altezza misurata anche a un albero OSM senza tag `height`.
+  const treeFacts = [];
   for (const f of features) {
     if (f.properties.kind !== 'tree') continue;
     const [lon, lat] = f.geometry.coordinates;
     const p = project(lon, lat);
-    const sp = speciesFromTags(f.properties) || speciesAt(p.x, p.z, 'urban', 1);
-    if (sp) placements.push({ x: p.x, z: p.z, species: sp });
+    treeFacts.push({ x: p.x, z: p.z, source: 'osm', confidence: 1, speciesTag: speciesFromTags(f.properties), height: f.properties.treeHeight ?? null });
+  }
+  for (const t of opts.canopy?.trees || []) {
+    treeFacts.push({ x: t.x, z: t.z, source: 'measured', confidence: t.confidence, height: t.height, crownRadius: t.crownRadius });
+  }
+  const resolvedTrees = resolveFacts(treeFacts, { radius: 2.5, enrich: ['height', 'crownRadius'] });
+  // i migliori (fonte più autorevole, poi più alti) entrano per primi nel budget — se sono più dei
+  // maxTrees possibili, a restare fuori sono le rilevazioni più basse e meno confidenti
+  resolvedTrees.sort((a, b) => sourceRank(b.source) - sourceRank(a.source) || (b.height ?? 0) - (a.height ?? 0));
+  // Il budget "di progetto" (style.maxTrees) è un pavimento per le città senza dati misurati: se
+  // le chiome reali sono di più, il tetto sale per starci tutte (+ un margine per le regole),
+  // con un limite di sicurezza assoluto (le istanze sono economiche, ma non verificato su GPU vera).
+  const HARD_CAP = 20000;
+  const maxTrees = Math.min(HARD_CAP, Math.max(baseMaxTrees, resolvedTrees.length + 500));
+  for (const e of resolvedTrees) {
+    if (placements.length >= maxTrees) break;
+    const sp = e.speciesTag || speciesAt(e.x, e.z, 'urban', 1);
+    if (sp) placements.push({ x: e.x, z: e.z, species: sp, height: e.height ?? null });
   }
 
-  // 1b) Alberi pianificati a regole (viali, frutteti in filari, giardini) — biome/TreeRules.js
+  // 1b) Alberi pianificati a regole (viali, frutteti in filari, giardini) — biome/TreeRules.js.
+  // TreeRules ha già escluso i punti troppo vicini a un albero vero (measuredTaken, passato in
+  // buildCity.js): qui si riempiono solo i vuoti, non si raddoppia un albero già reale.
   for (const e of opts.extraPlacements || []) {
     if (placements.length >= maxTrees) break;
     const sp = speciesAt(e.x, e.z, e.habitat, 4);
@@ -266,7 +290,8 @@ export function buildVegetation(features, scene, style = {}, buildingAabbs = [],
     list.forEach((e, i) => {
       const h = hashXZ(e.x, e.z, 11);
       const r = mulberry32(h);
-      const s = 0.75 + r() * 0.5;
+      // altezza misurata (mappa delle chiome): la scala segue il vero, non un dado casuale
+      const s = e.height ? Math.min(2.2, Math.max(0.4, e.height / spec.h)) : 0.75 + r() * 0.5;
       dummy.position.set(e.x, sampleY(e.x, e.z), e.z);
       dummy.rotation.set(0, r() * Math.PI * 2, 0);
       dummy.scale.set(s * (0.9 + r() * 0.2), s, s * (0.9 + r() * 0.2));

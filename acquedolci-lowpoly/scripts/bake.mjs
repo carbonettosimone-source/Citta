@@ -20,14 +20,16 @@ const steps = [
   offline ? null : ['bake-horizon.mjs', id],
   offline ? null : ['fetch-appearance.mjs', id],
   ['compile-level.mjs', id],
+  // Dopo compile-level: il filtro strade/edifici di fetch-canopy legge il livello già compilato
+  offline ? null : ['fetch-canopy.mjs', id],
 ].filter(Boolean);
 
 for (const [script, ...rest] of steps) {
   console.log(`\n▶ ${script} ${rest.join(' ')}`);
   const r = spawnSync(process.execPath, [new URL(script, import.meta.url).pathname, ...rest], { stdio: 'inherit' });
   if (r.status !== 0) {
-    // L'appearance è un arricchimento: se fallisce, la città resta giocabile
-    if (script === 'fetch-appearance.mjs' || script === 'bake-horizon.mjs') {
+    // Appearance, orizzonte e chiome sono arricchimenti: se falliscono, la città resta giocabile
+    if (script === 'fetch-appearance.mjs' || script === 'bake-horizon.mjs' || script === 'fetch-canopy.mjs') {
       console.warn(`${script} fallito: arricchimento opzionale, la città resta giocabile.`);
       continue;
     }

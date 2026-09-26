@@ -15,7 +15,8 @@
     "bake": "node scripts/bake.mjs",
     "build-artifact": "node scripts/build-artifact.mjs",
     "bake-horizon": "node scripts/bake-horizon.mjs",
-    "compile-level": "node scripts/compile-level.mjs"
+    "compile-level": "node scripts/compile-level.mjs",
+    "fetch-canopy": "node scripts/fetch-canopy.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"

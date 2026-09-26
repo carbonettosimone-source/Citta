@@ -63,7 +63,7 @@ export function profileToStyle(profile) {
   style.fogNear = Math.round(a.hazeM * 0.2);
   style.fogFar = a.hazeM;
   style.look = { ...style.look, exposure: a.exposure, warmth: a.warmth };
-  style.maxTrees = Math.round(600 + 2600 * profile.vegetation.density);
+  style.maxTrees = Math.round(1200 + 6000 * profile.vegetation.density); // vedi nota in mediterraneanCoast.js
 
   // Contesto regionale per i builder che lo sanno usare (gli altri lo ignorano)
   const climate = profile.climate;

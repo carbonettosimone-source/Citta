@@ -357,3 +357,48 @@ Fin qui gli isolati urbani inseguivano un campo di quota continuo (lisciato, con
 Area conservata per costruzione: la somma delle tessere a gradoni dopo il taglio combacia con l'area di cortile/verde prima del taglio entro l'arrotondamento (662.435 contro 662.437 m² dopo il fix del centraggio). Nessuno shader nuovo in questo passo (niente da validare con glslangValidator): muretti, scogliere e frangiflutti usano `MeshLambertMaterial` come le barriere OSM già esistenti.
 
 **Ancora aperto**: costa (scogliere/frangiflutti) verificata solo su fixture sintetica, non su una città reale che li mappi; le scalinate non intersecano i terrazzamenti dei cortili (nessun percorso interno pedonale mappato lì); un isolato molto grande e mosso (fino a 38,9 m di dislivello osservato) resta terreno naturale continuo per scelta, non gradonato — corretto per la campagna, ma un lotto urbano genuinamente enorme e ripido non avrebbe terrazzamenti.
+
+
+## v2 — M5 (in corso): livello dei fatti, primo pilastro — alberi veri
+
+Obiettivo dichiarato: un sistema unico che porti nel motore texture di facciate/marciapiedi/strade, cartelli stradali, alberi dove ce ne sono davvero, muretti e scalinate reali — con provenienza, non a scelta muta fra regola e dato. **Niente Google**: i termini di Google Maps/Street View vietano di derivarne geometrie o texture, quindi ogni fonte qui sotto è aperta (OSM, dati satellitari/LiDAR pubblici, Mapillary/Panoramax con licenza dei singoli contributi). Questo passo costruisce il livello dei fatti e lo applica al primo caso concreto: gli alberi.
+
+### Livello dei fatti (`engine/facts/`)
+
+Ogni oggetto del mondo diventa un **fatto**: posizione, valori, `source`, `confidence`. Le fonti hanno un ordine fisso, uguale per ogni tipo di fatto (`priority.js`):
+
+```
+manuale  >  OSM esplicito  >  misurato (LiDAR, chiome, DEM)  >  rilevato (Mapillary, CV)  >  regola/prior
+```
+
+`resolveFacts.js` raggruppa per prossimità (griglia uniforme, non O(n²); chiusura transitiva: una fila di alberi entra nello stesso gruppo anche se il primo e l'ultimo non sono vicini fra loro), tiene il vincitore secondo la tabella e gli presta i campi che non ha da un fatto perdente dello stesso gruppo (es. un albero OSM senza `height` riceve l'altezza misurata, ma la posizione resta quella OSM). Verificato con test sintetici in Node: priorità pura, fusione a coppie con prestito di campo, catena transitiva, 20.000 fatti casuali in 53 ms senza eccezioni.
+
+### Alberi veri (`scripts/fetch-canopy.mjs`)
+
+Fonte: **Meta/WRI High Resolution Canopy Height**, 1 m, globale, CC BY 4.0 (COG per riquadri ~0,7°). Si legge solo la finestra del bbox via HTTP range request (libreria `geotiff`, già una dipendenza del progetto per Sentinel-2) — non il file intero, che pesa 300+ MB per riquadro. Nel sandbox di sviluppo il file va letto **a strisce sequenziali con retry**: troppe richieste in parallelo (una per tessera interna del COG) chiudevano il tunnel di rete; a strisce da 200 righe, 0 errori, 1891×1921 px in ~2 s.
+
+Dai picchi del raster (soppressione dei non-massimi: dal più alto al più basso, un picco accettato ne esclude altri entro `MIN_SPACING` 2,6 m) esce un albero per cima reale, non un punto a caso nel poligono. Raggio di chioma **misurato** (cresce dalla cima finché il raster resta sopra metà della sua altezza), non stimato da formula. I picchi che cadono su strada/vicolo/mare/dentro un edificio si scartano alla fonte (il livello compilato è già lì): per Acquedolci, 6.708 su 21.628 (31%, quasi certamente rumore del raster su tetti/ombre), rimangono **14.920 alberi** con altezza 3–24 m (media 5 m).
+
+### Nel motore
+
+`buildCity.js` carica `public/data/canopy/<città>.json` (opzionale: se manca, tutto si comporta come prima) e lo passa in due punti:
+- **`biome/TreeRules.js`**: gli alberi misurati seminano l'esclusione spaziale delle regole (viali/frutteti/giardini) — corretto anche a 15.000 punti seminati (prima usava una finestra scorrevole sugli ultimi 400 inserimenti, adeguata a poche centinaia di alberi a regola ma cieca su migliaia di punti seminati in un colpo solo: ora è una vera griglia spaziale).
+- **`vegetation/VegetationBuilder.js`**: alberi OSM + misurati fusi con `resolveFacts` (raggio 3 m), ordinati per fonte poi per altezza, e piazzati per primi nel budget; solo dopo entrano i piazzamenti a regola (i vuoti che i dati reali non coprono). La **scala** dell'istanza segue l'altezza misurata (`height / spec.h` della specie), non più solo un dado deterministico.
+
+**Budget alberi**: `style.maxTrees` resta il pavimento per le città senza dati misurati (alzato 2.200→6.000, l'instancing per specie costa poco a istanza ma non l'ho potuto profilare su una GPU vera). Quando le chiome reali sono più del pavimento, il tetto sale per contenerle tutte + 500 di margine per le regole, con un limite assoluto di 20.000. Ad Acquedolci: 14.921 alberi risolti (OSM+misurati) + 500 a regola = **15.421 istanze**, verificato in Node end-to-end (TreeRules → VegetationBuilder) senza eccezioni.
+
+**Verifiche (Node, Acquedolci)**:
+| | prima (regole pure) | M5 |
+|---|---|---|
+| alberi piazzati | fino a 2.200 (regola + pochi OSM) | 15.421 (14.921 veri + 500 a regola) |
+| fonte prevalente | regola/rng | misurato (mappa chiome, CC BY 4.0) |
+| scala dell'istanza | dado deterministico (0,75–1,25×) | altezza reale / altezza della specie |
+| falsi positivi scartati alla fonte | — | 6.708 (su strada/mare/edificio) |
+| tempo pipeline (planTrees+buildVegetation) | — | 184 ms |
+
+**Ancora aperto / onestà sui limiti**:
+- La specie di un albero misurato senza tag OSM resta scelta da clima/quota con habitat `'urban'` fisso: non guarda ancora se il punto cade in un poligono OSM di frutteto/bosco. Prossimo affinamento.
+- Il raggio di chioma misurato non è ancora usato per infittire/diradare la scala orizzontale della chioma (solo l'altezza pilota la scala uniforme); un uso pieno vorrebbe una geometria non uniformemente scalata.
+- Budget non verificato su GPU reale: 15.000+ istanze per specie, poche decine di draw call, ma il costo delle ombre (`castShadow`) su tutte non è stato misurato — solo ragionato per analogia con l'uso previsto di `InstancedMesh`.
+- In questo sandbox, Mapillary, Panoramax, ambientCG e il SITR regionale siciliano sono bloccati dalla policy di rete (403 alla CONNECT): cartelli, superfici, facciate e muretti/scalinate "misurati" (prossimi pilastri dello stesso sistema) restano da implementare col codice pronto a leggerli, ma verificabili solo con fixture sintetiche finché non si lancia il bake su una macchina con accesso di rete pieno.
+- La mappa delle chiome ha un solo anno di riferimento (2024): alberi piantati dopo non ci sono, alberi abbattuti nel frattempo sì. Nessuna correzione manuale ancora implementata (il quarto pilastro previsto: un file di correzioni per città, priorità massima nella tabella).

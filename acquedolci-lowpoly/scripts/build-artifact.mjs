@@ -11,7 +11,7 @@ const id = process.argv[2] || 'acquedolci';
 const cfg = JSON.parse(readFileSync(join(ROOT, 'src/cities', `${id}.json`), 'utf8'));
 const pub = (u) => join(ROOT, 'public', u.replace(/^\//, ''));
 
-const urls = [cfg.data.osm, cfg.data.demMeta, cfg.dna, cfg.appearance, cfg.regionProfile || `/data/region/${id}.json`, cfg.horizon || `/data/horizon/${id}.json`, cfg.level || `/data/level/${id}.json`].filter(Boolean);
+const urls = [cfg.data.osm, cfg.data.demMeta, cfg.dna, cfg.appearance, cfg.regionProfile || `/data/region/${id}.json`, cfg.horizon || `/data/horizon/${id}.json`, cfg.level || `/data/level/${id}.json`, cfg.canopy || `/data/canopy/${id}.json`].filter(Boolean);
 const meta = JSON.parse(readFileSync(pub(cfg.data.demMeta), 'utf8'));
 const binUrl = `${dirname(cfg.data.demMeta)}/${meta.heightmap || 'heightmap.bin'}`;
 
