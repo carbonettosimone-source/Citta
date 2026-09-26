@@ -13,6 +13,7 @@ import { buildLandmarks } from './landmarks/LandmarkBuilder.js';
 import { buildPlazas } from './plazas/PlazaBuilder.js';
 import { buildBarriers, buildLotFences } from './barriers/BarrierBuilder.js';
 import { buildCoastFeatures } from './coast/CoastBuilder.js';
+import { buildTreeFacts } from './facts/buildTreeFacts.js';
 import { loadCityDna, applyDnaToStyle } from './dna/applyCityDna.js';
 import { loadAppearance, appearanceIndex } from './appearance/loadAppearance.js';
 import { resolveStylePack } from '../stylePacks/mediterraneanCoast.js';
@@ -219,10 +220,12 @@ export async function buildCity(cityConfig, scene, camera, opts = {}) {
   const coast = level ? buildCoastFeatures(levelData, scene, style, seaY) : { cliffCount: 0, pierCount: 0 };
 
   progress('Alberi…');
-  // Alberi veri (M5): picchi della mappa globale delle chiome (Meta/WRI, 1 m, CC BY 4.0), già
-  // fusi con gli OSM a monte in fetch-canopy.mjs solo per il filtro strade/edifici — la fusione
-  // vera e propria (facts/resolveFacts.js) avviene qui, alberi OSM + misurati insieme.
+  // Alberi veri (M5): mappa globale delle chiome (Meta/WRI, 1 m, CC BY 4.0) + OSM + correzioni
+  // manuali, fusi UNA SOLA VOLTA (facts/buildTreeFacts.js) — TreeRules (esclusione delle regole)
+  // e VegetationBuilder (piazzamento) leggono lo stesso risultato, non due fusioni indipendenti.
   const canopy = await tryJSON(cityConfig.canopy || `/data/canopy/${cityConfig.id}.json`);
+  const corrections = await tryJSON(cityConfig.corrections || `/data/corrections/${cityConfig.id}.json`);
+  const resolvedTrees = buildTreeFacts(features, canopy?.trees, corrections?.trees);
   let treePlan = null;
   if (level) {
     const G = buildings.footprintGrid;
@@ -245,7 +248,7 @@ export async function buildCity(cityConfig, scene, camera, opts = {}) {
         return false;
       }),
       ringLocal: ringToLocalPts,
-      measuredTrees: canopy?.trees || [],
+      measuredTrees: resolvedTrees,
     });
   }
   const vegetation = buildVegetation(features, scene, style, buildings.aabbs, {
@@ -253,7 +256,7 @@ export async function buildCity(cityConfig, scene, camera, opts = {}) {
     trees: true,
     levelMode: !!level,
     extraPlacements: treePlan?.placements || [],
-    canopy,
+    resolvedTrees,
   }, roads.polylines);
 
   progress('Landmark…');

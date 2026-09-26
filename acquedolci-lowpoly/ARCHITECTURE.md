@@ -401,4 +401,24 @@ Dai picchi del raster (soppressione dei non-massimi: dal più alto al più basso
 - Il raggio di chioma misurato non è ancora usato per infittire/diradare la scala orizzontale della chioma (solo l'altezza pilota la scala uniforme); un uso pieno vorrebbe una geometria non uniformemente scalata.
 - Budget non verificato su GPU reale: 15.000+ istanze per specie, poche decine di draw call, ma il costo delle ombre (`castShadow`) su tutte non è stato misurato — solo ragionato per analogia con l'uso previsto di `InstancedMesh`.
 - In questo sandbox, Mapillary, Panoramax, ambientCG e il SITR regionale siciliano sono bloccati dalla policy di rete (403 alla CONNECT): cartelli, superfici, facciate e muretti/scalinate "misurati" (prossimi pilastri dello stesso sistema) restano da implementare col codice pronto a leggerli, ma verificabili solo con fixture sintetiche finché non si lancia il bake su una macchina con accesso di rete pieno.
-- La mappa delle chiome ha un solo anno di riferimento (2024): alberi piantati dopo non ci sono, alberi abbattuti nel frattempo sì. Nessuna correzione manuale ancora implementata (il quarto pilastro previsto: un file di correzioni per città, priorità massima nella tabella).
+- La mappa delle chiome ha un solo anno di riferimento (2024): alberi piantati dopo non ci sono, alberi abbattuti nel frattempo sì. Per questo il quarto pilastro (correzioni manuali) è già implementato, sotto.
+
+### Correzioni manuali (quarto pilastro, `engine/facts/corrections.js`)
+
+Priorità massima nella tabella (`manual`): si applicano **dopo** ogni bake automatico, quindi sopravvivono a un nuovo `fetch-canopy`/`compile-level`. Un file per città, `public/data/corrections/<id>.json` (opzionale: se manca, tutto si comporta come senza correzioni):
+
+```json
+{ "trees": {
+  "remove": [{ "x": 120.4, "z": -30.1, "radius": 1.5 }],
+  "edit":   [{ "x": 40.0,  "z": 12.0,  "radius": 2, "set": { "speciesTag": "cypress" } }],
+  "add":    [{ "x": 5.0,   "z": 5.0,   "height": 4.5 }]
+} }
+```
+
+- `remove`: toglie qualunque fatto (di qualunque fonte) entro `radius` — un falso positivo del rilevamento automatico.
+- `edit`: applica i campi di `set` al fatto più vicino entro `radius`, senza spostarlo né toccare i vicini.
+- `add`: un fatto vero e proprio con `source:'manual'` — vince sempre nella fusione.
+
+`buildTreeFacts.js` (nuovo, unico punto di fusione) applica le correzioni **prima** di `resolveFacts`, così sia `TreeRules` (esclusione delle regole) sia `VegetationBuilder` (piazzamento) vedono lo stesso risultato corretto — prima ognuno rifaceva la fusione OSM+chiome per conto proprio, con il rischio di vedere due insiemi leggermente diversi. Verificato in Node con una correzione di prova (rimuovi un albero misurato reale, cambia specie a un altro, aggiungine uno manuale): il conteggio torna esatto, il fatto rimosso non c'è più, quello manuale c'è con `source:'manual'`.
+
+Nessuna correzione reale è ancora presente per Acquedolci: senza una GPU per guardare la scena, non ho un riscontro visivo su cosa correggere — il meccanismo è pronto, il contenuto lo aggiungerà chi la città la vede.
