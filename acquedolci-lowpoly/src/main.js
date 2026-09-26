@@ -444,6 +444,9 @@ async function load() {
     places: city.places || [],
     bakedCities: BAKED,
     onLocal: (p) => { if (camMode === 'drone') setCamMode('vicina'); teleport(p.x, p.z); },
+    // Fuori dall'anteprima claude.ai (bloccata dal CSP) la ricerca nel mondo può collegarsi a
+    // Internet per davvero: Vercel o un server proprio la abilitano.
+    allowWorld: true,
   });
   const camBtn = document.createElement('button');
   camBtn.id = 'cam-btn';
