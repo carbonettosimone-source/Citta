@@ -16,7 +16,9 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 2000);
+// near 0,5 (non 0,1): con 0,1 la precisione del depth buffer a 200 m è ~2 cm e finestre/porte
+// (5 cm davanti al muro) sfarfallavano; con 0,5 scende a ~5 mm.
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.5, 2500);
 const controls = new OrbitControls(camera, canvas);
 controls.enablePan = false;
 controls.minDistance = 4;
@@ -45,7 +47,9 @@ async function load() {
   controls.update();
 
   const title = document.querySelector('header h1');
-  if (title) title.textContent = `${cityConfig.name} — voxel (M6 V1)`;
+  if (title) title.textContent = `${cityConfig.name} — voxel`;
+  const subtitle = document.querySelector('header .subtitle');
+  if (subtitle) subtitle.textContent = `${city.buildings.count} edifici reali · suolo a 0,25 m`;
 
   loaderEl?.classList.add('hide');
 
@@ -68,8 +72,14 @@ async function load() {
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
       const rx = Math.sin(yaw + Math.PI / 2), rz = Math.cos(yaw + Math.PI / 2);
       const speed = (sprint ? 9 : 4.2) * dt / len;
-      player.position.x += (fx * -mz + rx * mx) * speed;
-      player.position.z += (fz * -mz + rz * mx) * speed;
+      const dx = (fx * -mz + rx * mx) * speed;
+      const dz = (fz * -mz + rz * mx) * speed;
+      const p = player.position;
+      // Collisione con gli edifici, un asse alla volta: contro un muro si scivola lungo di esso
+      // invece di fermarsi. Se si è già dentro (spawn sfortunato) si lascia uscire.
+      const stuck = city.blocked(p.x, p.z);
+      if (stuck || !city.blocked(p.x + dx, p.z)) p.x += dx;
+      if (stuck || !city.blocked(p.x, p.z + dz)) p.z += dz;
     }
     const targetY = city.sampleY(player.position.x, player.position.z);
     player.position.y += (targetY - player.position.y) * Math.min(1, dt * 12);
@@ -78,6 +88,13 @@ async function load() {
     controls.target.set(player.position.x, player.position.y + 1.4, player.position.z);
     camera.position.copy(controls.target).add(off);
     controls.update();
+    // L'orbita limita l'angolo rispetto al giocatore, non al terreno: su una strada in pendenza la
+    // camera finiva sotto il suolo (si vedeva il cielo "sotto" e il terreno dal rovescio).
+    const groundY = city.sampleY(camera.position.x, camera.position.z) + 1.0;
+    if (camera.position.y < groundY) {
+      camera.position.y = groundY;
+      camera.lookAt(controls.target);
+    }
 
     const r = city.update(player.position.x, player.position.z);
     if (r.generated || r.removed) {

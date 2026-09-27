@@ -1,28 +1,33 @@
 /**
  * Edifici per il motore voxel (M6 V2): stessa idea del motore continuo (BuildingBuilder.js) —
  * altezza/piani/colore muro/tetto/tinta infissi tutti derivati da un hash deterministico
- * dell'id OSM, non un unico rettangolo ripetuto — ma la pianta viene prima voxelizzata sulla
- * stessa griglia da 0,25 m del terreno: il profilo dell'edificio è "a blocchi" come tutto il
- * resto del mondo, non un poligono liscio incollato sopra un suolo a cubi.
+ * dell'id OSM, non un unico rettangolo ripetuto.
  *
- * Costruiti tutti in un colpo solo (non in streaming a chunk come il terreno): il numero di
- * edifici di una città è ordini di grandezza più piccolo del numero di celle del terreno, e
- * qui serve conoscere fin da subito il profilo intero di ognuno per mettere le finestre alla
- * spaziatura giusta lungo ogni parete.
+ * Pareti e tetto seguono la pianta compilata (già pulita dal compilatore), non la sua versione
+ * voxelizzata: a 0,25 m i lati diagonali diventavano scale di gradini da 25 cm che sullo schermo
+ * leggevano come righe e bordi seghettati. La griglia voxel della pianta resta, ma solo per la
+ * collisione (solidAt).
+ *
+ * Tetti dal profilo regionale (region.roof): una quota di terrazze piane con parapetto (tipiche
+ * della costa siciliana), il resto a falde dallo scheletro compilato (level.buildings[].r), che
+ * funziona su qualunque pianta, anche concava.
+ *
+ * Costruiti tutti in un colpo solo (non in streaming a chunk come il terreno): gli edifici sono
+ * ordini di grandezza meno delle celle del terreno.
  */
 import * as THREE from 'three';
-import { VOXEL, MAT_COLOR, MAT } from './voxelConfig.js';
+import { VOXEL } from './voxelConfig.js';
 import { hash32, unit } from '../rng.js';
 
 const LEVEL_H = 3.05;
+const PARAPET = 0.9; // m sopra la terrazza
 
 const WALL_PALETTE = [
   0xf5ead8, 0xf0e0c8, 0xe8d5b0, 0xe2c9a0, 0xf2d4c4,
   0xe8c8b8, 0xd8d0c8, 0xe6dcc8, 0xf8f0e4, 0xdcc8a8,
 ];
-const ROOF_PALETTE = [
-  0xb85a3a, 0xc46842, 0xa84e32, 0xd07048, 0x9e4a30, 0xbc6040, 0xad5538, 0xc87850, 0xa05038,
-];
+const PITCHED_PALETTE = [0xb85a3a, 0xc46842, 0xa84e32, 0xd07048, 0xbc6040, 0xc87850];
+const FLAT_PALETTE = [0xb0aaa0, 0xd2ccc0, 0xc4bdb0, 0xbab2a4, 0xd8d0c2];
 const WINDOW_TINTS = [
   [0x5a, 0x7a, 0x9a], [0x4f, 0x6b, 0x4a], [0x6b, 0x4a, 0x3a], [0xc9, 0xc2, 0xb0], [0x3d, 0x5a, 0x5c],
 ];
@@ -56,15 +61,22 @@ function wallColorFor(props, id) {
   if (t === 'garage' || t === 'shed') return GARAGE_WALL;
   return WALL_PALETTE[Math.abs(id * 7) % WALL_PALETTE.length];
 }
-function roofColorFor(props, id) {
-  const t = (props.building || '').toLowerCase();
-  if (t === 'church' || t === 'cathedral') return CHURCH_ROOF;
-  if (t === 'garage') return 0x7a7870;
-  return ROOF_PALETTE[Math.abs(id * 13 + 3) % ROOF_PALETTE.length];
-}
 function windowTintFor(id) {
   const rgb = WINDOW_TINTS[Math.floor(unit(hash32(`${id}:wtint`)) * WINDOW_TINTS.length) % WINDOW_TINTS.length];
   return [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
+}
+
+/** Tavolozze del profilo regionale: rossastri → coppi, il resto → terrazze in cemento/intonaco. */
+function roofPalettes(roof) {
+  const pitched = [], flat = [];
+  for (const c of roof?.palette || []) {
+    const hex = (c[0] << 16) | (c[1] << 8) | c[2];
+    (c[0] > c[1] + 30 ? pitched : flat).push(hex);
+  }
+  return {
+    pitched: pitched.length ? pitched : PITCHED_PALETTE,
+    flat: flat.length >= 2 ? [...flat, ...FLAT_PALETTE] : FLAT_PALETTE,
+  };
 }
 
 function decodeRing(flat, u) {
@@ -73,130 +85,125 @@ function decodeRing(flat, u) {
   return out;
 }
 
-/** Pianta → griglia booleana (dentro/fuori) alla risoluzione voxel del terreno. */
-function voxelizeFootprint(ring) {
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of ring) {
-    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-    if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+function pointInRing(x, z, ring) {
+  let inside = false;
+  for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
+    const pa = ring[b], pb = ring[a];
+    if (pa.z > z !== pb.z > z && x < ((pb.x - pa.x) * (z - pa.z)) / (pb.z - pa.z) + pa.x) inside = !inside;
   }
-  const originX = Math.floor(minX / VOXEL) * VOXEL;
-  const originZ = Math.floor(minZ / VOXEL) * VOXEL;
-  const W = Math.max(1, Math.ceil((maxX - originX) / VOXEL));
-  const H = Math.max(1, Math.ceil((maxZ - originZ) / VOXEL));
+  return inside;
+}
+
+/** Pianta → griglia booleana (dentro/fuori) alla risoluzione voxel del terreno: solo collisione. */
+function voxelizeFootprint(ring, bb) {
+  const originX = Math.floor(bb.minX / VOXEL) * VOXEL;
+  const originZ = Math.floor(bb.minZ / VOXEL) * VOXEL;
+  const W = Math.max(1, Math.ceil((bb.maxX - originX) / VOXEL));
+  const H = Math.max(1, Math.ceil((bb.maxZ - originZ) / VOXEL));
   const grid = new Uint8Array(W * H);
   for (let j = 0; j < H; j++) {
     const z = originZ + (j + 0.5) * VOXEL;
     for (let i = 0; i < W; i++) {
-      const x = originX + (i + 0.5) * VOXEL;
-      let inside = false;
-      for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
-        const pa = ring[b], pb = ring[a];
-        if (pa.z > z !== pb.z > z && x < ((pb.x - pa.x) * (z - pa.z)) / (pb.z - pa.z) + pa.x) inside = !inside;
-      }
-      if (inside) grid[j * W + i] = 1;
+      if (pointInRing(originX + (i + 0.5) * VOXEL, z, ring)) grid[j * W + i] = 1;
     }
   }
   return { grid, W, H, originX, originZ };
 }
 
-/** Rettangoli massimali sulle celle piene: stesso greedy meshing del tetto del terreno. */
-function greedyRectsBool(grid, W, H) {
-  const used = new Uint8Array(W * H);
-  const rects = [];
-  for (let j = 0; j < H; j++) {
-    for (let i = 0; i < W; i++) {
-      const k = j * W + i;
-      if (used[k]) continue;
-      if (!grid[k]) { used[k] = 1; continue; }
-      let w = 1;
-      while (i + w < W && !used[j * W + i + w] && grid[j * W + i + w]) w++;
-      let d = 1;
-      outer:
-      while (j + d < H) {
-        for (let di = 0; di < w; di++) {
-          const kk = (j + d) * W + i + di;
-          if (used[kk] || !grid[kk]) break outer;
-        }
-        d++;
-      }
-      for (let dj = 0; dj < d; dj++) for (let di = 0; di < w; di++) used[(j + dj) * W + i + di] = 1;
-      rects.push({ i, j, w, d });
-    }
+/**
+ * Pareti dai lati VERI della pianta compilata, non dalla sua versione a scalini. A 0,25 m una
+ * parete diagonale voxelizzata diventa una scala di gradini N/E larghi 25 cm, ognuno illuminato
+ * in modo diverso: sullo schermo leggeva come righe sottili (e i tetti come bordi seghettati).
+ * Un lato = una parete piana, ombreggiatura uniforme. Normale uscente verificata con un punto di
+ * prova appena fuori dal lato (robusto anche per piante concave e per qualunque verso dell'anello).
+ */
+function edgeGeoms(ring) {
+  const out = [];
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const L = Math.hypot(dx, dz);
+    if (L < 0.05) continue;
+    const tx = dx / L, tz = dz / L;
+    let nx = -tz, nz = tx;
+    const mx = (a.x + b.x) * 0.5, mz = (a.z + b.z) * 0.5;
+    if (pointInRing(mx + nx * 0.05, mz + nz * 0.05, ring)) { nx = -nx; nz = -nz; }
+    out.push({ x0: a.x, z0: a.z, tx, tz, nx, nz, L });
   }
-  return rects;
+  return out;
 }
 
-/** Tratti rettilinei del perimetro (una cella piena col vicino vuoto in quella direzione),
- *  fusi in run continui: sono le "pareti" lungo cui distribuire porte e finestre a spaziatura reale. */
-function wallRuns(grid, W, H) {
-  const at = (i, j) => (i >= 0 && i < W && j >= 0 && j < H ? grid[j * W + i] : 0);
-  const runs = [];
-  for (const [edge, di, dj] of [['n', 0, -1], ['s', 0, 1]]) {
-    for (let j = 0; j < H; j++) {
-      let i = 0;
-      while (i < W) {
-        if (!at(i, j) || at(i + di, j + dj)) { i++; continue; }
-        let len = 1;
-        while (i + len < W && at(i + len, j) && !at(i + len + di, j + dj)) len++;
-        runs.push({ edge, i, j, len });
-        i += len;
-      }
-    }
+/** Triangola un poligono (punti {x,z}) e orienta ogni triangolo verso l'alto. */
+function upTriangles(pts) {
+  const tris = THREE.ShapeUtils.triangulateShape(pts.map((p) => new THREE.Vector2(p.x, p.z)), []);
+  for (const t of tris) {
+    const a = pts[t[0]], b = pts[t[1]], c = pts[t[2]];
+    // y di (b-a)×(c-a) = uz*vx - ux*vz: negativa = verso il basso → inverti
+    if ((b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z) < 0) { const k = t[1]; t[1] = t[2]; t[2] = k; }
   }
-  for (const [edge, di, dj] of [['e', 1, 0], ['w', -1, 0]]) {
-    for (let i = 0; i < W; i++) {
-      let j = 0;
-      while (j < H) {
-        if (!at(i, j) || at(i + di, j + dj)) { j++; continue; }
-        let len = 1;
-        while (j + len < H && at(i, j + len) && !at(i + di, j + len + dj)) len++;
-        runs.push({ edge, i, j, len });
-        j += len;
-      }
-    }
-  }
-  return runs;
+  return tris;
 }
 
-function runGeom(run, originX, originZ) {
-  const L = run.len * VOXEL;
-  switch (run.edge) {
-    case 'n': return { x0: originX + run.i * VOXEL, z0: originZ + run.j * VOXEL, tx: 1, tz: 0, nx: 0, nz: -1, L };
-    case 's': return { x0: originX + run.i * VOXEL, z0: originZ + (run.j + 1) * VOXEL, tx: 1, tz: 0, nx: 0, nz: 1, L };
-    case 'e': return { x0: originX + (run.i + 1) * VOXEL, z0: originZ + run.j * VOXEL, tx: 0, tz: 1, nx: 1, nz: 0, L };
-    default: return { x0: originX + run.i * VOXEL, z0: originZ + run.j * VOXEL, tx: 0, tz: 1, nx: -1, nz: 0, L };
+/**
+ * Tetto a falde dallo scheletro compilato (stessa formula di BuildingBuilder.makeSkeletonRoof):
+ * v = [x·100, z·100, t·100] con t = distanza dal bordo della pianta allargata di 35 cm (gronda),
+ * quindi sul filo del muro la falda è alla quota del muro e fuori scende un poco.
+ * @returns {{pos:number[], tris:number[][]}|null}
+ */
+function skeletonRoof(r, wallTopY, tanP) {
+  const V = r.v;
+  const n = V.length / 3;
+  const rise = r.tmax * tanP;
+  if (!(rise > 0.2) || rise > 7.5) return null;
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    pts.push({ x: V[i * 3] / 100, y: wallTopY + (V[i * 3 + 2] / 100 - 0.35) * tanP, z: V[i * 3 + 1] / 100 });
   }
+  const tris = [];
+  for (const face of r.f) {
+    if (face.length < 3) continue;
+    const fp = face.map((k) => pts[k]);
+    for (const t of upTriangles(fp)) tris.push([face[t[0]], face[t[1]], face[t[2]]]);
+  }
+  return tris.length ? { pts, tris } : null;
 }
 
 const _c = new THREE.Color();
-function pushQuad(pos, col, idx, p0, p1, p2, p3, hex) {
+function pushIdx(idx, base, flip) {
+  if (flip) idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  else idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+}
+function pushQuad(pos, col, idx, p0, p1, p2, p3, hex, flip = false, k = 1) {
   _c.setHex(hex);
   const base = pos.length / 3;
-  for (const p of [p0, p1, p2, p3]) { pos.push(p[0], p[1], p[2]); col.push(_c.r, _c.g, _c.b); }
-  idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  for (const p of [p0, p1, p2, p3]) { pos.push(p[0], p[1], p[2]); col.push(_c.r * k, _c.g * k, _c.b * k); }
+  pushIdx(idx, base, flip);
 }
-function pushQuadRGB(pos, col, idx, p0, p1, p2, p3, rgb) {
+function pushQuadRGB(pos, col, idx, p0, p1, p2, p3, rgb, flip = false) {
   const base = pos.length / 3;
   for (const p of [p0, p1, p2, p3]) { pos.push(p[0], p[1], p[2]); col.push(rgb[0], rgb[1], rgb[2]); }
-  idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  pushIdx(idx, base, flip);
 }
 
-const PARTY_BUCKET = 20; // m
-
 /**
- * Indice spaziale su TUTTE le piante degli edifici: serve a riconoscere i muri in comune (edifici
- * a schiera). Senza questo controllo, il lato di un edificio adiacente a un altro genera comunque
- * una parete "esposta" (la cella vicina non appartiene alla SUA griglia locale) — e l'edificio
- * accanto fa lo stesso sul proprio lato: due pareti quasi coincidenti che sfarfallano (z-fighting),
- * la "tenda a listelli" osservata sulle facciate degli edifici a schiera.
+ * Un quad verticale [a-basso, b-basso, b-alto, a-alto] con a→b lungo la tangente t ha normale
+ * t × su = (-tz, 0, tx). Se punta DENTRO l'edificio va invertito: con materiale a faccia singola
+ * la GPU scarta le facce rivolte altrove, e prima metà delle pareti (tutti i lati nord ed est)
+ * erano invisibili — le "strisce" con il cielo in mezzo.
  */
-function buildPartyIndex(entries) {
+function needsFlip(g) {
+  return -g.tz * g.nx + g.tx * g.nz < 0;
+}
+
+const BUCKET = 20; // m
+
+/** Indice a secchi su tutte le piante: vicini (muri in comune) e collisione. */
+function buildIndex(entries) {
   const map = new Map();
   const key = (i, j) => `${i}:${j}`;
   for (const e of entries) {
-    const i0 = Math.floor(e.minX / PARTY_BUCKET), i1 = Math.floor(e.maxX / PARTY_BUCKET);
-    const j0 = Math.floor(e.minZ / PARTY_BUCKET), j1 = Math.floor(e.maxZ / PARTY_BUCKET);
+    const i0 = Math.floor(e.minX / BUCKET), i1 = Math.floor(e.maxX / BUCKET);
+    const j0 = Math.floor(e.minZ / BUCKET), j1 = Math.floor(e.maxZ / BUCKET);
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
       const k = key(i, j);
       let arr = map.get(k);
@@ -204,45 +211,33 @@ function buildPartyIndex(entries) {
       arr.push(e);
     }
   }
-  function pointInRing(x, z, ring) {
-    let inside = false;
-    for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
-      const pa = ring[b], pb = ring[a];
-      if (pa.z > z !== pb.z > z && x < ((pb.x - pa.x) * (z - pa.z)) / (pb.z - pa.z) + pa.x) inside = !inside;
-    }
-    return inside;
-  }
-  /** true se (x,z) cade dentro un edificio diverso da `selfId`. */
-  return function insideOtherBuilding(x, z, selfId) {
-    const arr = map.get(key(Math.floor(x / PARTY_BUCKET), Math.floor(z / PARTY_BUCKET)));
-    if (!arr) return false;
-    for (const e of arr) {
-      if (e.id === selfId) continue;
-      if (x < e.minX || x > e.maxX || z < e.minZ || z > e.maxZ) continue;
-      if (pointInRing(x, z, e.ring)) return true;
-    }
-    return false;
-  };
+  return (x, z) => map.get(key(Math.floor(x / BUCKET), Math.floor(z / BUCKET))) || [];
 }
 
 /**
  * @param {Array} features feature OSM (per altezza/tipologia reale, quando presente)
  * @param {object} level JSON del compilatore (level.buildings: impronte pulite sugli isolati)
  * @param {{sampleColumn:Function}} levelIndex
- * @returns {{group:THREE.Group, count:number, footprints:Array}}
+ * @param {{roof?:{flatShare?:number,pitchDeg?:number,palette?:number[][]}}} [region] profilo regionale
  */
-export function buildBuildingsVoxel(features, level, levelIndex) {
+export function buildBuildingsVoxel(features, level, levelIndex, region = null) {
   const group = new THREE.Group();
   group.name = 'buildings-voxel';
-  if (!level?.buildings?.length) return { group, count: 0, footprints: [] };
+  const empty = { group, count: 0, footprints: [], solidAt: () => false, insideBuilding: () => false, stats: {} };
+  if (!level?.buildings?.length) return empty;
 
   const u = level.unit || 0.1;
   const propsById = new Map();
   for (const f of features) {
     if (f.properties?.kind === 'building') propsById.set(String(f.properties.id), f.properties);
   }
+  const flatShare = region?.roof?.flatShare ?? 0.35;
+  const tanP = Math.tan(((region?.roof?.pitchDeg ?? 22) * Math.PI) / 180);
+  const pal = roofPalettes(region?.roof);
 
-  const partyEntries = [];
+  // ---- pre-passata: ogni edificio conosce quota e altezza propria PRIMA di disegnare i muri,
+  // così un lato in comune con un vicino più basso si disegna solo sopra il tetto del vicino.
+  const entries = [];
   for (const b of level.buildings) {
     const ring = decodeRing(b.o, u);
     if (ring.length < 3) continue;
@@ -251,122 +246,158 @@ export function buildBuildingsVoxel(features, level, levelIndex) {
       if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
       if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
     }
-    partyEntries.push({ id: b.id, ring, minX, maxX, minZ, maxZ });
+    const id = b.id;
+    const props = propsById.get(String(id)) || {};
+    const t = (props.building || '').toLowerCase();
+    // quota: mediana sul perimetro per il piano terra; il piede dei muri 1 m sotto il punto più
+    // basso (lotti in pendenza, e il terreno lontano sta volutamente più in basso di quello vicino)
+    const ys = ring.map((p) => levelIndex.sampleColumn(p.x, p.z).height).sort((a, z) => a - z);
+    const baseY = ys[ys.length >> 1];
+    const h = buildingHeight(props, id);
+    const forcedFlat = props.roofShape === 'flat' || t === 'garage' || t === 'shed' || t === 'industrial' || t === 'warehouse';
+    const isChurch = t === 'church' || t === 'cathedral' || t === 'chapel';
+    const slope = isChurch ? tanP * 1.3 : tanP;
+    const rise = b.r ? b.r.tmax * slope : 0;
+    // falde solo se lo scheletro dà un colmo plausibile (20 cm – 7,5 m), altrimenti terrazza
+    const flat = forcedFlat || (!isChurch && hashId(`${id}:roof`) < flatShare) || !(rise > 0.2 && rise <= 7.5);
+    entries.push({
+      id, b, ring, props, t, minX, maxX, minZ, maxZ,
+      baseY, bottomY: ys[0] - 1.0, h, top: baseY + h, flat, slope,
+      // quota più alta di ciò che occupa il lato visto da un vicino: il parapetto conta
+      solidTop: baseY + h + (flat ? PARAPET : 0),
+    });
   }
-  const insideOtherBuilding = buildPartyIndex(partyEntries);
+  const candidates = buildIndex(entries);
+  /** Edificio (diverso da `self`) che contiene (x,z), o null. */
+  const buildingAt = (x, z, self = null) => {
+    for (const e of candidates(x, z)) {
+      if (e === self) continue;
+      if (x < e.minX || x > e.maxX || z < e.minZ || z > e.maxZ) continue;
+      if (pointInRing(x, z, e.ring)) return e;
+    }
+    return null;
+  };
 
   const wallPos = [], wallCol = [], wallIdx = [];
+  const parPos = [], parCol = [], parIdx = [];
   const roofPos = [], roofCol = [], roofIdx = [];
   const winPos = [], winCol = [], winIdx = [];
   const doorPos = [], doorCol = [], doorIdx = [];
   const footprints = [];
-  let count = 0;
+  const stats = { flat: 0, pitched: 0, partyEdges: 0, partialPartyEdges: 0 };
 
-  for (const b of level.buildings) {
-    const ring = decodeRing(b.o, u);
-    if (ring.length < 3) continue;
-    const id = b.id;
-    const props = propsById.get(String(id)) || {};
-
-    const { grid, W, H, originX, originZ } = voxelizeFootprint(ring);
-    let solidCells = 0;
-    for (let k = 0; k < grid.length; k++) solidCells += grid[k];
-    if (solidCells < 1) continue;
-
-    // quota: mediana sul perimetro per il piano terra, minimo per il piede dei muri (li tiene
-    // ancorati anche su un lotto in pendenza, come il motore continuo).
-    const ys = [];
-    for (const p of ring) ys.push(levelIndex.sampleColumn(p.x, p.z).height);
-    ys.sort((a, z) => a - z);
-    const baseY = ys[ys.length >> 1];
-    const bottomY = ys[0] - 0.3;
-
-    const h = buildingHeight(props, id);
+  for (const e of entries) {
+    const { id, ring, props, t, baseY, bottomY, h } = e;
+    const edges = edgeGeoms(ring);
+    if (edges.length < 3) continue;
     const floors = floorCount(props, h);
     const wallColor = wallColorFor(props, id);
-    const roofColor = roofColorFor(props, id);
     const winTint = windowTintFor(id);
-    const isGarage = (props.building || '').toLowerCase() === 'garage' || (props.building || '').toLowerCase() === 'shed';
+    const isGarage = t === 'garage' || t === 'shed';
+    const wallTop = e.solidTop;
 
-    const runs = wallRuns(grid, W, H);
-    if (!runs.length) continue;
-
-    // Muro in comune: 2 campioni su 3 lungo il bordo cadono dentro UN ALTRO edificio → non si
-    // disegna (l'edificio adiacente farà lo stesso sul proprio lato: niente sfarfallio, niente
-    // "tenda a listelli" fra case a schiera).
-    const isParty = (run) => {
-      const g = runGeom(run, originX, originZ);
-      let hit = 0;
-      for (const t of [0.25, 0.5, 0.75]) {
-        const px = g.x0 + g.tx * g.L * t + g.nx * 0.15;
-        const pz = g.z0 + g.tz * g.L * t + g.nz * 0.15;
-        if (insideOtherBuilding(px, pz, id)) hit++;
+    // Vicino sul lato: 2 campioni su 3 appena fuori dal lato nello STESSO edificio → muro in comune.
+    const neighbourOf = (g) => {
+      const seen = new Map();
+      for (const s of [0.25, 0.5, 0.75]) {
+        const n = buildingAt(g.x0 + g.tx * g.L * s + g.nx * 0.15, g.z0 + g.tz * g.L * s + g.nz * 0.15, e);
+        if (n) seen.set(n, (seen.get(n) || 0) + 1);
       }
-      return hit >= 2;
+      for (const [n, c] of seen) if (c >= 2) return n;
+      return null;
     };
-    const extRuns = runs.filter((r) => !isParty(r));
-    const frontPool = extRuns.length ? extRuns : runs;
-    let front = frontPool[0];
-    for (const r of frontPool) if (r.len > front.len) front = r;
 
-    for (const run of extRuns) {
-      const g = runGeom(run, originX, originZ);
+    let front = null;
+    const ext = [];
+    for (const g of edges) {
+      const n = neighbourOf(g);
+      g.flip = needsFlip(g);
+      if (!n) { ext.push(g); if (!front || g.L > front.L) front = g; continue; }
+      // Muro in comune: il vicino copre il lato fino alla SUA quota; sopra, questo edificio è
+      // esposto (prima restava un buco sul fianco della casa più alta). Stesso colore del muro.
+      stats.partyEdges++;
+      const y0 = Math.max(bottomY, n.solidTop);
+      if (wallTop - y0 > 0.05) {
+        stats.partialPartyEdges++;
+        const x1 = g.x0 + g.tx * g.L, z1 = g.z0 + g.tz * g.L;
+        pushQuad(wallPos, wallCol, wallIdx, [g.x0, y0, g.z0], [x1, y0, z1], [x1, wallTop, z1], [g.x0, wallTop, g.z0], wallColor, g.flip);
+      }
+    }
+
+    for (const g of ext) {
+      const flip = g.flip;
       const x1 = g.x0 + g.tx * g.L, z1 = g.z0 + g.tz * g.L;
-      pushQuad(
-        wallPos, wallCol, wallIdx,
-        [g.x0, bottomY, g.z0], [x1, bottomY, z1], [x1, baseY + h, z1], [g.x0, baseY + h, g.z0],
-        wallColor,
-      );
+      pushQuad(wallPos, wallCol, wallIdx, [g.x0, bottomY, g.z0], [x1, bottomY, z1], [x1, wallTop, z1], [g.x0, wallTop, g.z0], wallColor, flip);
+      if (e.flat) {
+        // faccia interna del parapetto (verso la terrazza), un po' più scura: in ombra propria
+        pushQuad(parPos, parCol, parIdx, [g.x0, e.top, g.z0], [x1, e.top, z1], [x1, wallTop, z1], [g.x0, wallTop, g.z0], wallColor, !flip, 0.8);
+      }
 
       if (isGarage) continue;
       const margin = 0.3;
       const usable = g.L - margin * 2;
       if (usable < 0.5) continue;
-      const isFront = run === front;
+      const isFront = g === front;
       const winSpacing = floors >= 3 ? 2.0 : 2.3;
       for (let floor = 0; floor < floors; floor++) {
         const yC = baseY + floor * LEVEL_H + 1.4;
-        if (yC + 0.55 > baseY + h - 0.2) continue;
+        if (yC + 0.55 > e.top - 0.2) continue;
         const nWin = Math.max(1, Math.floor(usable / winSpacing));
         for (let k = 0; k < nWin; k++) {
-          const t = margin + ((k + 0.5) / nWin) * usable;
-          if (isFront && floor === 0 && Math.abs(t - g.L * 0.5) < 0.9) continue; // spazio per la porta
-          const wx = g.x0 + g.tx * t, wz = g.z0 + g.tz * t;
-          const ox = wx + g.nx * 0.03, oz = wz + g.nz * 0.03;
-          const hw = 0.4, hh = 0.5;
-          const ux = g.tx * hw, uz = g.tz * hw;
-          pushQuadRGB(
-            winPos, winCol, winIdx,
+          const s = margin + ((k + 0.5) / nWin) * usable;
+          if (isFront && floor === 0 && Math.abs(s - g.L * 0.5) < 0.9) continue; // spazio per la porta
+          const ox = g.x0 + g.tx * s + g.nx * 0.05, oz = g.z0 + g.tz * s + g.nz * 0.05;
+          const ux = g.tx * 0.4, uz = g.tz * 0.4, hh = 0.5;
+          pushQuadRGB(winPos, winCol, winIdx,
             [ox - ux, yC - hh, oz - uz], [ox + ux, yC - hh, oz + uz],
-            [ox + ux, yC + hh, oz + uz], [ox - ux, yC + hh, oz - uz],
-            winTint,
-          );
+            [ox + ux, yC + hh, oz + uz], [ox - ux, yC + hh, oz - uz], winTint, flip);
         }
       }
       if (isFront) {
-        const mx = g.x0 + g.tx * g.L * 0.5, mz = g.z0 + g.tz * g.L * 0.5;
-        const ox = mx + g.nx * 0.03, oz = mz + g.nz * 0.03;
-        const hw = 0.5, hh = 1.0;
-        const ux = g.tx * hw, uz = g.tz * hw;
-        pushQuad(
-          doorPos, doorCol, doorIdx,
+        const ox = g.x0 + g.tx * g.L * 0.5 + g.nx * 0.05, oz = g.z0 + g.tz * g.L * 0.5 + g.nz * 0.05;
+        const ux = g.tx * 0.5, uz = g.tz * 0.5;
+        pushQuad(doorPos, doorCol, doorIdx,
           [ox - ux, baseY, oz - uz], [ox + ux, baseY, oz + uz],
-          [ox + ux, baseY + 2 * hh, oz + uz], [ox - ux, baseY + 2 * hh, oz - uz],
-          DOOR_COLOR,
-        );
+          [ox + ux, baseY + 2, oz + uz], [ox - ux, baseY + 2, oz - uz], DOOR_COLOR, flip);
       }
     }
 
-    // tetto piatto: rettangoli massimali sulla pianta piena, quota unica in cima ai muri
-    const y = baseY + h;
-    for (const r of greedyRectsBool(grid, W, H)) {
-      const x0 = originX + r.i * VOXEL, x1 = originX + (r.i + r.w) * VOXEL;
-      const z0 = originZ + r.j * VOXEL, z1 = originZ + (r.j + r.d) * VOXEL;
-      pushQuad(roofPos, roofCol, roofIdx, [x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0], roofColor);
+    // ---- tetto
+    let pitched = null;
+    if (!e.flat) pitched = skeletonRoof(e.b.r, e.top, e.slope);
+    if (pitched) {
+      const hex = e.t === 'church' || e.t === 'cathedral' ? CHURCH_ROOF : pal.pitched[Math.abs(id * 13 + 3) % pal.pitched.length];
+      _c.setHex(hex);
+      const rb = roofPos.length / 3;
+      for (const p of pitched.pts) {
+        roofPos.push(p.x, p.y, p.z);
+        // falde leggermente più chiare verso il colmo: si leggono le pendenze anche controluce
+        const k = 0.88 + 0.12 * Math.min(1, (p.y - e.top) / 1.5 + 0.3);
+        roofCol.push(_c.r * k, _c.g * k, _c.b * k);
+      }
+      for (const tr of pitched.tris) roofIdx.push(rb + tr[0], rb + tr[1], rb + tr[2]);
+      stats.pitched++;
+    } else {
+      _c.setHex(pal.flat[Math.abs(id * 13 + 3) % pal.flat.length]);
+      const rb = roofPos.length / 3;
+      for (const p of ring) { roofPos.push(p.x, e.top, p.z); roofCol.push(_c.r, _c.g, _c.b); }
+      for (const tr of upTriangles(ring)) roofIdx.push(rb + tr[0], rb + tr[1], rb + tr[2]);
+      stats.flat++;
     }
 
-    footprints.push({ id, minX: originX, maxX: originX + W * VOXEL, minZ: originZ, maxZ: originZ + H * VOXEL, minY: bottomY, maxY: baseY + h });
-    count++;
+    const vox = voxelizeFootprint(ring, e);
+    footprints.push({ id, ...vox, minX: e.minX, maxX: e.maxX, minZ: e.minZ, maxZ: e.maxZ, minY: bottomY, maxY: e.top });
+  }
+
+  const solidCandidates = buildIndex(footprints);
+  /** La cella voxel in (x,z) è dentro un edificio? Stessa griglia della pianta: collisione esatta. */
+  function solidAt(x, z) {
+    for (const f of solidCandidates(x, z)) {
+      if (x < f.originX || z < f.originZ) continue;
+      const i = Math.floor((x - f.originX) / VOXEL), j = Math.floor((z - f.originZ) / VOXEL);
+      if (i < f.W && j < f.H && f.grid[j * f.W + i]) return true;
+    }
+    return false;
   }
 
   function addMesh(pos, col, idx, name, doubleSide = false) {
@@ -382,19 +413,22 @@ export function buildBuildingsVoxel(features, level, levelIndex) {
     }));
     mesh.name = name;
     mesh.castShadow = true;
-    // Niente autoricezione ombre sui muri: verificato via screenshot che pareti verticali quasi
-    // parallele al sole (sole basso, ~15° di altezza) soffrono di acne d'ombra severa — bande
-    // verticali chiare/scure su tutta l'altezza, non un difetto minore — per l'insufficiente
-    // precisione della shadow map su quadrilateri grandi e quasi radenti. Gli edifici proiettano
-    // comunque l'ombra sul terreno (castShadow resta true): perdono solo l'ombra reciproca fra
-    // loro, un compromesso migliore della "tenda a listelli" osservata.
-    mesh.receiveShadow = false;
+    mesh.receiveShadow = true;
     group.add(mesh);
   }
   addMesh(wallPos, wallCol, wallIdx, 'buildings-walls');
+  addMesh(parPos, parCol, parIdx, 'buildings-parapets');
+  // tetti a doppia faccia: le gronde sporgono e si vedono anche da sotto
   addMesh(roofPos, roofCol, roofIdx, 'buildings-roofs', true);
   addMesh(winPos, winCol, winIdx, 'buildings-windows');
   addMesh(doorPos, doorCol, doorIdx, 'buildings-doors');
 
-  return { group, count, footprints };
+  return {
+    group,
+    count: footprints.length,
+    footprints,
+    solidAt,
+    insideBuilding: (x, z) => !!buildingAt(x, z),
+    stats,
+  };
 }
