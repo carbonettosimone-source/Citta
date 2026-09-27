@@ -1,7 +1,7 @@
 /**
- * Orchestratore città — motore voxel (M6, V1: solo il suolo). Stessa origine/DEM/cielo del motore
- * continuo (buildCity.js): cambia solo come il suolo diventa geometria — a chunk di cubi invece
- * che earcut su poligoni Clipper. Edifici, alberi, mare a onde restano da portare (V2/V3).
+ * Orchestratore città — motore voxel (M6, V1: suolo; V2: edifici). Stessa origine/DEM/cielo del
+ * motore continuo (buildCity.js): cambia solo come suolo ed edifici diventano geometria — a
+ * blocchi invece che earcut su poligoni Clipper. Alberi e mare a onde restano da portare (V3).
  */
 import * as THREE from 'three';
 import { tryJSON } from './data/dataSource.js';
@@ -9,6 +9,7 @@ import { setOrigin } from './geo.js';
 import { loadTerrain, sampleDemY, setSurfaceOverride } from './terrain.js';
 import { buildLevelIndex } from './voxel/levelIndex.js';
 import { ChunkManager } from './voxel/ChunkManager.js';
+import { buildBuildingsVoxel } from './voxel/buildBuildingsVoxel.js';
 import { createAtmosphere } from './sky/atmosphere.js';
 import { createLook } from './look/createLook.js';
 import { resolveStylePack } from '../stylePacks/mediterraneanCoast.js';
@@ -36,6 +37,11 @@ export async function buildCityVoxel(cityConfig, scene, camera, renderer, opts =
   chunks.update(spawnX, spawnZ); // genera subito i chunk attorno allo spawn
   const spawnY = levelIndex.sampleColumn(spawnX, spawnZ).height;
 
+  progress('Edifici…');
+  const osmData = await tryJSON(cityConfig.data.osm);
+  const buildings = buildBuildingsVoxel(osmData?.features || [], level, levelIndex);
+  scene.add(buildings.group);
+
   progress('Cielo e luce…');
   const look = createLook(renderer, scene, camera, style);
   const atmosphere = createAtmosphere({
@@ -49,6 +55,7 @@ export async function buildCityVoxel(cityConfig, scene, camera, renderer, opts =
     look,
     atmosphere,
     chunks,
+    buildings,
     rect: level.rect,
     spawn: { x: spawnX, y: spawnY, z: spawnZ },
     sampleY: (x, z) => levelIndex.sampleColumn(x, z).height,
