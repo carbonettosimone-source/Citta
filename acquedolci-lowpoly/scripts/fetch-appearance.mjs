@@ -16,6 +16,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fromUrl } from 'geotiff';
+import jpeg from 'jpeg-js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -455,6 +456,49 @@ async function loadS2(bbox) {
   };
 }
 
+/**
+ * Colore medio di facciata da una miniatura Mapillary vera (non una posizione-cue): scarta la
+ * striscia in alto (cielo) e quella in basso (strada/marciapiede), fa la media della fascia
+ * centrale — dove nella maggior parte delle foto street-level c'è il muro — e scarta i pixel
+ * quasi-bianchi (cielo sfuggito al crop) o quasi-neri (ombre profonde/veicoli in primo piano)
+ * come outlier, non li conta nella media.
+ */
+function facadeColorFromJpeg(buf) {
+  const img = jpeg.decode(buf, { useTArray: true });
+  const { width: w, height: h, data } = img;
+  const y0 = Math.floor(h * 0.3);
+  const y1 = Math.floor(h * 0.75);
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; // RGBA
+      const pr = data[i], pg = data[i + 1], pb = data[i + 2];
+      const lum = (pr + pg + pb) / 3;
+      if (lum > 240 || lum < 15) continue; // cielo sfuggito al crop / ombra piena
+      r += pr; g += pg; b += pb; n++;
+    }
+  }
+  if (n < 200) return null; // fascia quasi tutta scartata: foto inaffidabile (controluce, buio)
+  return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+}
+
+/** Pool di concorrenza fissa: N fetch+decode alla volta, non tutti insieme (centinaia di JPEG). */
+async function mapPool(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) {
+      const idx = i++;
+      out[idx] = await fn(items[idx], idx);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+const MAPILLARY_MAX_IMAGES = 600; // copertura città media senza scaricare l'intero catalogo
+const MAPILLARY_CONCURRENCY = 8;
+
 async function loadMapillary(bbox) {
   const token = process.env.MAPILLARY_TOKEN || process.env.MAPILLARY_ACCESS_TOKEN || '';
   const note = { attempted: true, hits: 0, status: 'skipped', detail: '' };
@@ -467,32 +511,60 @@ async function loadMapillary(bbox) {
     return { note, byCell };
   }
   try {
-    const url =
-      `https://graph.mapillary.com/images?access_token=${encodeURIComponent(token)}` +
-      `&fields=id,computed_geometry&bbox=${bbox.west},${bbox.south},${bbox.east},${bbox.north}&limit=50`;
-    const res = await fetch(url, { headers: { 'User-Agent': UA } });
-    if (!res.ok) {
-      note.status = `http_${res.status}`;
-      note.detail = 'Graph API rejected token or request';
-      console.log('Mapillary HTTP', res.status);
-      return { note, byCell };
+    // Paginazione: /images con bbox può restituire poche centinaia di foto per volta, il cursore
+    // 'after' porta alla pagina successiva finché ce n'è (o si raggiunge MAPILLARY_MAX_IMAGES).
+    const images = [];
+    let after = null;
+    while (images.length < MAPILLARY_MAX_IMAGES) {
+      const url =
+        `https://graph.mapillary.com/images?access_token=${encodeURIComponent(token)}` +
+        `&fields=id,computed_geometry,thumb_1024_url&bbox=${bbox.west},${bbox.south},${bbox.east},${bbox.north}` +
+        `&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`;
+      const res = await fetch(url, { headers: { 'User-Agent': UA } });
+      if (!res.ok) {
+        if (!images.length) {
+          note.status = `http_${res.status}`;
+          note.detail = 'Graph API rejected token or request';
+          console.log('Mapillary HTTP', res.status);
+          return { note, byCell };
+        }
+        break; // pagina fallita ma abbiamo già qualcosa: si tiene quello che c'è
+      }
+      const json = await res.json();
+      const page = json.data || [];
+      images.push(...page);
+      after = json.paging?.cursors?.after || null;
+      if (!after || !page.length) break;
     }
-    const json = await res.json();
-    const images = json.data || [];
     note.hits = images.length;
     note.status = images.length ? 'ok' : 'empty';
-    for (const img of images) {
+    console.log(`Mapillary: ${images.length} foto nel bbox — scarico e decodifico i muri…`);
+
+    let decoded = 0, failed = 0;
+    await mapPool(images, MAPILLARY_CONCURRENCY, async (img) => {
       const coords = img.computed_geometry?.coordinates;
-      if (!coords) continue;
-      const key = `${coords[0].toFixed(4)},${coords[1].toFixed(4)}`;
-      byCell.set(key, [235, 220, 195]); // sunlit plaster cue at image location
-    }
-    note.detail = 'Image positions used; full thumb decode is token-gated enhancement.';
-    console.log('Mapillary images', images.length);
+      const thumbUrl = img.thumb_1024_url;
+      if (!coords || !thumbUrl) return;
+      try {
+        const r = await fetch(thumbUrl);
+        if (!r.ok) { failed++; return; }
+        const buf = Buffer.from(await r.arrayBuffer());
+        const rgb = facadeColorFromJpeg(buf);
+        if (!rgb) { failed++; return; }
+        const key = `${coords[0].toFixed(4)},${coords[1].toFixed(4)}`;
+        byCell.set(key, rgb);
+        decoded++;
+      } catch {
+        failed++;
+      }
+    });
+    note.detail = `Facciate decodificate da JPEG reali: ${decoded} ok, ${failed} scartate/fallite.`;
+    console.log(`Mapillary: ${decoded} facciate reali decodificate (${failed} scartate)`);
     return { note, byCell };
   } catch (err) {
     note.status = 'error';
     note.detail = String(err.message || err);
+    console.log('Mapillary errore:', note.detail);
     return { note, byCell };
   }
 }
