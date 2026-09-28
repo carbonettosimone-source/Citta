@@ -8,6 +8,7 @@ import { tryJSON } from './data/dataSource.js';
 import { setOrigin } from './geo.js';
 import { loadTerrain, sampleDemY, setSurfaceOverride } from './terrain.js';
 import { buildLevelIndex } from './voxel/levelIndex.js';
+import { MAT } from './voxel/voxelConfig.js';
 import { ChunkManager } from './voxel/ChunkManager.js';
 import { buildBuildingsVoxel } from './voxel/buildBuildingsVoxel.js';
 import { FarGround } from './voxel/FarGround.js';
@@ -37,8 +38,28 @@ export async function buildCityVoxel(cityConfig, scene, camera, renderer, opts =
   // Ogni anello si spegne dove quello più fine lo copre e sta un po' più in basso, così una
   // sovrapposizione residua resta sotto e non sfarfalla.
   const rect = level.rect;
-  const farNear = new FarGround(levelIndex, scene, { rect, cell: 2, cells: 16, radius: 340, hideRadius: FINE_R - 10, drop: 0.3, name: 'far-ground-2m' });
-  const farFar = new FarGround(levelIndex, scene, { rect, cell: 8, cells: 16, radius: 1600, hideRadius: 320, drop: 0.9, name: 'far-ground-8m' });
+  const nearSample = (x, z) => levelIndex.sampleColumn(x, z);
+  // Oltre il bordo compilato il campo liscio (levelIndex.field) è tarato su un margine di poche
+  // decine di metri intorno alla città: appiattisce tutto, e il vero monte roccioso dietro al
+  // paese (misurato: sale a ~480 m già a 2 km) spariva. Oltre quel bordo si passa alla quota DEM
+  // grezza (verificata: nel mosaico già caricato), colorata da terreno a roccia nuda con la quota —
+  // niente di inventato, è il rilievo vero già nei dati.
+  const MARGIN = (level.params?.heightField?.margin ?? 40) + 20;
+  const inRect = (x, z) => x >= rect.minX - MARGIN && x <= rect.maxX + MARGIN && z >= rect.minZ - MARGIN && z <= rect.maxZ + MARGIN;
+  function rockColor(h) {
+    const t = Math.max(0, Math.min(1, (h - 60) / 320));
+    const a = [0x6a, 0x66, 0x40], b = [0x5c, 0x59, 0x52]; // macchia verde-bruna → roccia grigia nuda; verificato via screenshot che sotto il sole di mezzogiorno rendeva troppo chiaro/sabbioso
+    const mix = (i) => Math.round(a[i] + (b[i] - a[i]) * t);
+    return (mix(0) << 16) | (mix(1) << 8) | mix(2);
+  }
+  const farSample = (x, z) => {
+    if (inRect(x, z)) return levelIndex.sampleColumn(x, z);
+    const h = sampleDemY(x, z);
+    if (h == null) return { mat: MAT.TERRAIN, height: 0 };
+    return { mat: MAT.TERRAIN, height: h, color: rockColor(h) };
+  };
+  const farNear = new FarGround(nearSample, scene, { rect, cell: 2, cells: 16, radius: 340, hideRadius: FINE_R - 10, drop: 0.3, name: 'far-ground-2m' });
+  const farFar = new FarGround(farSample, scene, { rect, cell: 12, cells: 16, radius: 3000, hideRadius: 320, drop: 0.9, name: 'far-ground-12m' });
 
   const spawnX = cityConfig.spawn?.offsetX ?? 0;
   const spawnZ = cityConfig.spawn?.offsetZ ?? 0;
@@ -57,6 +78,10 @@ export async function buildCityVoxel(cityConfig, scene, camera, renderer, opts =
 
   progress('Cielo e luce…');
   const look = createLook(renderer, scene, camera, style);
+  // Il monte roccioso vero dietro il paese sale oltre i 2 km (vedi farSample sopra): con la
+  // nebbia tarata sul motore continuo (fogFar ~1500 m) spariva nella foschia prima di essere
+  // riconoscibile. Qui, non nello style pack condiviso, per non toccare il motore continuo.
+  scene.fog.far = Math.max(scene.fog.far, 4500);
   const atmosphere = createAtmosphere({
     scene, look, style, cityConfig,
     timeOverride: new URLSearchParams(location.search).get('ora') || '16:30',

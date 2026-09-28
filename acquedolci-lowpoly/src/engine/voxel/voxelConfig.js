@@ -50,7 +50,9 @@ export const MAT_COLOR = {
   [MAT.ALLEY]: 0x8f8374,
   [MAT.SIDEWALK]: 0xddd5c4,
   [MAT.PED]: 0xcdb795,
-  [MAT.BEACH]: 0xe3cf9c,
+  // Foto drone reali: spiaggia di CIOTTOLI grigi (tipica della costa tirrenica qui), non sabbia
+  // gialla — prima era 0xe3cf9c (sabbia chiara), sbagliato per questo tratto di costa.
+  [MAT.BEACH]: 0x9a9488,
   [MAT.YARD]: 0xc9bb98,
   [MAT.GREEN]: 0x8a9a5a,
   [MAT.STEPS]: 0xbfb29d,
@@ -64,7 +66,7 @@ export const MAT_COLOR = {
   [MAT.DOOR]: 0x5a4030,
   [MAT.TRUNK]: 0x6b4a3a,
   [MAT.LEAF]: 0x5e7e48,
-  [MAT.SAND_WET]: 0xc9b184,
+  [MAT.SAND_WET]: 0x6f7268, // ciottoli bagnati: più scuri e più freddi, non più sabbia
 };
 
 export const worldToChunk = (x) => Math.floor(x / CHUNK_M);

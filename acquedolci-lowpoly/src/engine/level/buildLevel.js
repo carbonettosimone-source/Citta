@@ -108,7 +108,7 @@ export function buildLevel(level, scene, style, demY) {
     alley: hex(0x8f8374),
     sidewalk: hex(colors.sidewalk ?? 0xddd5c4),
     ped: hex(0xcdb795),
-    sand: hex(0xe3cf9c),
+    sand: hex(0x9a9488), // ciottoli grigi (foto drone reali), non sabbia gialla
     block: hex(colors.plaza ?? 0xc9bb98, 0.95),
     green: hex(colors.grass ?? 0x8a9a5a, 0.92),
     curb: hex(0xa9a397),

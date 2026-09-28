@@ -12,13 +12,15 @@ import { MAT_COLOR } from './voxelConfig.js';
 
 export class FarGround {
   /**
-   * @param {{sampleColumn:Function}} levelIndex
+   * @param {(x:number,z:number)=>{mat:number,height:number,color?:number}} sample quota/materiale
+   *   in un punto; `color` (opzionale) sovrascrive il colore per materiale — usato oltre il bordo
+   *   della città per colorare il rilievo vero (roccia) senza inventare un materiale apposta.
    * @param {THREE.Scene} scene
    * @param {{rect:{minX:number,maxX:number,minZ:number,maxZ:number}, cell:number, cells:number,
    *          radius:number, hideRadius:number, drop:number, name?:string}} o
    */
-  constructor(levelIndex, scene, o) {
-    this.levelIndex = levelIndex;
+  constructor(sample, scene, o) {
+    this.sample = sample;
     this.o = o;
     this.size = o.cell * o.cells;
     this.chunks = new Map();
@@ -75,10 +77,10 @@ export class FarGround {
     for (let j = 0; j < N; j++) {
       for (let i = 0; i < N; i++) {
         const x = x0 + i * cell, z = z0 + j * cell;
-        const s = this.levelIndex.sampleColumn(x, z);
+        const s = this.sample(x, z);
         const k = (j * N + i) * 3;
         pos[k] = x; pos[k + 1] = s.height - drop; pos[k + 2] = z;
-        c.setHex(MAT_COLOR[s.mat] ?? 0xc4b48a);
+        c.setHex(s.color ?? MAT_COLOR[s.mat] ?? 0xc4b48a);
         col[k] = c.r; col[k + 1] = c.g; col[k + 2] = c.b;
       }
     }
