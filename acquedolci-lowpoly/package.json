@@ -14,6 +14,7 @@
     "bake-region": "node scripts/bake-region.mjs",
     "bake": "node scripts/bake.mjs",
     "build-artifact": "node scripts/build-artifact.mjs",
+    "build-artifact-voxel": "node scripts/build-artifact-voxel.mjs",
     "bake-horizon": "node scripts/bake-horizon.mjs",
     "compile-level": "node scripts/compile-level.mjs",
     "fetch-canopy": "node scripts/fetch-canopy.mjs"
