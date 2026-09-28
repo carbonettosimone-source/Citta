@@ -63,6 +63,41 @@ function wallColorFor(props, id) {
   if (t === 'garage' || t === 'shed') return GARAGE_WALL;
   return WALL_PALETTE[Math.abs(id * 7) % WALL_PALETTE.length];
 }
+/** Colore muro per singola casa di una schiera: come wallColorFor ma da una chiave qualsiasi
+ *  (id:segmento), non da un id numerico — l'hash di wallColorFor richiede una moltiplicazione. */
+function segWallColor(props, key) {
+  const t = (props.building || '').toLowerCase();
+  if (t === 'church' || t === 'cathedral' || t === 'chapel') return CHURCH_WALL;
+  if (t === 'garage' || t === 'shed') return GARAGE_WALL;
+  return WALL_PALETTE[Math.floor(unit(hash32(key)) * WALL_PALETTE.length) % WALL_PALETTE.length];
+}
+
+const ROW_HOUSE_MIN_LEN = 11; // m: sotto è già una casa sola, non vale dividerla
+
+/**
+ * OSM qui non ha numeri civici (verificato: 0 tag addr:* su 854 edifici) — non si può "leggere"
+ * la vera divisione in case. Si stima dalla FORMA: un lato dritto lungo quanto un'intera via è
+ * quasi sempre una fila di case a schiera unite in un solo poligono dal rilievo catastale/OSM,
+ * non un edificio vero. Diviso in tronchi larghi 4,5-7,5 m (fronte tipico di una casa a schiera
+ * qui), ognuno con colore/tinta/porta propri: è una stima, non i confini catastali veri, ma
+ * rompe la "facciata di un solo colore lunga quanto la via" con qualcosa di plausibile.
+ */
+function splitEdge(g, seedBase) {
+  if (g.L <= ROW_HOUSE_MIN_LEN) return [g];
+  const target = 4.5 + hashId(`${seedBase}:w`) * 3;
+  const n = Math.max(2, Math.round(g.L / target));
+  const segs = [];
+  for (let i = 0; i < n; i++) {
+    const t0 = (i / n) * g.L, t1 = ((i + 1) / n) * g.L;
+    segs.push({
+      x0: g.x0 + g.tx * t0, z0: g.z0 + g.tz * t0,
+      tx: g.tx, tz: g.tz, nx: g.nx, nz: g.nz,
+      L: t1 - t0, flip: g.flip, key: `${seedBase}:${i}`,
+    });
+  }
+  return segs;
+}
+
 function windowTintFor(id) {
   const rgb = WINDOW_TINTS[Math.floor(unit(hash32(`${id}:wtint`)) * WINDOW_TINTS.length) % WINDOW_TINTS.length];
   return [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
@@ -326,41 +361,60 @@ export function buildBuildingsVoxel(features, level, levelIndex, region = null) 
       }
     }
 
-    for (const g of ext) {
-      const flip = g.flip;
-      const x1 = g.x0 + g.tx * g.L, z1 = g.z0 + g.tz * g.L;
-      pushQuad(wallPos, wallCol, wallIdx, [g.x0, bottomY, g.z0], [x1, bottomY, z1], [x1, wallTop, z1], [g.x0, wallTop, g.z0], wallColor, flip);
-      if (e.flat) {
-        // faccia interna del parapetto (verso la terrazza), un po' più scura: in ombra propria
-        pushQuad(parPos, parCol, parIdx, [g.x0, e.top, g.z0], [x1, e.top, z1], [x1, wallTop, z1], [g.x0, wallTop, g.z0], wallColor, !flip, 0.8);
-      }
-
-      if (isGarage) continue;
-      const margin = 0.3;
-      const usable = g.L - margin * 2;
-      if (usable < 0.5) continue;
-      const isFront = g === front;
-      const winSpacing = floors >= 3 ? 2.0 : 2.3;
-      for (let floor = 0; floor < floors; floor++) {
-        const yC = baseY + floor * LEVEL_H + 1.4;
-        if (yC + 0.55 > e.top - 0.2) continue;
-        const nWin = Math.max(1, Math.floor(usable / winSpacing));
-        for (let k = 0; k < nWin; k++) {
-          const s = margin + ((k + 0.5) / nWin) * usable;
-          if (isFront && floor === 0 && Math.abs(s - g.L * 0.5) < 0.9) continue; // spazio per la porta
-          const ox = g.x0 + g.tx * s + g.nx * 0.05, oz = g.z0 + g.tz * s + g.nz * 0.05;
-          const ux = g.tx * 0.4, uz = g.tz * 0.4, hh = 0.5;
-          pushQuadRGB(winPos, winCol, winIdx,
-            [ox - ux, yC - hh, oz - uz], [ox + ux, yC - hh, oz + uz],
-            [ox + ux, yC + hh, oz + uz], [ox - ux, yC + hh, oz - uz], winTint, flip);
+    for (let ei = 0; ei < ext.length; ei++) {
+      const g = ext[ei];
+      const isFrontEdge = g === front;
+      // Un lato lungo quanto una via diventa N case a schiera: colore, quota del piano terra
+      // (campionata LOCALMENTE, non sulla mediana di tutto l'edificio — è quello che mandava le
+      // finestre "in cantina" dove il terreno scende) e porta propri per ognuna.
+      const segs = isGarage ? [g] : splitEdge(g, `${id}:e${ei}`);
+      const multi = segs.length > 1;
+      for (const seg of segs) {
+        const flip = seg.flip;
+        const x1 = seg.x0 + seg.tx * seg.L, z1 = seg.z0 + seg.tz * seg.L;
+        const segColor = multi ? segWallColor(props, seg.key) : wallColor;
+        // Campionato 0,5 m DENTRO la pianta (contro la normale), non sul filo del muro: sul filo,
+        // per una casa in riva al mare, si può finire a leggere la quota del MARE (-16 m misurato,
+        // non un limite teorico) invece del terreno sotto la casa. Il tetto (`clamp`) resta comunque
+        // ±3 m dalla mediana di tutto l'edificio: un segmento non può "sprofondare" per un campione
+        // comunque sbagliato.
+        const midX = seg.x0 + seg.tx * seg.L * 0.5, midZ = seg.z0 + seg.tz * seg.L * 0.5;
+        const rawLocal = multi ? levelIndex.sampleColumn(midX - seg.nx * 0.5, midZ - seg.nz * 0.5).height : baseY;
+        const segBaseY = Math.max(baseY - 3, Math.min(baseY + 3, rawLocal));
+        const segBottomY = multi ? segBaseY - 1.0 : bottomY;
+        pushQuad(wallPos, wallCol, wallIdx, [seg.x0, segBottomY, seg.z0], [x1, segBottomY, z1], [x1, wallTop, z1], [seg.x0, wallTop, seg.z0], segColor, flip);
+        if (e.flat) {
+          // faccia interna del parapetto (verso la terrazza), un po' più scura: in ombra propria
+          pushQuad(parPos, parCol, parIdx, [seg.x0, e.top, seg.z0], [x1, e.top, z1], [x1, wallTop, z1], [seg.x0, wallTop, seg.z0], segColor, !flip, 0.8);
         }
-      }
-      if (isFront) {
-        const ox = g.x0 + g.tx * g.L * 0.5 + g.nx * 0.05, oz = g.z0 + g.tz * g.L * 0.5 + g.nz * 0.05;
-        const ux = g.tx * 0.5, uz = g.tz * 0.5;
-        pushQuad(doorPos, doorCol, doorIdx,
-          [ox - ux, baseY, oz - uz], [ox + ux, baseY, oz + uz],
-          [ox + ux, baseY + 2, oz + uz], [ox - ux, baseY + 2, oz - uz], DOOR_COLOR, flip);
+
+        if (isGarage) continue;
+        const margin = 0.3;
+        const usable = seg.L - margin * 2;
+        if (usable < 0.5) continue;
+        const segWinTint = multi ? windowTintFor(seg.key) : winTint;
+        const winSpacing = floors >= 3 ? 2.0 : 2.3;
+        for (let floor = 0; floor < floors; floor++) {
+          const yC = segBaseY + floor * LEVEL_H + 1.4;
+          if (yC + 0.55 > e.top - 0.2) continue;
+          const nWin = Math.max(1, Math.floor(usable / winSpacing));
+          for (let k = 0; k < nWin; k++) {
+            const s = margin + ((k + 0.5) / nWin) * usable;
+            if (isFrontEdge && floor === 0 && Math.abs(s - seg.L * 0.5) < 0.9) continue; // spazio per la porta
+            const ox = seg.x0 + seg.tx * s + seg.nx * 0.05, oz = seg.z0 + seg.tz * s + seg.nz * 0.05;
+            const ux = seg.tx * 0.4, uz = seg.tz * 0.4, hh = 0.5;
+            pushQuadRGB(winPos, winCol, winIdx,
+              [ox - ux, yC - hh, oz - uz], [ox + ux, yC - hh, oz + uz],
+              [ox + ux, yC + hh, oz + uz], [ox - ux, yC + hh, oz - uz], segWinTint, flip);
+          }
+        }
+        if (isFrontEdge) {
+          const ox = seg.x0 + seg.tx * seg.L * 0.5 + seg.nx * 0.05, oz = seg.z0 + seg.tz * seg.L * 0.5 + seg.nz * 0.05;
+          const ux = seg.tx * 0.5, uz = seg.tz * 0.5;
+          pushQuad(doorPos, doorCol, doorIdx,
+            [ox - ux, segBaseY, oz - uz], [ox + ux, segBaseY, oz + uz],
+            [ox + ux, segBaseY + 2, oz + uz], [ox - ux, segBaseY + 2, oz - uz], DOOR_COLOR, flip);
+        }
       }
     }
 
