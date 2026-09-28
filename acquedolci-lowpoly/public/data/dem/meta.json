@@ -1,13 +1,13 @@
 {
-  "source": "AWS Terrain Tiles (Terrarium PNG) https://registry.opendata.aws/terrain-tiles/",
+  "source": "AWS Terrain Tiles (Terrarium PNG)",
+  "attribution": "Mapzen / Nextzen Terrarium via AWS Open Data",
   "encoding": "terrarium",
-  "formula": "elevation = R*256 + G + B/256 - 32768",
   "z": 14,
   "bbox": {
-    "south": 38.048,
-    "west": 14.575,
-    "north": 38.064,
-    "east": 14.595
+    "south": 38.032,
+    "west": 14.569,
+    "north": 38.065,
+    "east": 14.61
   },
   "tiles": {
     "x0": 8855,
@@ -30,5 +30,6 @@
   "origin": {
     "lat": 38.056,
     "lon": 14.585
-  }
+  },
+  "city": "acquedolci"
 }

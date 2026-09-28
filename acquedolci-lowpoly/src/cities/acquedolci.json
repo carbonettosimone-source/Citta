@@ -8,10 +8,10 @@
     "lon": 14.585
   },
   "bbox": {
-    "south": 38.048,
-    "west": 14.575,
-    "north": 38.064,
-    "east": 14.595
+    "south": 38.032,
+    "west": 14.569,
+    "north": 38.065,
+    "east": 14.610
   },
   "data": {
     "osm": "/data/acquedolci.json",

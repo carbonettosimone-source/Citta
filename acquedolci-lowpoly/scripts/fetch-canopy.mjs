@@ -214,7 +214,12 @@ async function main() {
   writeFileSync(outPath, JSON.stringify(out));
   const hs = trees.map((t) => t.height);
   console.log(`  ${candIdx.length} pixel sopra soglia → ${peaks.length} picchi grezzi → ${droppedExcluded} scartati (su strada/mare/edificio) → ${trees.length} alberi`);
-  if (trees.length) console.log(`  altezza: min ${Math.min(...hs).toFixed(1)} · media ${(hs.reduce((s, v) => s + v, 0) / hs.length).toFixed(1)} · max ${Math.max(...hs).toFixed(1)} m`);
+  if (trees.length) {
+    // Non Math.min/max(...hs): con centinaia di migliaia di alberi lo spread supera lo stack.
+    let minH = Infinity, maxH = -Infinity, sum = 0;
+    for (const v of hs) { if (v < minH) minH = v; if (v > maxH) maxH = v; sum += v; }
+    console.log(`  altezza: min ${minH.toFixed(1)} · media ${(sum / hs.length).toFixed(1)} · max ${maxH.toFixed(1)} m`);
+  }
   console.log(`→ ${outPath} (${(JSON.stringify(out).length / 1024).toFixed(0)} KB)`);
 }
 
