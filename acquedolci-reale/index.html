@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Acquedolci Reale</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="labels"></div>
+  <header id="hud">
+    <h1>Acquedolci</h1>
+    <p id="sub">ricostruita da dati reali</p>
+  </header>
+  <div id="modes">
+    <button id="bDrone" class="on" type="button">Drone</button>
+    <button id="bWalk" type="button">A piedi</button>
+  </div>
+  <div id="joy"><i></i></div>
+  <p id="hint"></p>
+  <footer id="credits">
+    Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
+    Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0)
+  </footer>
+  <div id="loader"><div><b>Costruisco Acquedolci…</b><span id="lmsg">dati</span></div></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

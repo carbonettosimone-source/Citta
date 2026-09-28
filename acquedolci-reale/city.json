@@ -1,0 +1,7 @@
+{
+  "name": "Acquedolci",
+  "bboxLonLat": { "west": 14.569, "south": 38.032, "east": 14.610, "north": 38.065 },
+  "coreLonLat": { "west": 14.5735, "south": 38.0455, "east": 14.6025, "north": 38.0635 },
+  "originLonLat": { "lon": 14.58815, "lat": 38.05618, "note": "Municipio di Acquedolci" },
+  "epsg": 25833
+}

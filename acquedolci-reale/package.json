@@ -1,0 +1,16 @@
+{
+  "name": "acquedolci-reale",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Acquedolci ricostruita da dati reali: edifici DBTR, altezze LiDAR, ortofoto 2022",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "fetch": "node scripts/fetch-buildings.mjs && node scripts/fetch-dtm.mjs && node scripts/fetch-ortho.mjs && NODE_USE_ENV_PROXY=1 node scripts/fetch-lidar.mjs",
+    "model": "node scripts/build-model.mjs",
+    "artifact": "node scripts/build-artifact.mjs"
+  },
+  "dependencies": { "three": "^0.170.0" },
+  "devDependencies": { "vite": "^6.0.0", "vite-plugin-singlefile": "^2.3.3", "geotiff": "^3.0.5", "jpeg-js": "^0.4.4" }
+}

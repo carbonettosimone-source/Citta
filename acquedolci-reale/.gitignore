@@ -1,0 +1,4 @@
+node_modules/
+dist/
+data/ortho-hr/
+public/data/

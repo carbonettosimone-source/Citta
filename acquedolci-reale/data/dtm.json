@@ -1,0 +1,13 @@
+{
+ "source": "MDT 2013 2 m — SITR Regione Siciliana (CC BY 4.0)",
+ "epsg": 25833,
+ "step": 4,
+ "width": 905,
+ "height": 920,
+ "xmin": 462172,
+ "ymax": 4213116,
+ "rowOrder": "north-to-south",
+ "min": 0,
+ "max": 715.5859985351562,
+ "nodata": 89627
+}

@@ -1,0 +1,112 @@
+{
+ "source": "Ortofoto 2022 20 cm — SITR Regione Siciliana (CC BY 4.0)",
+ "epsg": 25833,
+ "coreRes": 0.5,
+ "baseRes": 2.5,
+ "tiles": [
+  {
+   "file": "core_461824_4210688.jpg",
+   "xmin": 461824,
+   "ymin": 4210688,
+   "xmax": 462848,
+   "ymax": 4211712,
+   "level": "core"
+  },
+  {
+   "file": "core_462848_4210688.jpg",
+   "xmin": 462848,
+   "ymin": 4210688,
+   "xmax": 463872,
+   "ymax": 4211712,
+   "level": "core"
+  },
+  {
+   "file": "core_463872_4210688.jpg",
+   "xmin": 463872,
+   "ymin": 4210688,
+   "xmax": 464896,
+   "ymax": 4211712,
+   "level": "core"
+  },
+  {
+   "file": "core_464896_4210688.jpg",
+   "xmin": 464896,
+   "ymin": 4210688,
+   "xmax": 465920,
+   "ymax": 4211712,
+   "level": "core"
+  },
+  {
+   "file": "core_461824_4211712.jpg",
+   "xmin": 461824,
+   "ymin": 4211712,
+   "xmax": 462848,
+   "ymax": 4212736,
+   "level": "core"
+  },
+  {
+   "file": "core_462848_4211712.jpg",
+   "xmin": 462848,
+   "ymin": 4211712,
+   "xmax": 463872,
+   "ymax": 4212736,
+   "level": "core"
+  },
+  {
+   "file": "core_463872_4211712.jpg",
+   "xmin": 463872,
+   "ymin": 4211712,
+   "xmax": 464896,
+   "ymax": 4212736,
+   "level": "core"
+  },
+  {
+   "file": "core_464896_4211712.jpg",
+   "xmin": 464896,
+   "ymin": 4211712,
+   "xmax": 465920,
+   "ymax": 4212736,
+   "level": "core"
+  },
+  {
+   "file": "core_461824_4212736.jpg",
+   "xmin": 461824,
+   "ymin": 4212736,
+   "xmax": 462848,
+   "ymax": 4213760,
+   "level": "core"
+  },
+  {
+   "file": "core_462848_4212736.jpg",
+   "xmin": 462848,
+   "ymin": 4212736,
+   "xmax": 463872,
+   "ymax": 4213760,
+   "level": "core"
+  },
+  {
+   "file": "core_463872_4212736.jpg",
+   "xmin": 463872,
+   "ymin": 4212736,
+   "xmax": 464896,
+   "ymax": 4213760,
+   "level": "core"
+  },
+  {
+   "file": "core_464896_4212736.jpg",
+   "xmin": 464896,
+   "ymin": 4212736,
+   "xmax": 465920,
+   "ymax": 4213760,
+   "level": "core"
+  },
+  {
+   "file": "base.jpg",
+   "xmin": 462175.7137336782,
+   "ymin": 4209437.26342402,
+   "xmax": 465790.7137336782,
+   "ymax": 4213114.76342402,
+   "level": "base"
+  }
+ ]
+}
