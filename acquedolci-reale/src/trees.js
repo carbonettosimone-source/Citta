@@ -1,33 +1,74 @@
 /**
- * Alberi veri (posizione, altezza e raggio della chioma misurati: mappa Meta/WRI a 1 m). Un solo
- * InstancedMesh per tronchi e uno per chiome: decine di migliaia di alberi in due draw call.
+ * Alberi veri (posizione, altezza e raggio della chioma misurati: mappa Meta/WRI a 1 m) con la
+ * specie dai dati: ulivi negli uliveti DBTR, agrumi nei frutteti, pini domestici dove la chioma è
+ * alta e larga, latifoglie altrove (scripts/build-model.mjs → species()).
+ *
+ * Prestazioni: geometrie da 20-40 triangoli per specie, alberi raggruppati in blocchi da 400 m
+ * (un InstancedMesh per blocco e specie, col suo bounding sphere → il frustum culling scarta i
+ * blocchi fuori vista) e blocchi oltre DRAW_DIST nascosti. Prima: 8,4 milioni di triangoli.
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const BLOCK = 400, DRAW_DIST = 1400;
+
+/** geometria unitaria (altezza 1, raggio chioma 1) con vertex color: tronco + chioma */
+function speciesGeometry(kind) {
+  const paint = (g, hex) => { const c = new THREE.Color(hex); const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g.toNonIndexed ? g.toNonIndexed() : g; };
+  const trunk = (h, r, hex = 0x5b4632) => { const g = new THREE.CylinderGeometry(r * 0.7, r, h, 5, 1, true); g.translate(0, h / 2, 0); return paint(g, hex); };
+  const blob = (sx, sy, sz, y, hex, detail = 0) => { const g = new THREE.IcosahedronGeometry(1, detail); g.scale(sx, sy, sz); g.translate(0, y, 0); return paint(g, hex); };
+  // le misure sono frazioni: y in unità di altezza, x/z in unità di raggio chioma (scalate dopo)
+  switch (kind) {
+    case 1: // pino domestico: fusto nudo alto, ombrello piatto
+      return mergeGeometries([trunk(0.72, 0.035, 0x6a4a34), blob(1, 0.16, 1, 0.8, 0x2f4a2a), blob(0.7, 0.12, 0.7, 0.9, 0x3a5a33)]);
+    case 2: // ulivo: tronco corto e storto, chioma grigio-argento irregolare
+      return mergeGeometries([trunk(0.4, 0.06, 0x6b5a48), blob(1, 0.38, 0.85, 0.64, 0x7d8a64)]);
+    case 3: // agrume: chioma tonda, verde scuro lucido, quasi a terra
+      return mergeGeometries([trunk(0.25, 0.05), blob(1, 0.5, 1, 0.55, 0x2c4f25)]);
+    case 4: // palma: stipite sottile, ciuffo di foglie a stella
+      return mergeGeometries([trunk(0.9, 0.03, 0x8a7258), blob(1, 0.1, 1, 0.92, 0x46612f)]);
+    default: // latifoglia mediterranea
+      return mergeGeometries([trunk(0.45, 0.05), blob(1, 0.45, 1, 0.64, 0x3b5a2c)]);
+  }
+}
 
 export function buildTrees(flat) {
-  const n = flat.length / 5;
   const group = new THREE.Group();
   group.name = 'trees';
-  if (!n) return group;
-  const crownGeo = new THREE.IcosahedronGeometry(1, 1);
-  const trunkGeo = new THREE.CylinderGeometry(0.12, 0.18, 1, 5);
-  trunkGeo.translate(0, 0.5, 0);
-  const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ flatShading: true }), n);
-  const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x5b4632 }), n);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
+  const n = Math.floor(flat.length / 6);
+  if (!n) return { group, update() {} };
+  const geos = [0, 1, 2, 3, 4].map(speciesGeometry);
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  // raggruppa per blocco e specie
+  const blocks = new Map();
   for (let i = 0; i < n; i++) {
-    const x = flat[i * 5], z = flat[i * 5 + 1], y = flat[i * 5 + 2], h = Math.max(3, flat[i * 5 + 3]), r = Math.max(1.2, flat[i * 5 + 4]);
-    const crownH = Math.min(h * 0.6, r * 1.6);
-    const trunkH = h - crownH * 0.7;
-    q.setFromAxisAngle(p.set(0, 1, 0), (i * 2.39996) % (Math.PI * 2));
-    m.compose(p.set(x, y, z), q, s.set(1, trunkH, 1)); trunks.setMatrixAt(i, m);
-    m.compose(p.set(x, y + h - crownH / 2, z), q, s.set(r, crownH / 2, r)); crowns.setMatrixAt(i, m);
-    // verdi mediterranei: pini e ulivi scuri, un po' di variazione
-    const t = (Math.sin(i * 12.9898) * 43758.5453) % 1;
-    c.setHSL(0.24 + Math.abs(t) * 0.06, 0.35 + Math.abs(t) * 0.15, 0.2 + Math.abs(t) * 0.1);
-    crowns.setColorAt(i, c);
+    const x = flat[i * 6], z = flat[i * 6 + 1];
+    const key = `${Math.floor(x / BLOCK)},${Math.floor(z / BLOCK)},${flat[i * 6 + 5]}`;
+    if (!blocks.has(key)) blocks.set(key, []);
+    blocks.get(key).push(i);
   }
-  crowns.castShadow = true;
-  group.add(trunks, crowns);
-  return group;
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+  const meshes = [];
+  for (const [key, list] of blocks) {
+    const sp = +key.split(',')[2];
+    const im = new THREE.InstancedMesh(geos[sp], mat, list.length);
+    list.forEach((i, k) => {
+      const x = flat[i * 6], z = flat[i * 6 + 1], y = flat[i * 6 + 2];
+      const h = Math.max(sp === 3 ? 2.5 : 3, flat[i * 6 + 3]), r = Math.max(1, flat[i * 6 + 4]);
+      q.setFromAxisAngle(up, (i * 2.39996) % (Math.PI * 2));
+      m.compose(p.set(x, y, z), q, s.set(r, h, r));
+      im.setMatrixAt(k, m);
+      const t = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1; // variazione di tono tra albero e albero
+      im.setColorAt(k, c.setScalar(0.85 + t * 0.3));
+    });
+    im.computeBoundingSphere();
+    im.castShadow = true;
+    meshes.push(im);
+    group.add(im);
+  }
+  /** nasconde i blocchi lontani: ciò che resta lo scarta il frustum culling */
+  function update(cam) {
+    for (const im of meshes) im.visible = im.boundingSphere.center.distanceTo(cam.position) - im.boundingSphere.radius < DRAW_DIST;
+  }
+  return { group, update };
 }

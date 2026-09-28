@@ -58,7 +58,7 @@ export function buildTerrain({ orthoMeta, textures, heightAt, origin }) {
     const tex = textures.get(t.file);
     if (!tex) continue;
     if (t.level === 'base') group.add(gridMesh(t, 12, heightAt, origin, tex, 0.6));
-    else group.add(gridMesh(t, 4, heightAt, origin, tex, 0));
+    else group.add(gridMesh(t, 6, heightAt, origin, tex, 0));
   }
   // mare oltre i dati: piatto e lontano, sotto la costa dell'ortofoto
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshLambertMaterial({ color: 0x2c6a86 }));

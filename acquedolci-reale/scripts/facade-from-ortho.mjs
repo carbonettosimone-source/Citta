@@ -143,11 +143,12 @@ for (const b of buildings) {
     const score = dist(m, roofC) * Math.min(1, band.length / 30);
     if (!best || score > best.score) best = { score, m, n: band.length };
   }
-  // 3. facciata vista solo se la fascia si stacca davvero dal tetto
+  // 3. facciata vista solo se la fascia si stacca davvero dal tetto. Il colore del tetto si
+  // salva sempre: serve a riconoscere i coppi (tetto a falde) anche dove il LiDAR è incerto.
   if (best && best.score > 38) {
     out[b.id] = { c: best.m, roof: roofC, conf: +Math.min(1, best.score / 90).toFixed(2) };
     measured++;
-  }
+  } else out[b.id] = { roof: roofC };
 }
 writeFileSync(new URL('data/facade-colors.json', root), JSON.stringify({
   source: 'Ortofoto 2022 20 cm SITR (CC BY 4.0) — facciate viste per relief displacement', measured, tried, buildings: out,

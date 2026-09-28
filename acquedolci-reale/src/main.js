@@ -4,6 +4,7 @@ import { makeHeightSampler, buildTerrain } from './terrain.js';
 import { buildBuildings, makeCollider } from './buildings.js';
 import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
+import { buildStreets } from './streets.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -32,10 +33,11 @@ scene.add(sun, sun.target);
 
 async function load() {
   say('modello degli edifici');
-  const [model, dtmMeta, orthoMeta] = await Promise.all([
+  const [model, dtmMeta, orthoMeta, streets] = await Promise.all([
     fetch('data/model.json').then((r) => r.json()),
     fetch('data/dtm.json').then((r) => r.json()),
     fetch('data/ortho.json').then((r) => r.json()),
+    fetch('data/streets.json').then((r) => r.json()),
   ]);
   // quote in decimetri, Uint16 in base64 (vedi build-model.mjs)
   const raw = atob(dtmMeta.data);
@@ -59,18 +61,21 @@ async function load() {
 
   say('terreno');
   scene.add(buildTerrain({ orthoMeta, textures, heightAt, origin: model.origin }));
+  say('strade');
+  scene.add(buildStreets(streets, heightAt));
   say('edifici');
   const { group, footprints } = buildBuildings({ model, orthoMeta, textures, facadeMats: facadeMaterials() });
   scene.add(group);
   say('alberi');
-  scene.add(buildTrees(model.trees || []));
+  const trees = buildTrees(model.trees || []);
+  scene.add(trees.group);
 
   const nLidar = model.buildings.filter((b) => b.src === 'lidar').length;
   $('sub').textContent = `${model.buildings.length} edifici reali · ${nLidar} con altezza LiDAR`;
-  return { model, heightAt, collider: makeCollider(footprints) };
+  return { model, heightAt, collider: makeCollider(footprints), trees, streets };
 }
 
-const { model, heightAt, collider } = await load();
+const { model, heightAt, collider, trees, streets } = await load();
 $('loader').classList.add('hide');
 
 // ---------- etichette dei luoghi (nomi OSM)
@@ -137,16 +142,16 @@ function setMode(walk) {
   $('bWalk').classList.toggle('on', walk); $('bDrone').classList.toggle('on', !walk);
   controls.enabled = !walk;
   if (walk) {
-    // si scende dove guarda il drone, sulla strada più vicina fuori dagli edifici
+    // si scende dove guarda il drone, in mezzo alla via più vicina, rivolti lungo la strada
     const t = controls.target.clone();
     let best = null;
-    for (let r = 0; r < 60 && !best; r += 2) for (let a = 0; a < 16; a++) {
-      const x = t.x + Math.cos(a / 16 * Math.PI * 2) * r, z = t.z + Math.sin(a / 16 * Math.PI * 2) * r;
-      if (!collider(x, z)) { best = [x, z]; break; }
+    for (const rd of streets.roads) for (let i = 0; i + 3 < rd.p.length; i += 2) {
+      const d = Math.hypot(rd.p[i] - t.x, rd.p[i + 1] - t.z);
+      if (!best || d < best.d) best = { d, x: rd.p[i], z: rd.p[i + 1], dx: rd.p[i + 2] - rd.p[i], dz: rd.p[i + 3] - rd.p[i + 1] };
     }
-    const [x, z] = best || [t.x, t.z];
+    const { x, z } = best || { x: t.x, z: t.z };
     walker.pos.set(x, heightAt(x, z), z);
-    walker.yaw = Math.atan2(camera.position.x - t.x, camera.position.z - t.z) + Math.PI;
+    walker.yaw = best ? Math.atan2(-best.dx, -best.dz) : 0;
     walker.pitch = 0;
     camera.fov = 70; camera.updateProjectionMatrix();
   } else if (walker.pos.lengthSq() > 0) {
@@ -190,9 +195,10 @@ function frame() {
   const focus = walker.on ? walker.pos : controls.target;
   sun.position.set(focus.x + 300, focus.y + 500, focus.z + 350);
   sun.target.position.copy(focus);
+  trees.update(camera);
   updateLabels();
   renderer.render(scene, camera);
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene };
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer };

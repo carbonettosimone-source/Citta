@@ -12,6 +12,8 @@ import * as THREE from 'three';
 
 export function orthoMaterial(map, { nearNeutral = false } = {}) {
   const m = new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide });
+  // il suolo cede nel depth buffer: strade, marciapiedi e strisce disegnati sopra vincono sempre
+  if (nearNeutral) { m.polygonOffset = true; m.polygonOffsetFactor = 4; m.polygonOffsetUnits = 8; }
   m.onBeforeCompile = (sh) => {
     if (nearNeutral) {
       sh.vertexShader = sh.vertexShader
