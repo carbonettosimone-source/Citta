@@ -247,10 +247,48 @@ export function attachSchoolKit(group, ctx) {
   return { labelY: baseY + wallH + 2.2 };
 }
 
-/** Town hall — DISABLED (was producing paper-thin huge cornice / flag spikes). */
+/**
+ * Municipio — cornice sul tetto, balcone/pediment sopra l'ingresso, pennone con bandiera:
+ * i tratti riconoscibili di un palazzo civico italiano. Era disattivato (cornice enorme e
+ * pennoni a spillo): la causa era misurare la cornice sulle dimensioni GREZZE della pianta
+ * PRIMA del clamp — qui ogni pezzo passa da addLocalBox, che clampa sempre a misure plausibili
+ * (0,05–50 m), quindi anche una pianta anomala dà al massimo un pezzo un po' storto, mai un
+ * poligono degenere lungo centinaia di metri.
+ */
 export function attachTownhallKit(group, ctx) {
-  // Temporarily disabled per visual audit — keep labels only.
-  return null;
+  const { pts, baseY, wallH, style } = ctx;
+  const frame = footprintFrame(pts);
+  if (!footprintOk(frame, 'townhall')) return null;
+
+  const stone = style.townhallWall ?? 0xdedcd0; // intonaco istituzionale, più freddo del beige case
+  const accentGreen = 0x2e7d4f, accentWhite = 0xf0ece0, accentRed = 0xb03a3a; // tricolore, non la bandiera vera
+
+  const anchor = makeAnchor(frame);
+
+  // Cornice: bordo leggermente aggettante sul filo del tetto, su tutto il perimetro della pianta.
+  const corniceH = clamp(wallH * 0.06, 0.25, 0.6);
+  addLocalBox(anchor, 0, 0, baseY + wallH - corniceH * 0.5, frame.length + 0.6, corniceH, frame.width + 0.6, stone);
+
+  // Balcone sopra l'ingresso principale (lato corto, come il portale della chiesa): mensola +
+  // parapetto basso, non un piano vero — resta un dettaglio, non aggiunge un piano abitabile.
+  const doorL = frame.minL + 0.25;
+  const balconyY = baseY + clamp(wallH * 0.42, 2.6, wallH - 1.2);
+  const balconyW = clamp(Math.min(frame.width * 0.5, 3.2), 1.2, 3.2);
+  addLocalBox(anchor, doorL - 0.5, 0, balconyY, 0.7, 0.14, balconyW, stone);
+  addLocalBox(anchor, doorL - 0.85, 0, balconyY + 0.45, 0.1, 0.8, balconyW, 0xc8c4b6);
+
+  // Pennone + bandiera vicino all'ingresso, non sul filo esatto del muro (si vede meglio di lato).
+  const poleH = clamp(wallH * 0.7, 3, 6);
+  const poleWPos = frame.width * 0.5 + 0.3;
+  addLocalBox(anchor, doorL, poleWPos, baseY + poleH * 0.5, 0.1, poleH, 0.1, 0x6a6a6a);
+  const flags = [accentGreen, accentWhite, accentRed];
+  flags.forEach((c, i) => {
+    addLocalBox(anchor, doorL + 0.45, poleWPos, baseY + poleH - 0.5 - i * 0.55, 0.75, 0.4, 0.03, c);
+  });
+
+  group.add(anchor);
+  recordDebug('townhall', frame, wallH, baseY, anchor);
+  return { labelY: baseY + wallH + 1.5 };
 }
 
 /** Fuel — DISABLED temporarily. */

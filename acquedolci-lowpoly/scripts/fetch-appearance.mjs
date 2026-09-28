@@ -229,6 +229,7 @@ const WALL_PRIORS = {
   school: [[236, 228, 210], [220, 210, 190]],
   commercial: [[240, 232, 220], [210, 200, 190]],
   roof_only: [[230, 220, 200]],
+  townhall: [[222, 220, 208]], // intonaco istituzionale — stesso RGB di TOWNHALL_WALL in buildBuildingsVoxel.js
 };
 
 /** RegionProfile (bake-region): se presente sostituisce i prior mediterranei fissi. */
@@ -245,6 +246,10 @@ function priorWall(typology, id) {
 
 function classifyTypology(props, area, levels) {
   const t = (props.building || 'yes').toLowerCase();
+  const a = (props.amenity || '').toLowerCase();
+  // amenity=townhall qui è quasi sempre su building=yes (verificato: Municipio di Acquedolci lo
+  // è) — senza questo controllo finiva silenziosamente in 'apartments' come una casa qualunque.
+  if (a === 'townhall' || a === 'town_hall') return 'townhall';
   if (['church', 'cathedral', 'chapel'].includes(t)) return 'church';
   if (['garage', 'carport', 'shed', 'garages'].includes(t)) return 'garage';
   if (['industrial', 'warehouse', 'manufacture', 'factory'].includes(t)) return 'industrial';
@@ -502,13 +507,13 @@ const MAPILLARY_CONCURRENCY = 8;
 async function loadMapillary(bbox) {
   const token = process.env.MAPILLARY_TOKEN || process.env.MAPILLARY_ACCESS_TOKEN || '';
   const note = { attempted: true, hits: 0, status: 'skipped', detail: '' };
-  const byCell = new Map();
+  const photos = []; // {lon, lat, angle, rgb} — sostituisce byCell: il match ora usa anche la direzione
   if (!token) {
     note.status = 'no_token';
     note.detail =
       'Set MAPILLARY_TOKEN for street-level facade sampling. Walls fall back to Mediterranean priors + roof warmth.';
     console.log('Mapillary: no token — using facade priors');
-    return { note, byCell };
+    return { note, photos };
   }
   try {
     // Paginazione: /images con bbox può restituire poche centinaia di foto per volta, il cursore
@@ -518,7 +523,7 @@ async function loadMapillary(bbox) {
     while (images.length < MAPILLARY_MAX_IMAGES) {
       const url =
         `https://graph.mapillary.com/images?access_token=${encodeURIComponent(token)}` +
-        `&fields=id,computed_geometry,thumb_1024_url&bbox=${bbox.west},${bbox.south},${bbox.east},${bbox.north}` +
+        `&fields=id,computed_geometry,computed_compass_angle,compass_angle,thumb_1024_url&bbox=${bbox.west},${bbox.south},${bbox.east},${bbox.north}` +
         `&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`;
       const res = await fetch(url, { headers: { 'User-Agent': UA } });
       if (!res.ok) {
@@ -526,7 +531,7 @@ async function loadMapillary(bbox) {
           note.status = `http_${res.status}`;
           note.detail = 'Graph API rejected token or request';
           console.log('Mapillary HTTP', res.status);
-          return { note, byCell };
+          return { note, photos };
         }
         break; // pagina fallita ma abbiamo già qualcosa: si tiene quello che c'è
       }
@@ -545,14 +550,17 @@ async function loadMapillary(bbox) {
       const coords = img.computed_geometry?.coordinates;
       const thumbUrl = img.thumb_1024_url;
       if (!coords || !thumbUrl) return;
+      // computed_compass_angle (da SfM) è più affidabile della bussola grezza del telefono quando
+      // c'è; altrimenti si ripiega su compass_angle. Senza nessuno dei due il match perde la
+      // direzione e diventa "foto più vicina" e basta — degrada, non scarta.
+      const angle = img.computed_compass_angle ?? img.compass_angle ?? null;
       try {
         const r = await fetch(thumbUrl);
         if (!r.ok) { failed++; return; }
         const buf = Buffer.from(await r.arrayBuffer());
         const rgb = facadeColorFromJpeg(buf);
         if (!rgb) { failed++; return; }
-        const key = `${coords[0].toFixed(4)},${coords[1].toFixed(4)}`;
-        byCell.set(key, rgb);
+        photos.push({ lon: coords[0], lat: coords[1], angle, rgb });
         decoded++;
       } catch {
         failed++;
@@ -560,28 +568,50 @@ async function loadMapillary(bbox) {
     });
     note.detail = `Facciate decodificate da JPEG reali: ${decoded} ok, ${failed} scartate/fallite.`;
     console.log(`Mapillary: ${decoded} facciate reali decodificate (${failed} scartate)`);
-    return { note, byCell };
+    return { note, photos };
   } catch (err) {
     note.status = 'error';
     note.detail = String(err.message || err);
     console.log('Mapillary errore:', note.detail);
-    return { note, byCell };
+    return { note, photos };
   }
 }
 
-function nearestMapillary(byCell, lon, lat) {
-  if (!byCell.size) return null;
+const MAPILLARY_MAX_DIST_M = 220; // prima era ~100 m e basta-vicinanza; ora la direzione fa da filtro
+const MAPILLARY_MAX_ANGLE_DEG = 70; // oltre, la foto guarda altrove: non è la facciata di quell'edificio
+
+/**
+ * Foto Mapillary che sta davvero inquadrando l'edificio (lon,lat), non solo "la più vicina":
+ * calcola il bearing dalla foto all'edificio e lo confronta con la direzione in cui la camera
+ * puntava (compass_angle/computed_compass_angle) — se la foto guardava altrove, non conta anche
+ * se è a 5 metri (es. è sul lato opposto della strada, inquadra la casa di fronte). Punteggio =
+ * distanza (m) + differenza angolare (gradi) pesata: entrambe contano, nessuna delle due da sola.
+ */
+function nearestMapillary(photos, lon, lat) {
+  if (!photos.length) return null;
+  const mLat = 111320;
+  const mLon = 111320 * Math.cos((lat * Math.PI) / 180);
   let best = null;
-  let bestD = Infinity;
-  for (const [key, rgb] of byCell) {
-    const [lon2, lat2] = key.split(',').map(Number);
-    const d = Math.hypot((lon2 - lon) * 85, (lat2 - lat) * 111);
-    if (d < bestD) {
-      bestD = d;
-      best = rgb;
+  let bestScore = Infinity;
+  for (const p of photos) {
+    const dx = (lon - p.lon) * mLon;
+    const dz = (lat - p.lat) * mLat;
+    const distM = Math.hypot(dx, dz);
+    if (distM > MAPILLARY_MAX_DIST_M) continue;
+    if (p.angle != null) {
+      // bearing dalla foto all'edificio, 0°=nord, orario (come compass_angle di Mapillary)
+      const bearing = (Math.atan2(dx, -dz) * 180) / Math.PI;
+      let diff = Math.abs(((bearing - p.angle + 540) % 360) - 180);
+      if (diff > MAPILLARY_MAX_ANGLE_DEG) continue;
+      const score = distM + diff * 1.5;
+      if (score < bestScore) { bestScore = score; best = p.rgb; }
+    } else if (distM < 100) {
+      // niente bussola: degrada al comportamento vecchio, solo entro 100 m
+      const score = distM + 40; // penalità: meno affidabile di un match con direzione
+      if (score < bestScore) { bestScore = score; best = p.rgb; }
     }
   }
-  return bestD < 0.1 ? best : null;
+  return best;
 }
 
 async function main() {
@@ -701,7 +731,7 @@ async function main() {
     if (osmRoof || osmWall) osmColorHits++;
 
     const roofRgb = osmRoof || roofFromS2(rawS2, typology);
-    const mly = nearestMapillary(mapillary.byCell, c.lon, c.lat);
+    const mly = nearestMapillary(mapillary.photos, c.lon, c.lat);
     if (mly) mapillaryHits++;
     const wall = wallFromSignals({ typology, id, roofRgb, mapillaryRgb: mly, osmWall });
     const roof = classifyRoofKind({

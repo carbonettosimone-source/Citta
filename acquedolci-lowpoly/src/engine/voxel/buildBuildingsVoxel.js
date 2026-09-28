@@ -35,12 +35,26 @@ const WINDOW_TINTS = [
 ];
 const DOOR_COLOR = 0x5a4030;
 const CHURCH_WALL = 0xe8e0d4, CHURCH_ROOF = 0x6a6860, GARAGE_WALL = 0xc8c0b4;
+// Municipio/palazzo civico: intonaco istituzionale chiaro, più freddo del beige delle case — si
+// deve riconoscere a colpo d'occhio come "edificio pubblico", non un colore a caso dall'hash.
+const TOWNHALL_WALL = 0xdedcd0;
 
 function hashId(id) { return unit(hash32(id)); }
+
+/** amenity=townhall (o building=public col nome "municipio/comune") — non dipende dal tag
+ *  building=*, che qui è quasi sempre building=yes: senza questo controllo il Municipio finiva
+ *  nel bucket "legacy" ad altezza CASUALE come una casa qualunque. */
+function isTownhall(props) {
+  const a = (props.amenity || '').toLowerCase();
+  if (a === 'townhall' || a === 'town_hall') return true;
+  const t = (props.building || '').toLowerCase();
+  return t === 'public' && /municipio|comune/i.test(props.name || '');
+}
 
 function buildingHeight(props, id) {
   if (props.height && !Number.isNaN(+props.height)) return Math.max(2.5, +props.height);
   if (props.levels && !Number.isNaN(+props.levels)) return Math.max(2.8, +props.levels * LEVEL_H);
+  if (isTownhall(props)) return 10.5 + hashId(id) * 2; // 3 piani + un sottotetto, edificio civico
   const t = (props.building || '').toLowerCase();
   if (t === 'garage' || t === 'carport' || t === 'shed') return 2.8 + hashId(id) * 0.6;
   if (t === 'church' || t === 'cathedral' || t === 'chapel') return 10 + hashId(id) * 6;
@@ -58,6 +72,7 @@ function floorCount(props, h) {
   return Math.max(1, Math.round(h / LEVEL_H));
 }
 function wallColorFor(props, id) {
+  if (isTownhall(props)) return TOWNHALL_WALL;
   const t = (props.building || '').toLowerCase();
   if (t === 'church' || t === 'cathedral' || t === 'chapel') return CHURCH_WALL;
   if (t === 'garage' || t === 'shed') return GARAGE_WALL;
@@ -66,6 +81,7 @@ function wallColorFor(props, id) {
 /** Colore muro per singola casa di una schiera: come wallColorFor ma da una chiave qualsiasi
  *  (id:segmento), non da un id numerico — l'hash di wallColorFor richiede una moltiplicazione. */
 function segWallColor(props, key) {
+  if (isTownhall(props)) return TOWNHALL_WALL;
   const t = (props.building || '').toLowerCase();
   if (t === 'church' || t === 'cathedral' || t === 'chapel') return CHURCH_WALL;
   if (t === 'garage' || t === 'shed') return GARAGE_WALL;
