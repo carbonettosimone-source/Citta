@@ -59,7 +59,7 @@ node scripts/facade-from-ortho.mjs                       # colori facciata e tet
 node scripts/build-landcover.mjs                         # mare, spiaggia, verde + MDT della costa → data/landcover.png, data/dtm-sea.bin
 node scripts/fetch-background.mjs                        # litorale ed Eolie a bassa risoluzione → data/bg/
 node scripts/build-model.mjs                             # edifici, tetti, alberi → public/data/
-node scripts/build-streets.mjs                           # strade, muri, lampioni → public/data/streets.json (~5 min)
+node scripts/build-streets.mjs                           # strade, piazze, muri, lampioni → public/data/streets.json (~5 min)
 npm run dev                                              # http://127.0.0.1:5190
 npm run build && node scripts/pack-artifact.mjs          # pagina + file per la pubblicazione
 ```
@@ -73,15 +73,17 @@ Un upscaler (Real-ESRGAN e simili) inventa dettaglio plausibile: coppi, auto e a
 Al posto dell'upscaler, per la vista da lontano del gioco:
 
 - **Coppi veri sui tetti a falde** (`ortho.js` → `COPPI`). Ogni falda ha il suo riferimento: lungo la gronda e su per la pendenza (`buildings.js` → `roofFrame`). Lì si disegnano colonne alterne di coppi e canali, l'ombra dove i coppi si sovrappongono e il tono che cambia da coppo a coppo. Il colore resta quello della foto di quel tetto, mediato su 3-4 m, così spariscono le sbavature di facciate e ombre. Il disegno sfuma quando il pixel è più grosso di un coppo (niente moiré). Le terrazze tengono la foto, con cisterne e pannelli veri.
-- **Dettaglio del suolo** fino a ~650 m invece di 260.
+- **Dettaglio del suolo** anche in vista Drone: albedo del materiale e tinta lenta dell'ortofoto, non la foto ingrandita. La foto intera torna solo quando un pixel copre decine di metri.
 - **Nitidezza adattiva al contrasto** (AMD CAS, `post.js`): la scena si disegna in un buffer con antialiasing 4×, poi un passaggio rinforza i dettagli fini senza aloni. Si spegne dalle impostazioni.
 
 ## Strade, mare e suolo
 
-- **Strade**: la carreggiata è l'unione (Clipper) delle strisce di tutte le vie, quindi gli incroci si chiudono da soli. Il marciapiede, a larghezza costante per via, è la fascia fino alle facciate; le piazze pedonali sono in basolato. Tutto meno le piante degli edifici, a tessere da 128 m. Nel browser ogni poligono è triangolato e diviso in lati ≤ 6 m per seguire il terreno: la divisione dipende solo dal lato, quindi non restano fessure.
+- **Strade**: la carreggiata è l'unione (Clipper) delle strisce di tutte le vie, quindi gli incroci si chiudono da soli. Il marciapiede, a larghezza costante per via, è la fascia fino alle facciate. Tutto meno le piante degli edifici, a tessere da 128 m. Nel browser ogni poligono è triangolato e diviso in lati ≤ 6 m per seguire il terreno: la divisione dipende solo dal lato, quindi non restano fessure.
+- **Piazze** (`surf.plaza`): non sono il buffer di `highway=pedestrian` (nel paese quasi non esiste, e un asse bufferizzato non copre una piazza). Sono poligoni. Prima gli anelli chiusi OSM: `place=square`, aree `highway=pedestrian` / `amenity=marketplace` / `landuse=pedestrian`, e poligoni nominati Piazza, Largo o Piazzale che non sono assi stradali. L'anello va portato in senso antiorario (tre piazze su quattro nell'estratto sono orarie: Clipper le butterebbe come buchi), allargato di 1,2 m, poi si tolgono edifici, carreggiata e marciapiedi. La via che attraversa la piazza resta asfalto. Dove l'anello OSM non arriva — il sagrato della Fontana dei Delfini è fuori dal disegno di Piazza Vittorio Emanuele III — si riempiono i vuoti compatti (circa 160–5600 m², non nastri) chiusi dalle strade, in tessuto edificato (almeno il 17% di piante di edifici nel raggio di 60 m), che la copertura del suolo non segna come mare, spiaggia o verde. I fondi grandi e la campagna restano suolo. Basolato chiaro con fughe, 8 cm sopra l'asfalto, cordolo basso solo contro la carreggiata. Circa 0,85 m di sfumatura verso il suolo nudo (strada, vialetto e piazza).
+- **Suolo in vista Drone**: dove non c'è una mesh di strada o piazza, il colore è l'albedo del materiale (erba, terra, ciottoli), non la foto ingrandita. L'ortofoto resta una tinta lenta — più chiaro o più scuro, un filo di crominanza — mediata su qualche metro. Sotto i ~20 cm per pixel si rivede un po' di foto nitida; oltre i ~10–26 m per pixel torna l'ortofoto intera. Nessun upscaler.
 - **Mare**: c'è dove l'ortofoto vede acqua collegata al mare aperto (le piscine no). Le onde sono treni sinusoidali con normali analitiche, spenti quando diventano più corti di pochi pixel (niente moiré). Ci sono il riflesso del cielo con Fresnel, il sole, la trasparenza sul bassofondo e la schiuma della battigia.
 - **Costa**: il MDT 2013 ha il mare a 0 m e taglia la spiaggia sulla riva del 2013. Il fondale scende con la distanza da riva, e la spiaggia del 2022 resta asciutta.
-- **Suolo da vicino**: detail mapping. La tinta viene dalla foto, la grana dal materiale giusto: ciottoli sulla spiaggia, erba sul verde, terra ed erba secca altrove.
+- **Suolo**: detail mapping senza upscaler. Da vicino e dal drone l'albedo è il materiale (ciottoli sulla spiaggia, erba sul verde, terra ed erba secca altrove); la foto dà la tinta lenta. Da molto lontano resta l'ortofoto.
 
 ## Sfondo: litorale ed Eolie
 
@@ -124,4 +126,5 @@ L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 c
 - Niente alberi né cespugli sulla spiaggia né entro 12 m dal mare: lì le chiome Meta/WRI e il "verde" dell'ortofoto (l'acqua bassa della battigia) sono falsi positivi.
 - Nessuna palma: i dati non la distinguono con sicurezza da altre chiome strette. Gli alberi lungo Via Lungomare, controllati sull'ortofoto a 25 cm, sono pini domestici.
 - Il fondale non è misurato: la profondità cresce con la distanza da riva (5 cm per metro, al massimo 6 m). Anche le onde sono tipiche, non osservate.
-- La piazza davanti alla Chiesa Madre è come nell'ortofoto 2022 (pavimentata): le siepi della foto del 2006 non ci sono più.
+- La piazza davanti alla Chiesa Madre è quella dell'ortofoto 2022: le siepi della foto del 2006 non ci sono più. Il basolato è una superficie 3D, non un ingrandimento della foto.
+- **Dati OSM delle piazze** (estratto già in `acquedolci-lowpoly/public/data/acquedolci.json`, non un nuovo scarico Overpass): tre `place=square` ad anello chiuso — Piazza Vittorio Emanuele III (intorno al Municipio), Piazza Libertà (Chiesa Madre), Piazza Giovanni Paolo II — più Piazza Federico II, che è un parcheggio nominato piazza (`amenity=parking`), non un asse. Non ci sono aree `highway=pedestrian` né `amenity=marketplace`. L'anello di Piazza Vittorio Emanuele III gira intorno al palazzo e **non** contiene il sagrato della Fontana dei Delfini: quel vuoto lo copre il riempimento (strada intorno, centro edificato, non verde). Lo stesso riempimento prende altri slarghi compatti del paese; un prato, la spiaggia, un fondo agricolo o un vuoto troppo grande restano suolo, con l'albedo del materiale in vista Drone. Per rifare le superfici: `node scripts/build-landcover.mjs` se manca `data/landcover.png`, poi `node scripts/build-streets.mjs` → `public/data/streets.json`.

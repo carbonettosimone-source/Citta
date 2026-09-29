@@ -170,15 +170,16 @@ function municipio(b, fountain) {
   const sideRows = (len, place) => { for (let t = 2.2; t < len - 1.5; t += 3) for (const [y0, y1] of [[g + 1.8, g + 4.3], [g + 6.6, g + 9.3]]) place(t, y0, y1); };
   sideRows(D, (t, y0, y1) => { for (const s of [-1, 1]) k.box(s * h - 0.1, s * h + 0.1, y0, y1, -t - 0.6, -t + 0.6, DARK); });
   sideRows(W, (t, y0, y1) => k.box(-h + t - 0.6, -h + t + 0.6, y0, y1, -D - 0.1, -D + 0.1, DARK));
-  // scalinata davanti al corpo centrale: sei gradini fino al piano del basamento
-  for (let i = 0; i < 6; i++) k.box(-c2 - 3 + i * 0.25, c2 + 3 - i * 0.25, g - 0.3, g + 0.15 * (i + 1), 0.7, 0.7 + (6 - i) * 0.4, STONE);
+  // scalinata sul basolato della piazza (strade.js: Y 0,20 + 0,08), non sotto la mesh
+  for (let i = 0; i < 6; i++) k.box(-c2 - 3 + i * 0.25, c2 + 3 - i * 0.25, g + 0.28, g + 0.28 + 0.15 * (i + 1), 0.7, 0.7 + (6 - i) * 0.4, STONE);
   return k.mesh('municipio');
 }
 
 // ---------------------------------------------------------------- Fontana dei Delfini
 function fountain(f) {
   const k = new Kit(f.x, f.z, 0, 1);
-  const R = f.r + 0.3, y = f.y, STONE = 0xd8d0c0;
+  // la vasca poggia sul basolato (Y + 8 cm), non sull'ortofoto: resta geometria, non una macchia nella foto
+  const R = f.r + 0.3, y = f.y + 0.28, STONE = 0xd8d0c0;
   const ring = new THREE.RingGeometry(R - 0.45, R, 40); ring.rotateX(-Math.PI / 2);
   k.cyl(0, 0, y - 0.1, 0.7, R, R, STONE, 40);                        // vasca
   k.cyl(0, 0, y + 0.6, 0.12, R + 0.08, R + 0.08, 0xe6dfd2, 40);      // bordo
@@ -245,7 +246,7 @@ function chiesa(b) {
   k.pediment(-2.0, 2.0, g + 5.5, g + 6.6, FT, FT + 0.35, TRIM);
   for (const s of [-1, 1]) { k.arch(s * 5.2, 1.5, g + 0.4, g + 3.6, FT + 0.05, WOOD); k.arch(s * 5.2, 1.7, g + 3.9, g + 5.3, FT + 0.05, TRIM, 0.05); }
   k.arch(0, 1.4, g + 10.5, g + 13.9, FT + 0.05, DARK);                        // finestrone dell'ordine superiore
-  for (let i = 0; i < 4; i++) k.box(-3 + i * 0.1, 3 - i * 0.1, g - 0.5, g + 0.15 * (i + 1) - 0.3, FT, FT + 0.5 + (4 - i) * 0.35, 0xc9c0ae); // gradini
+  for (let i = 0; i < 4; i++) k.box(-3 + i * 0.1, 3 - i * 0.1, g + 0.28, g + 0.28 + 0.15 * (i + 1), FT, FT + 0.5 + (4 - i) * 0.35, 0xc9c0ae); // gradini sul basolato
   // corpo posteriore a tre piani (canonica) e campanile sull'angolo posteriore a +u (sud-ovest):
   // nella foto del fianco (Subbass1) facciata a sinistra, campanile a destra sul lato vicino
   k.box(-h, h, g - 0.5, g + 11, -L, -L + rear, YEL);

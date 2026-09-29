@@ -3,8 +3,8 @@
  * vicino è una macchia sfocata: la copertura del suolo (build-landcover.mjs) dice cosa c'è sotto e
  * qui si aggiunge il dettaglio del materiale giusto — ciottoli sulla spiaggia (quella di Acquedolci è
  * di ghiaia e ciottoli grigi), erba dove è verde, terra ed erba secca altrove.
- * È il "detail mapping" dei terreni dei giochi: la tinta a bassa frequenza viene dalla foto, la
- * grana ad alta frequenza da una texture ripetuta, normalizzata sulla sua media.
+ * In vista Drone l'albedo è quello della texture (ortho.js): la foto dà solo una tinta lenta.
+ * Le medie dei colori restano per chi normalizza ancora il dettaglio; il suolo non le divide più.
  */
 import * as THREE from 'three';
 

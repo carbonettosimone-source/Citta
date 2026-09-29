@@ -33,11 +33,29 @@ const sidewalkTex = () => canvasTex(256, 256, (g, w, h) => {
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = 170 + r() * 30; g.fillStyle = `rgb(${v},${v - 5},${v - 14})`; g.fillRect(i * s + 1, j * s + 1, s - 2, s - 2); }
   for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(0,0,0,${r() * 0.08})`; g.fillRect(r() * w, r() * h, 1, 1); }
 });
-/** vialetti e piazzette: basolato chiaro */
-const pavingTex = () => canvasTex(256, 256, (g, w, h) => {
+/**
+ * Basolato chiaro (calcare / pietra di paese): lastre sfalsate, fuga scura larga abbastanza da
+ * leggersi anche dal drone. Niente upscaler: è un disegno, non una foto inventata.
+ */
+const pavingTex = () => canvasTex(512, 512, (g, w, h) => {
   const r = rnd(5);
-  g.fillStyle = '#a79f92'; g.fillRect(0, 0, w, h);
-  for (let y = 0; y < h; y += 32) for (let x = -(y / 32 % 2) * 24; x < w; x += 48) { const v = 150 + r() * 40; g.fillStyle = `rgb(${v},${v - 6},${v - 16})`; g.fillRect(x + 1, y + 1, 46, 30); }
+  g.fillStyle = '#5e584f'; g.fillRect(0, 0, w, h);
+  const bh = 64, bw = 104;
+  for (let y = 0; y < h; y += bh) {
+    const off = (y / bh) % 2 ? bw / 2 : 0;
+    for (let x = -bw; x < w + bw; x += bw) {
+      const v = 196 + r() * 38, warm = r() * 16;
+      g.fillStyle = `rgb(${Math.min(255, v + warm * 0.15)},${v - 8},${v - 26 - warm})`;
+      g.fillRect(x + off + 4, y + 4, bw - 8, bh - 8);
+      g.strokeStyle = `rgba(255,250,240,${0.04 + r() * 0.05})`;
+      g.strokeRect(x + off + 4.5, y + 4.5, bw - 9, bh - 9);
+      g.strokeStyle = `rgba(70,62,52,${0.12 + r() * 0.12})`;
+      g.beginPath();
+      g.moveTo(x + off + 12, y + 14 + r() * 10);
+      g.lineTo(x + off + bw - 16, y + bh - 16);
+      g.stroke();
+    }
+  }
 });
 
 class Strip {
@@ -53,6 +71,130 @@ class Strip {
     const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.renderOrder = order;
     return m;
   }
+}
+
+/** bordo che sfuma: aFade 1 sul contorno vero, 0 un metro più in fuori */
+class FadeStrip {
+  constructor() { this.p = []; this.u = []; this.a = []; }
+  quad(a, b, c, d, ua, ub, uc, ud, aa, ab, ac, ad) {
+    this.p.push(...a, ...b, ...c, ...a, ...c, ...d);
+    this.u.push(...ua, ...ub, ...uc, ...ua, ...uc, ...ud);
+    this.a.push(aa, ab, ac, aa, ac, ad);
+  }
+  tri(a, b, c, ua, ub, uc, aa, ab, ac) {
+    this.p.push(...a, ...b, ...c); this.u.push(...ua, ...ub, ...uc); this.a.push(aa, ab, ac);
+  }
+  mesh(mat, order = 0) {
+    if (!this.p.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
+    g.setAttribute('aFade', new THREE.Float32BufferAttribute(this.a, 1));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.renderOrder = order;
+    return m;
+  }
+}
+
+/** anche-dispari, con i buchi: un punto è sulla superficie se attraversa un numero dispari di anelli */
+function PolyIndex(polys) {
+  this.rings = []; this.grid = new Map(); this.CELL = 48;
+  for (const rings of polys || []) for (const r of rings) {
+    if (!r || r.length < 6) continue;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < r.length; i += 2) { x0 = Math.min(x0, r[i]); x1 = Math.max(x1, r[i]); z0 = Math.min(z0, r[i + 1]); z1 = Math.max(z1, r[i + 1]); }
+    const id = this.rings.length; this.rings.push(r);
+    for (let x = Math.floor(x0 / this.CELL); x <= Math.floor(x1 / this.CELL); x++) for (let z = Math.floor(z0 / this.CELL); z <= Math.floor(z1 / this.CELL); z++) {
+      const k = `${x},${z}`; if (!this.grid.has(k)) this.grid.set(k, []); this.grid.get(k).push(id);
+    }
+  }
+}
+PolyIndex.prototype.contains = function (x, z) {
+  const ids = this.grid.get(`${Math.floor(x / this.CELL)},${Math.floor(z / this.CELL)}`);
+  if (!ids) return false;
+  let ins = false;
+  for (const id of ids) {
+    const r = this.rings[id];
+    for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
+      const yi = r[i + 1], yj = r[j + 1];
+      if ((yi > z) !== (yj > z) && x < ((r[j] - r[i]) * (z - yi)) / (yj - yi) + r[i]) ins = !ins;
+    }
+  }
+  return ins;
+};
+
+const FEATHER = 0.85; // m: passaggio morbido strada ↔ piazza ↔ suolo
+/**
+ * Gonna esterna sul bordo che dà sul suolo nudo. Dove incontra l'asfalto, la piazza ha un cordolo
+ * basso invece della sfumatura. I tagli fra tessere e i lati contro una facciata non si toccano.
+ */
+function addSkirts(polys, yInner, yOuter, uvScale, heightAt, inBuilding, blockers, skirts, curbStrip, tile, wantCurb) {
+  if (!polys?.length) return;
+  const self = new PolyIndex(polys);
+  const onTileEdge = (x0, z0, x1, z1) => (Math.abs(x0 - x1) < 0.01 && Math.abs(x0 / tile - Math.round(x0 / tile)) < 1e-4) || (Math.abs(z0 - z1) < 0.01 && Math.abs(z0 / tile - Math.round(z0 / tile)) < 1e-4);
+  const put = (x, z, y) => [x, heightAt(x, z) + y, z];
+  for (const rings of polys) for (const r of rings) {
+    const n = r.length >> 1;
+    if (n < 3) continue;
+    const edges = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const x0 = r[i * 2], z0 = r[i * 2 + 1], x1 = r[j * 2], z1 = r[j * 2 + 1];
+      const e = { x0, z0, x1, z1, mode: 'skip', ox: 0, oz: 0 };
+      edges.push(e);
+      const L = Math.hypot(x1 - x0, z1 - z0);
+      if (L < 0.08 || onTileEdge(x0, z0, x1, z1)) continue;
+      const nx = -(z1 - z0) / L, nz = (x1 - x0) / L, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      let out = false;
+      for (const s of [1, -1]) if (!self.contains(mx + nx * s * 0.35, mz + nz * s * 0.35)) { e.ox = nx * s; e.oz = nz * s; out = true; break; }
+      if (!out || inBuilding(mx + e.ox * 0.55, mz + e.oz * 0.55)) continue;
+      let hit = null;
+      for (const b of blockers) if (b.index.contains(mx + e.ox * 0.7, mz + e.oz * 0.7)) { hit = b.kind; break; }
+      // il marciapiede ha già il suo cordolo: qui solo il gradino basso piazza → asfalto
+      if (hit) { if (wantCurb && hit === 'asphalt') e.mode = 'curb'; continue; }
+      e.mode = 'skirt';
+    }
+    for (const e of edges) {
+      const L = Math.hypot(e.x1 - e.x0, e.z1 - e.z0), seg = Math.max(1, Math.ceil(L / MAXE));
+      for (let k = 0; k < seg; k++) {
+        const ax = e.x0 + (e.x1 - e.x0) * k / seg, az = e.z0 + (e.z1 - e.z0) * k / seg;
+        const bx = e.x0 + (e.x1 - e.x0) * (k + 1) / seg, bz = e.z0 + (e.z1 - e.z0) * (k + 1) / seg;
+        if (e.mode === 'skirt') {
+          const ax2 = ax + e.ox * FEATHER, az2 = az + e.oz * FEATHER, bx2 = bx + e.ox * FEATHER, bz2 = bz + e.oz * FEATHER;
+          const uv = (x, z) => [x / uvScale, z / uvScale];
+          skirts.quad(put(ax, az, yInner), put(bx, bz, yInner), put(bx2, bz2, yOuter), put(ax2, az2, yOuter), uv(ax, az), uv(bx, bz), uv(bx2, bz2), uv(ax2, az2), 1, 1, 0, 0);
+        } else if (e.mode === 'curb') {
+          const ya = heightAt(ax, az) + yOuter, yb = heightAt(bx, bz) + yOuter, h = yInner - yOuter;
+          curbStrip.quad([ax, ya, az], [bx, yb, bz], [bx, yb + h, bz], [ax, ya + h, az], [0, 0], [1, 0], [1, 1], [0, 1]);
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const prev = edges[(i - 1 + n) % n], e = edges[i];
+      if (prev.mode !== 'skirt' || e.mode !== 'skirt') continue;
+      const x = e.x0, z = e.z0, p1x = x + prev.ox * FEATHER, p1z = z + prev.oz * FEATHER, p2x = x + e.ox * FEATHER, p2z = z + e.oz * FEATHER;
+      if (Math.hypot(p1x - p2x, p1z - p2z) < 0.04) continue;
+      const uv = (px, pz) => [px / uvScale, pz / uvScale];
+      skirts.tri(put(x, z, yInner), put(p1x, p1z, yOuter), put(p2x, p2z, yOuter), uv(x, z), uv(p1x, p1z), uv(p2x, p2z), 1, 0, 0);
+    }
+  }
+}
+
+function fadeMat(map) {
+  const m = new THREE.MeshLambertMaterial({
+    map, side: THREE.DoubleSide, alphaToCoverage: true,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+  });
+  m.customProgramCacheKey = () => 'surf-fade';
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aFade;\nvarying float vFade;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvFade = aFade;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFade;')
+      .replace('vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;', 'diffuseColor.a *= vFade;\n\tvec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;');
+  };
+  return m;
 }
 
 /** punti ogni ≤3 m (per seguire il terreno) con tangente e normale sinistra */
@@ -114,17 +256,29 @@ function fillPolys(polys, heightAt, yOff, uvScale, out) {
 
 export function buildStreets(data, heightAt, inBuilding = () => false) {
   const group = new THREE.Group(); group.name = 'streets';
-  const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip();
-  const Y = 0.2, CURB = 0.12; // 20 cm sul modello del terreno: tra i vertici della maglia il terreno sporge di qualche cm
+  const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip(), plaza = new Strip();
+  const skirtA = new FadeStrip(), skirtP = new FadeStrip(), skirtZ = new FadeStrip();
+  const Y = 0.2, CURB = 0.12, PLAZA = 0.08; // 20 cm sul modello del terreno: tra i vertici della maglia il terreno sporge di qualche cm. La piazza è 8 cm sopra l'asfalto: cordolo basso, non un marciapiede.
   const junc = data.junctions;
   const nearJunction = (x, z, pad) => junc.some(([jx, jz, r]) => Math.abs(jx - x) < r + pad && Math.abs(jz - z) < r + pad && Math.hypot(jx - x, jz - z) < r + pad);
 
   // superfici vere (build-streets.mjs): carreggiata = unione delle vie, marciapiede = fascia fino alle
-  // facciate, basolato sulle piazze pedonali. Niente nastri sovrapposti, niente dischi agli incroci.
+  // facciate, vialetti in basolato, PIAZZE come poligoni (place=square, aree pedonali, vuoti urbani).
   const S = data.surf;
+  S.plaza = S.plaza || [];
   fillPolys(S.asphalt, heightAt, Y, 4, asphalt);
   fillPolys(S.walk, heightAt, Y + CURB, 1.6, walk);
-  fillPolys(S.paving, heightAt, Y + 0.04, 1.5, paving);
+  fillPolys(S.paving, heightAt, Y + 0.04, 2.2, paving);
+  fillPolys(S.plaza, heightAt, Y + PLAZA, 2.8, plaza);
+  const idx = {
+    asphalt: new PolyIndex(S.asphalt), walk: new PolyIndex(S.walk),
+    paving: new PolyIndex(S.paving), plaza: new PolyIndex(S.plaza),
+  };
+  const block = (...kinds) => kinds.map((kind) => ({ kind, index: idx[kind] }));
+  // ~0,85 m di sfumatura verso il suolo nudo; il cordolo solo dove la piazza incontra asfalto o marciapiede
+  addSkirts(S.asphalt, Y, Y, 4, heightAt, inBuilding, block('walk', 'paving', 'plaza'), skirtA, curb, S.tile, false);
+  addSkirts(S.paving, Y + 0.04, Y + 0.04, 2.2, heightAt, inBuilding, block('asphalt', 'walk', 'plaza'), skirtP, curb, S.tile, false);
+  addSkirts(S.plaza, Y + PLAZA, Y, 2.8, heightAt, inBuilding, block('asphalt', 'walk', 'paving'), skirtZ, curb, S.tile, true);
   // cordolo: un gradino lungo tutto il contorno dei marciapiedi, tranne i tagli fra tessere
   const onTileEdge = (x0, z0, x1, z1) => (Math.abs(x0 - x1) < 0.01 && Math.abs(x0 / S.tile - Math.round(x0 / S.tile)) < 1e-4) || (Math.abs(z0 - z1) < 0.01 && Math.abs(z0 / S.tile - Math.round(z0 / S.tile)) < 1e-4);
   for (const rings of S.walk) for (const r of rings) {
@@ -168,12 +322,17 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
   const polyOff = (m) => { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; };
   const add = (m) => m && group.add(m);
-  add(asphalt.mesh(polyOff(new THREE.MeshLambertMaterial({ map: asphaltTex() })), 1));
+  const pav = pavingTex(), asph = asphaltTex();
+  add(asphalt.mesh(polyOff(new THREE.MeshLambertMaterial({ map: asph })), 1));
   add(walk.mesh(new THREE.MeshLambertMaterial({ map: sidewalkTex(), side: THREE.DoubleSide }), 2));
-  add(curb.mesh(new THREE.MeshLambertMaterial({ color: 0xcfcac0, side: THREE.DoubleSide }), 2));
+  add(curb.mesh(new THREE.MeshLambertMaterial({ color: 0xe4dcd0, side: THREE.DoubleSide }), 2));
   const markMat = polyOff(new THREE.MeshLambertMaterial({ color: 0xf2f2ee })); markMat.polygonOffsetFactor = -6; markMat.polygonOffsetUnits = -6;
   add(mark.mesh(markMat, 3));
-  add(paving.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pavingTex() })), 1));
+  add(paving.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
+  add(plaza.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
+  add(skirtA.mesh(fadeMat(asph), 3));
+  add(skirtP.mesh(fadeMat(pav), 3));
+  add(skirtZ.mesh(fadeMat(pav), 3));
   group.add(buildBenches(data.benches, heightAt));
   group.add(buildWalls(data.walls || [], heightAt));
   group.add(buildLamps(data.lamps || [], heightAt));
