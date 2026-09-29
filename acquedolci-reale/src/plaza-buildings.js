@@ -6,6 +6,8 @@
  *
  * Municipio, Fontana dei Delfini e Chiesa Madre stanno in landmarks.js. Qui i palazzi intorno:
  *  - 1302566, 1302564 — fianchi di Piazza Vittorio Emanuele III
+ *  - 1302551, 1302548 — palazzi a nord, sulla via inferiore verso il mare
+ *  - 1302563 — prosecuzione a est della stessa via
  *  - 1302693, 1302678 — Piazza Libertà, ai lati della Chiesa Madre
  *  - 1302669, 1302648 — intorno a Piazza Giovanni Paolo II
  *
@@ -18,17 +20,35 @@ import { NIGHT } from './daylight.js';
 
 /** @type {Record<number, {name:string, title:string, piazza:string, facing:[number,number], wall:number, trim:number, stone:number, shutter:number, roof:number, bay:number, balcony:'alt'|'every'|'center'|'none', ante?:'chiuse', ground?:'archi'|'bottega', top?:'loggia', pilastri?:boolean, shop?:number}>} */
 export const PIAZZA = {
-  // A ovest della piazza: intonaco chiaro, persiane brune chiuse, balcone al piano sopra. Niente archi: quelli sono del Municipio.
+  // A sud-ovest, sulla via che costeggia la piazza: intonaco chiaro, persiane brune, balconi.
   1302566: {
     name: 'palazzo-ve3-ovest', title: 'Palazzo a ovest del Municipio', piazza: 'Vittorio Emanuele III',
-    facing: [1, -0.2], wall: 0xe7d3b0, trim: 0xf3ead8, stone: 0xcfc4b0, shutter: 0x7a5234, roof: 0xb15a34,
+    facing: [0, -1], wall: 0xe7d3b0, trim: 0xf3ead8, stone: 0xcfc4b0, shutter: 0x7a5234, roof: 0xb15a34,
     bay: 3.05, balcony: 'every', ante: 'chiuse',
   },
-  // A est, visto di fronte: due piani, finestre rettangolari, persiane brune chiuse, tetto in coppi, quasi senza balconi.
+  // A est del Municipio: intonaco crema, persiane brune chiuse, qualche balcone, tetto in coppi.
   1302564: {
     name: 'palazzo-ve3-est', title: 'Palazzo chiaro a est del Municipio', piazza: 'Vittorio Emanuele III',
-    facing: [-1, 0.1], wall: 0xf4efe4, trim: 0xf8f4ec, stone: 0xd5cec0, shutter: 0x8a5a32, roof: 0xb15a34,
-    bay: 3.2, balcony: 'none', ante: 'chiuse',
+    facing: [-0.85, -0.45], wall: 0xf3ecdf, trim: 0xf8f4ec, stone: 0xd5cec0, shutter: 0x8a5a32, roof: 0xb15a34,
+    bay: 3.15, balcony: 'alt', ante: 'chiuse',
+  },
+  // Oltre l'angolo est, stesso intonaco e le stesse persiane.
+  1302563: {
+    name: 'palazzo-ve3-est-2', title: 'Palazzo oltre l\'angolo est', piazza: 'Vittorio Emanuele III',
+    facing: [-1, 0], wall: 0xefe4d0, trim: 0xf6f0e6, stone: 0xd2c8b6, shutter: 0x7d5436, roof: 0xb15a34,
+    bay: 3.3, balcony: 'alt', ante: 'chiuse',
+  },
+  // A nord della fontana, il palazzo giallo con le tende a righe e le persiane chiuse.
+  1302551: {
+    name: 'palazzo-ve3-nord', title: 'Palazzo giallo a nord della fontana', piazza: 'Vittorio Emanuele III',
+    facing: [0, 1], wall: 0xe4cc78, trim: 0xf0e2b0, stone: 0xd2c4a4, shutter: 0x6e4a30, roof: 0xb15a34,
+    bay: 3.3, balcony: 'alt', ante: 'chiuse', ground: 'bottega', awning: true, shop: 0x2c3330,
+  },
+  // A nord-ovest, sulla via inferiore: tre piani, balconi, portico ad archi e balaustra in copertura.
+  1302548: {
+    name: 'palazzo-ve3-nord-ovest', title: 'Palazzo con portico sulla via inferiore', piazza: 'Vittorio Emanuele III',
+    facing: [0, 1], wall: 0xedd9b8, trim: 0xf4ead8, stone: 0xd5cbb8, shutter: 0x6a4832, roof: 0xb15a34,
+    bay: 3.1, balcony: 'every', ante: 'chiuse', ground: 'archi', pilastri: true, belvedere: true,
   },
   // A ovest della chiesa: palazzo alto di abitazione, tanti balconi, persiane brune, terrazza. Non una loggia ad archi.
   1302693: {
@@ -257,6 +277,13 @@ function buildOne(b) {
           const y1 = yFloor + fh * 0.82;
           orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor + 0.02, y1, hwS + 0.14, 0.02, 0.09, spec.stone);
           orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor + 0.1, y1 - 0.1, hwS, 0.09, 0.16, spec.shop || SHOP);
+          if (spec.awning) {
+            const yA = y1 - 0.08;
+            orientedBox(parts, px, pz, tx, tz, nx, nz, yA, yA + 0.07, hwS * 0.95, 0.1, 1.2, 0xf4f0e6);
+            for (const s of [-0.62, -0.2, 0.22, 0.64]) {
+              orientedBox(parts, px + tx * s * hwS, pz + tz * s * hwS, tx, tz, nx, nz, yA + 0.02, yA + 0.09, 0.07, 0.12, 1.18, 0xc4533a);
+            }
+          }
           continue;
         }
         const y0 = yFloor + fh * 0.28;
@@ -283,6 +310,14 @@ function buildOne(b) {
         }
         const wantBalcony = f > 0 && !(f === floors - 1 && spec.top === 'loggia')
           && (spec.balcony === 'every' || (spec.balcony === 'alt' && k % 2 === 0) || (spec.balcony === 'center' && isPortal && k === mid && f === 1));
+        if (spec.belvedere && i === portal && f === floors - 1 && k === 0) {
+          const nB = Math.max(3, Math.round(L / 0.85));
+          for (let b = 0; b <= nB; b++) {
+            const tb = b / nB;
+            orientedBox(parts, mx + tx * (tb - 0.5) * L, mz + tz * (tb - 0.5) * L, tx, tz, nx, nz, top + 0.02, top + 0.78, 0.055, 0.02, 0.12, spec.trim);
+          }
+          orientedBox(parts, mx, mz, tx, tz, nx, nz, top + 0.7, top + 0.82, L / 2, 0.02, 0.14, spec.trim);
+        }
         if (wantBalcony) {
           const slab = spec.balcony === 'every' ? Math.min(spec.bay * 0.42, 1.6) : hw + 0.28;
           orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor - 0.02, yFloor + 0.08, slab, 0.06, 0.78, spec.stone);

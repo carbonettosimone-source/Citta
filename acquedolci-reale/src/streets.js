@@ -5,6 +5,7 @@
  * Tutto segue il terreno MDT, sollevato di pochi centimetri.
  */
 import * as THREE from 'three';
+import { VE3_TERRACE, ve3StairHole, planVe3Stair, buildVe3Plaza } from './piazza-ve3.js';
 
 function canvasTex(w, h, draw, repeat = true) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
@@ -74,10 +75,12 @@ function bondTex(tone) {
       const u2 = u - (row & 1) * (P / 2);
       const fu = ((u2 % P) + P) % P;
       const fv = ((v % Q) + Q) % Q;
-      const joint = fu < 3.5 || fv < 3.5;
+      const jointW = tone === 'brick' ? 5.2 : 3.5;
+      const joint = fu < jointW || fv < jointW;
       const n = hsh(Math.floor(u2 / P) * 13 + row * 7);
       let r, gg, b;
-      if (tone === 'red') { r = 158 + n * 46; gg = 86 + n * 30; b = 68 + n * 18; }
+      if (tone === 'brick') { r = 168 + n * 48; gg = 86 + n * 28; b = 62 + n * 16; }
+      else if (tone === 'red') { r = 158 + n * 46; gg = 86 + n * 30; b = 68 + n * 18; }
       else { r = 208 + n * 34; gg = 190 + n * 28; b = 162 + n * 20; }
       if (joint) { r *= 0.62; gg *= 0.6; b *= 0.58; }
       else if (hsh(x * 17 + y * 3) > 0.9) { r *= 0.9; gg *= 0.9; b *= 0.88; }
@@ -115,21 +118,27 @@ function ringCentroid(ring) {
 /**
  * Tipo di superficie dal baricentro del pezzo (metri locali, origine al Municipio).
  * Non è una texture campionata da Street View: è la scelta che corrisponde a ciò che si vede.
- *  - herring: corte della Fontana dei Delfini e sagrato della Chiesa Madre, mattoni chiari a spina
+ *  - ve3: terrazzo di Piazza Vittorio Emanuele III, piano, mattoni rossastri a spina
+ *  - brick: ritagli della stessa piazza che restano sul terreno (stesso mattone)
+ *  - herring: sagrato della Chiesa Madre, mattoni chiari a spina
  *  - drive: piazzale davanti alla facciata nord della chiesa (Piazza Libertà), asfalto non pietra
  *  - garden: interno di Piazza Giovanni Paolo II, prato (la carreggiata resta la mesh delle vie)
  *  - red: ritagli pedonali piccoli intorno a quel giardino
  *  - other: basolato delle altre piazze (Federico II, slarghi)
  */
+function inVe3(x, z) {
+  return z < -4 && z > -68 && x > -50 && x < 36 && Math.hypot(x + 12, z + 36) < 42;
+}
 function plazaKind(x, z, area) {
-  if (z < -4 && z > -68 && x > -50 && x < 36 && Math.hypot(x + 8, z + 32) < 46) return 'herring';
+  if (inVe3(x, z) && area > 400) return 've3';
+  if (inVe3(x, z)) return 'brick';
   if (z < -8 && z > -62 && x > -198 && x < -120 && Math.hypot(x + 156, z + 32) < 42) return area > 400 ? 'garden' : 'red';
   if (z > 16 && z < 93 && x > -262 && x < -168 && Math.hypot(x + 224, z - 58) < 78) return 'drive';
   if (Math.hypot(x + 212, z - 112) < 28) return 'herring';
   return 'other';
 }
 function splitPlazas(polys) {
-  const out = { herring: [], drive: [], garden: [], red: [], other: [] };
+  const out = { herring: [], drive: [], garden: [], red: [], other: [], ve3: [], brick: [] };
   for (const rings of polys || []) {
     const c = ringCentroid(rings[0]);
     out[plazaKind(c.x, c.z, c.a)].push(rings);
@@ -346,7 +355,7 @@ function densify(flat, extra = []) {
  * vicini lo dividono negli stessi punti e non restano fessure.
  */
 const MAXE = 6;
-function fillPolys(polys, heightAt, yOff, uvScale, out) {
+function fillPolys(polys, heightAt, yOff, uvScale, out, yAbs = null, skipTri = null) {
   for (const rings of polys) {
     // contorno già diviso in tratti ≤ MAXE (in parti uguali: due poligoni con un lato in comune lo
     // dividono negli stessi punti), così la triangolazione non fa lunghe schegge da ridividere
@@ -368,7 +377,11 @@ function fillPolys(polys, heightAt, yOff, uvScale, out) {
       let li = -1, lm = (MAXE * 1.6) ** 2;
       for (let i = 0; i < 3; i++) { const p = t[i], q = t[(i + 1) % 3]; const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2; if (d > lm) { lm = d; li = i; } }
       if (li < 0) {
-        for (const [x, z] of t) { out.p.push(x, heightAt(x, z) + yOff, z); out.u.push(x / uvScale, z / uvScale); }
+        if (skipTri) {
+          const cx = (t[0][0] + t[1][0] + t[2][0]) / 3, cz = (t[0][1] + t[1][1] + t[2][1]) / 3;
+          if (skipTri(cx, cz)) continue;
+        }
+        for (const [x, z] of t) { out.p.push(x, yAbs != null ? yAbs : heightAt(x, z) + yOff, z); out.u.push(x / uvScale, z / uvScale); }
         continue;
       }
       const a = t[li], b = t[(li + 1) % 3], c = t[(li + 2) % 3], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -377,11 +390,42 @@ function fillPolys(polys, heightAt, yOff, uvScale, out) {
   }
 }
 
+/** bordo basso del terrazzo di VE3: dove il salto è piccolo la spina sfuma, il muro alto lo fa piazza-ve3 */
+function addVe3LowSkirt(polys, yAbs, uvScale, heightAt, skirts) {
+  if (!polys?.length) return;
+  const self = new PolyIndex(polys);
+  for (const rings of polys) {
+    const r = rings[0]; const n = r.length >> 1;
+    if (n < 3) continue;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const x0 = r[i * 2], z0 = r[i * 2 + 1], x1 = r[j * 2], z1 = r[j * 2 + 1];
+      const L = Math.hypot(x1 - x0, z1 - z0);
+      if (L < 0.2) continue;
+      let nx = -(z1 - z0) / L, nz = (x1 - x0) / L;
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      if (self.contains(mx + nx * 0.4, mz + nz * 0.4)) { nx = -nx; nz = -nz; }
+      if (self.contains(mx + nx * 0.45, mz + nz * 0.45)) continue;
+      if (yAbs - heightAt(mx + nx, mz + nz) > 0.48) continue;
+      const seg = Math.max(1, Math.ceil(L / MAXE));
+      for (let k = 0; k < seg; k++) {
+        const ax = x0 + (x1 - x0) * k / seg, az = z0 + (z1 - z0) * k / seg;
+        const bx = x0 + (x1 - x0) * (k + 1) / seg, bz = z0 + (z1 - z0) * (k + 1) / seg;
+        const ax2 = ax + nx * FEATHER, az2 = az + nz * FEATHER, bx2 = bx + nx * FEATHER, bz2 = bz + nz * FEATHER;
+        const uv = (x, z) => [x / uvScale, z / uvScale];
+        const inn = (x, z) => [x, yAbs, z], out = (x, z) => [x, heightAt(x, z) + 0.2, z];
+        skirts.quad(inn(ax, az), inn(bx, bz), out(bx2, bz2), out(ax2, az2), uv(ax, az), uv(bx, bz), uv(bx2, bz2), uv(ax2, az2), 1, 1, 0, 0);
+      }
+    }
+  }
+}
+
 export function buildStreets(data, heightAt, inBuilding = () => false) {
   const group = new THREE.Group(); group.name = 'streets';
   const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip();
   const herring = new Strip(), cobble = new Strip(), drive = new Strip(), garden = new Strip(), red = new Strip(), rim = new Strip();
-  const skirtA = new FadeStrip(), skirtP = new FadeStrip(), skirtH = new FadeStrip(), skirtO = new FadeStrip(), skirtD = new FadeStrip(), skirtR = new FadeStrip();
+  const ve3 = new Strip(), brick = new Strip();
+  const skirtA = new FadeStrip(), skirtP = new FadeStrip(), skirtH = new FadeStrip(), skirtO = new FadeStrip(), skirtD = new FadeStrip(), skirtR = new FadeStrip(), skirtV = new FadeStrip();
   const Y = 0.2, CURB = 0.12, PLAZA = 0.08; // 20 cm sul modello del terreno: tra i vertici della maglia il terreno sporge di qualche cm. La piazza in pietra è 8 cm sopra l'asfalto.
   const junc = data.junctions;
   const nearJunction = (x, z, pad) => junc.some(([jx, jz, r]) => Math.abs(jx - x) < r + pad && Math.abs(jz - z) < r + pad && Math.hypot(jx - x, jz - z) < r + pad);
@@ -395,6 +439,10 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   fillPolys(S.asphalt, heightAt, Y, 4, asphalt);
   fillPolys(S.walk, heightAt, Y + CURB, 1.6, walk);
   fillPolys(S.paving, heightAt, Y + 0.04, 2.2, paving);
+  planVe3Stair(heightAt);
+  fillPolys(kinds.ve3, heightAt, 0, 2.2, ve3, VE3_TERRACE, ve3StairHole);
+  fillPolys(kinds.brick, heightAt, Y + PLAZA, 2.2, brick);
+  addVe3LowSkirt(kinds.ve3, VE3_TERRACE, 2.2, heightAt, skirtV);
   fillPolys(kinds.herring, heightAt, Y + PLAZA, 2.4, herring);
   fillPolys(kinds.other, heightAt, Y + PLAZA, 2.8, cobble);
   fillPolys(kinds.drive, heightAt, Y + 0.012, 4, drive);
@@ -457,7 +505,7 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
   const polyOff = (m) => { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; };
   const add = (m) => m && group.add(m);
-  const pav = pavingTex(), asph = asphaltTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex();
+  const pav = pavingTex(), asph = asphaltTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
   const asphMat = polyOff(new THREE.MeshLambertMaterial({ map: asph }));
   add(asphalt.mesh(asphMat, 1));
   add(drive.mesh(asphMat, 1));
@@ -467,6 +515,8 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   add(mark.mesh(markMat, 3));
   add(paving.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
   add(herring.mesh(polyOff(new THREE.MeshLambertMaterial({ map: spine })), 1));
+  add(ve3.mesh(polyOff(new THREE.MeshLambertMaterial({ map: bricks })), 1));
+  add(brick.mesh(polyOff(new THREE.MeshLambertMaterial({ map: bricks })), 1));
   add(cobble.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
   add(garden.mesh(polyOff(new THREE.MeshLambertMaterial({ map: lawn })), 1));
   const roseMat = polyOff(new THREE.MeshLambertMaterial({ map: rose }));
@@ -478,6 +528,8 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   add(skirtO.mesh(fadeMat(pav), 3));
   add(skirtD.mesh(fadeMat(asph), 3));
   add(skirtR.mesh(fadeMat(rose), 3));
+  add(skirtV.mesh(fadeMat(bricks), 3));
+  group.add(buildVe3Plaza(heightAt, kinds.ve3));
   group.add(buildBenches(data.benches, heightAt));
   group.add(buildWalls(data.walls || [], heightAt));
   group.add(buildLamps(data.lamps || [], heightAt));

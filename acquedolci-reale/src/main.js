@@ -6,6 +6,7 @@ import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
 import { buildLandmarks } from './landmarks.js';
+import { ve3Floor } from './piazza-ve3.js';
 import { createOrthoHR } from './ortho-hr.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
@@ -227,6 +228,7 @@ const basics = new Set();
 for (const sc of [scene, bgScene]) sc.traverse((o) => { const m = o.material; if (o.isMesh && m?.isMeshBasicMaterial && m.blending === THREE.NormalBlending) basics.add(m); });
 const lamps = scene.getObjectByName('lamps');
 const plazaProps = scene.getObjectByName('plaza-props');
+const ve3 = scene.getObjectByName('piazza-ve3');
 const dayCtx = { sky, sun, hemi, moonLight, fog: scene.fog, bgScene, basics: [...basics], waters: [water.uniforms, farSea.uniforms], lights: true, sunDir: new THREE.Vector3(0, 1, 0) };
 const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 /** applica un'ora senza salvarla (l'intro ha le sue ore) */
@@ -235,6 +237,7 @@ function applyHour(h) {
   const { sun: S, moon: M } = applyTime(h, dayCtx);
   lamps?.userData.night?.(NIGHT.value);
   plazaProps?.userData.night?.(NIGHT.value);
+  ve3?.userData.night?.(NIGHT.value);
   $('optTime').value = h; $('timeOut').textContent = hhmm(h);
   const moonTxt = M.alt > 0 ? `luna ${Math.round(M.lit * 100)}% alta ${Math.round(M.alt * 57.3)}°` : 'luna sotto l\'orizzonte';
   $('sunInfo').textContent = `sole ${Math.round(S.alt * 57.3)}° · ${moonTxt}`;
@@ -277,7 +280,7 @@ function stepWalk(dt) {
     if (!collider(walker.pos.x + dx, walker.pos.z)) walker.pos.x += dx;
     if (!collider(walker.pos.x, walker.pos.z + dz)) walker.pos.z += dz;
   }
-  walker.pos.y = heightAt(walker.pos.x, walker.pos.z);
+  walker.pos.y = ve3Floor(walker.pos.x, walker.pos.z, heightAt(walker.pos.x, walker.pos.z));
   camera.position.set(walker.pos.x, walker.pos.y + 1.7, walker.pos.z);
   camera.rotation.set(walker.pitch, walker.yaw, 0, 'YXZ');
 }

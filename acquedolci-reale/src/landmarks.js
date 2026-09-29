@@ -18,6 +18,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NIGHT } from './daylight.js';
 import { buildPlazaDressing } from './plaza-props.js';
 import { buildPlazaBuildings } from './plaza-buildings.js';
+import { VE3_TERRACE } from './piazza-ve3.js';
 
 /** Raccoglie pezzi colorati nel riferimento di una facciata e li fonde in una sola mesh. */
 class Kit {
@@ -156,20 +157,45 @@ function municipio(b, fountain) {
     k.box(s * c2 - 1.0, s * c2 + 1.0, CORN + 0.35, CORN + 2.6, 0.45, 0.85, TRIM); // cartiglio
     k.box(s * c2 - 0.6, s * c2 + 0.6, CORN + 0.8, CORN + 2.2, 0.85, 0.95, 0xd8ccb3);
   }
-  for (const uc of [-2.6, 0, 2.6]) {
-    k.arch(uc, 1.55, g + 6.2, g + 9.6, 0.72, DARK);                         // tre finestroni ad arco
-    k.arch(uc, 1.95, g + 6.0, g + 9.85, 0.71, TRIM, 0.04);                  // cornice dell'arco
-    k.arch(uc, uc === 0 ? 2.1 : 1.4, H1, g + (uc === 0 ? 4.6 : 4.2), 0.72, uc === 0 ? 0x4a3526 : DARK); // portone e finestre del piano terra
-    if (uc !== 0) {                                                          // cancelli in ferro nei due vani laterali
-      const yA = H1 + 0.15, yB = g + 4.05;
-      for (let du = -0.42; du <= 0.42; du += 0.16) k.box(uc + du - 0.012, uc + du + 0.012, yA, yB, 0.74, 0.78, IRON);
-      k.box(uc - 0.5, uc + 0.5, yB - 0.02, yB + 0.02, 0.74, 0.78, IRON);
-    }
+  // corsi di pietra sulla facciata, perché si legga il concio e non un muro liscio
+  for (let y = g + 0.15; y < CORN - 0.3; y += 0.46) {
+    k.box(-h + 0.3, h - 0.3, y, y + 0.028, 0.02, 0.05, 0xc9c0b0);
+    k.box(-c2 + 0.2, c2 - 0.2, y, y + 0.028, 0.72, 0.78, 0xcfc6b4);
   }
-  // balcone con balaustra sotto i tre archi
-  k.box(-c2 + 0.3, c2 - 0.3, g + 5.8, g + 6.0, 0.7, 1.7, TRIM);
-  k.box(-c2 + 0.3, c2 - 0.3, g + 6.0, g + 6.95, 1.6, 1.7, TRIM);
-  for (let u = -c2 + 0.5; u < c2 - 0.4; u += 0.35) k.box(u - 0.06, u + 0.06, g + 6.0, g + 6.9, 1.62, 1.68, 0xd9d0bc);
+  // quattro colonne fra i tre vani, in piedi sul pianerottolo
+  for (const u of [-3.72, -1.42, 1.42, 3.72]) {
+    k.cyl(u, 1.02, H1, 0.16, 0.36, 0.32, STONE, 12);
+    k.cyl(u, 1.02, H1 + 0.16, g + 5.35 - (H1 + 0.16), 0.26, 0.22, TRIM, 14);
+    k.cyl(u, 1.02, g + 5.32, 0.22, 0.32, 0.36, TRIM, 12);
+  }
+  k.box(-c2 + 0.15, c2 - 0.15, g + 5.48, g + 5.82, 0.78, 1.28, TRIM);       // architrave sotto la balaustra
+  const ironGate = (uc, halfW, y0, y1) => {
+    const nBar = Math.max(5, Math.round((halfW * 2) / 0.13));
+    for (let i = 0; i <= nBar; i++) {
+      const u = uc - halfW + (halfW * 2) * i / nBar;
+      k.box(u - 0.012, u + 0.012, y0, y1, 0.9, 0.94, IRON);
+      const tip = new THREE.ConeGeometry(0.03, 0.11, 4); tip.translate(u, y1 + 0.05, 0.92); k.add(tip, IRON);
+    }
+    for (const yy of [y0 + 0.1, y0 + (y1 - y0) * 0.46, y1 - 0.08]) k.box(uc - halfW, uc + halfW, yy, yy + 0.03, 0.9, 0.95, IRON);
+    for (const s of [-1, 1]) {
+      const a = new THREE.TorusGeometry(Math.min(0.2, halfW * 0.32), 0.018, 6, 14);
+      a.translate(uc + s * halfW * 0.45, y0 + (y1 - y0) * 0.62, 0.96); k.add(a, IRON);
+      const b = new THREE.TorusGeometry(0.09, 0.014, 5, 10);
+      b.translate(uc + s * halfW * 0.16, y0 + (y1 - y0) * 0.36, 0.96); k.add(b, IRON);
+    }
+  };
+  for (const uc of [-2.6, 0, 2.6]) {
+    const wide = uc === 0, wArch = wide ? 2.05 : 1.32, yArch = g + (wide ? 4.55 : 4.15);
+    k.arch(uc, 1.55, g + 6.2, g + 9.6, 0.72, DARK);                         // tre finestroni ad arco
+    k.arch(uc, 1.95, g + 6.0, g + 9.85, 0.7, TRIM, 0.05);                   // cornice dell'arco
+    k.arch(uc, wArch + 0.32, H1 - 0.02, yArch + 0.22, 0.62, TRIM, 0.08);    // ghiera di pietra
+    k.arch(uc, wArch, H1 + 0.02, yArch, 0.74, wide ? 0x3a2a22 : DARK);      // vano
+    ironGate(uc, wArch * 0.4, H1 + 0.12, yArch - 0.28);
+  }
+  // balaustra in pietra davanti ai tre finestroni, non un muro pieno
+  k.box(-c2 + 0.35, c2 - 0.35, g + 5.82, g + 6.02, 0.85, 1.62, TRIM);
+  k.box(-c2 + 0.35, c2 - 0.35, g + 6.82, g + 7.02, 1.4, 1.62, TRIM);
+  for (let u = -c2 + 0.6; u < c2 - 0.45; u += 0.26) k.box(u - 0.045, u + 0.045, g + 6.02, g + 6.82, 1.46, 1.56, 0xddd4c4);
   // ali: due finestre per piano con cornice e timpanino al primo piano
   const wing = [];
   for (let u = c2 + 1.6; u < h - 1.2; u += 2.6) wing.push(u);
@@ -185,62 +211,85 @@ function municipio(b, fountain) {
   const sideRows = (len, place) => { for (let t = 2.2; t < len - 1.5; t += 3) for (const [y0, y1] of [[g + 1.8, g + 4.3], [g + 6.6, g + 9.3]]) place(t, y0, y1); };
   sideRows(D, (t, y0, y1) => { for (const s of [-1, 1]) k.box(s * h - 0.1, s * h + 0.1, y0, y1, -t - 0.6, -t + 0.6, DARK); });
   sideRows(W, (t, y0, y1) => k.box(-h + t - 0.6, -h + t + 0.6, y0, y1, -D - 0.1, -D + 0.1, DARK));
-  // scalinata sul basolato della piazza (strade.js: Y 0,20 + 0,08), non sotto la mesh
-  const NST = 8;
-  for (let i = 0; i < NST; i++) k.box(-c2 - 3.4 + i * 0.2, c2 + 3.4 - i * 0.2, g + 0.28, g + 0.28 + 0.13 * (i + 1), 0.7, 0.7 + (NST - i) * 0.36, STONE);
-  // corrimano in ferro ai due lati e in mezzo: la scala è larga, nella foto c'è il passamano
-  const wBot = 0.7 + NST * 0.36, wTop = 0.7 + 0.36;
-  const yBot = g + 0.28 + 0.13 + 0.92, yTop = g + 0.28 + 0.13 * NST + 0.92;
-  for (const u of [-c2 - 3.2, 0, c2 + 3.2]) {
-    k.rail(u, yBot, wBot, yTop, wTop, 0.045, IRON);
-    k.rail(u, yBot - 0.38, wBot, yTop - 0.38, wTop, 0.03, IRON);
-    for (let t = 0; t <= 1.001; t += 0.16) {
-      const w = wBot + (wTop - wBot) * t, y = yBot + (yTop - yBot) * t;
-      k.box(u - 0.02, u + 0.02, y - 0.92, y + 0.02, w - 0.025, w + 0.025, IRON);
+  // undici gradini dal piano della piazza al pianerottolo del portico
+  const NST = 11, half = c2 + 2.6, landW = 1.55, tread = 0.32;
+  const rise = (H1 - VE3_TERRACE) / NST;
+  k.box(-half + 0.6, half - 0.6, H1 - 0.05, H1 + 0.01, 0.02, landW, STONE);
+  for (let i = 0; i < NST; i++) {
+    const y1 = H1 - i * rise, y0 = y1 - rise;
+    const wBack = landW + i * tread, wFront = wBack + tread, sq = i * 0.045;
+    k.box(-half + sq, half - sq, y0, y1 + 0.012, wBack, wFront, STONE);
+  }
+  const wBot = landW + NST * tread, yHand = 0.9;
+  for (const u of [-half - 0.08, half + 0.08]) {
+    k.rail(u, VE3_TERRACE + yHand, wBot, H1 + yHand, landW, 0.04, IRON);
+    const nb = 14;
+    for (let t = 0; t <= nb; t++) {
+      const f = t / nb, w = wBot + (landW - wBot) * f, y = VE3_TERRACE + (H1 - VE3_TERRACE) * f;
+      k.box(u - 0.016, u + 0.016, y, y + yHand, w - 0.016, w + 0.016, IRON);
     }
   }
-  // vasi di cotto con cicadi piccole, sul pianerottolo ai lati della scala
-  const pot = (u, w, s) => {
-    const y = g + 0.28;
-    k.cyl(u, w, y, 0.38 * s, 0.22 * s, 0.32 * s, 0xc4623a, 12);
-    k.cyl(u, w, y + 0.38 * s, 0.06 * s, 0.36 * s, 0.34 * s, 0xd48455, 12);
-    k.cyl(u, w, y + 0.42 * s, 0.28 * s, 0.045 * s, 0.04 * s, 0x6d7a45, 6);
-    const leaf = new THREE.SphereGeometry(0.26 * s, 8, 6); leaf.scale(1, 0.42, 1); leaf.translate(u, y + 0.78 * s, w); k.add(leaf, 0x3d6a34);
-    const leaf2 = new THREE.SphereGeometry(0.16 * s, 6, 5); leaf2.scale(1.5, 0.28, 0.55); leaf2.translate(u + 0.04 * s, y + 0.7 * s, w); k.add(leaf2, 0x4e7c3e);
+  // cicadi in vaso di cotto: fronde a raggiera, non un cespuglio tondo
+  const cycad = (u, w, y, s) => {
+    k.cyl(u, w, y, 0.4 * s, 0.2 * s, 0.32 * s, 0xc4623a, 12);
+    k.cyl(u, w, y + 0.38 * s, 0.08 * s, 0.36 * s, 0.34 * s, 0xd48455, 12);
+    k.cyl(u, w, y + 0.44 * s, 0.16 * s, 0.05 * s, 0.07 * s, 0x5c4634, 8);
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2;
+      const fr = new THREE.BoxGeometry(0.055 * s, 0.012 * s, 0.85 * s);
+      fr.translate(0, 0, 0.38 * s);
+      fr.rotateX(-0.65);
+      fr.rotateY(a);
+      fr.translate(u, y + 0.68 * s, w);
+      k.add(fr, i % 2 ? 0x2f6a32 : 0x3e7a3c);
+    }
   };
-  pot(-c2 - 4.1, 3.55, 1.35);
-  pot(c2 + 3.9, 3.7, 1.2);
-  pot(-c2 - 1.6, 2.7, 0.95);
-  pot(c2 + 1.5, 2.55, 0.85);
-  pot(-c2 - 2.4, 4.55, 0.72);
-  // sedie di plastica bianca, a volte accostate di lato (non sono arredo fisso censito)
+  cycad(-half - 0.85, wBot + 0.35, VE3_TERRACE, 1.35);
+  cycad(half + 0.85, wBot + 0.15, VE3_TERRACE, 1.2);
+  cycad(-half + 0.15, wBot * 0.62, VE3_TERRACE, 0.85);
+  cycad(half - 0.2, wBot * 0.55, VE3_TERRACE, 0.78);
+  cycad(-c2 + 0.15, 0.95, H1, 0.95);
+  cycad(c2 - 0.2, 1.05, H1, 0.9);
+  // sedie bianche accostate a destra della scala, come capita in piazza
   const chair = (u, w) => {
-    const y = g + 0.28, WHITE = 0xf4f4f1;
+    const y = VE3_TERRACE, WHITE = 0xf4f4f1;
     k.box(u - 0.22, u + 0.22, y + 0.42, y + 0.48, w - 0.2, w + 0.2, WHITE);
     k.box(u - 0.21, u + 0.21, y + 0.48, y + 0.9, w - 0.2, w - 0.14, WHITE);
     for (const du of [-0.16, 0.16]) for (const dw of [-0.16, 0.16]) k.box(u + du - 0.018, u + du + 0.018, y, y + 0.42, w + dw - 0.018, w + dw + 0.018, WHITE);
   };
-  for (let i = 0; i < 4; i++) chair(c2 + 4.5, 1.15 + i * 0.52);
+  for (let i = 0; i < 5; i++) chair(half + 1.15, 1.35 + i * 0.5);
   return k.mesh('municipio');
 }
 
 // ---------------------------------------------------------------- Fontana dei Delfini
 function fountain(f) {
   const k = new Kit(f.x, f.z, 0, 1);
-  // la vasca poggia sul basolato (Y + 8 cm), non sull'ortofoto: resta geometria, non una macchia nella foto
-  // vasca bassa e larga, come si vede dalla piazza: bordo di pietra chiara, acqua verde, delfini sul pelo dell'acqua
-  const R = f.r + 0.55, y = f.y + 0.28, STONE = 0xe4dccc;
-  k.cyl(0, 0, y, 0.48, R - 0.15, R - 0.2, STONE, 48);
-  k.cyl(0, 0, y + 0.42, 0.14, R + 0.02, R + 0.1, 0xf3eee4, 48);
-  k.cyl(0, 0, y + 0.38, 0.05, R - 0.55, R - 0.55, 0x6e9a84, 40);
-  const rock = new THREE.IcosahedronGeometry(0.55, 1); const p = rock.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + Math.sin(i * 1.7) * 0.16), p.getY(i) * 0.7, p.getZ(i) * (1 + Math.cos(i * 2.3) * 0.16));
-  rock.translate(0, y + 0.72, 0); k.add(rock, 0x8c8578);
+  // vasca a due livelli sul piano della piazza: gradino esterno, bordo chiaro, acqua verdognola.
+  // Al centro lo scoglio, tre delfini, il fusto tortile, la coppa e il getto.
+  const R = f.r + 0.2, y = VE3_TERRACE, STONE = 0xe6dfd2, RIM = 0xf4f0e6, ROCK = 0x7a756c;
+  k.cyl(0, 0, y, 0.18, R + 0.55, R + 0.42, STONE, 48);
+  k.cyl(0, 0, y + 0.14, 0.46, R - 0.02, R + 0.06, STONE, 48);
+  k.cyl(0, 0, y + 0.52, 0.12, R + 0.02, R + 0.16, RIM, 48);
+  k.cyl(0, 0, y + 0.42, 0.08, R - 0.55, R - 0.55, 0x7eae98, 40);
+  k.cyl(0, 0, y + 0.46, 0.04, R - 1.15, R - 1.15, 0x5f8f86, 32);
+  const rock = new THREE.IcosahedronGeometry(0.72, 1); const p = rock.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1.15 + Math.sin(i * 1.7) * 0.22), Math.abs(p.getY(i)) * 0.85 + 0.15, p.getZ(i) * (1.05 + Math.cos(i * 2.1) * 0.2));
+  rock.translate(0, y + 0.85, 0); k.add(rock, ROCK);
   for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.4, d = new THREE.SphereGeometry(0.28, 8, 6); d.scale(1, 0.5, 2.2); d.rotateX(0.85); d.rotateY(a);
-    d.translate(Math.sin(a) * 0.85, y + 0.78, Math.cos(a) * 0.85); k.add(d, 0x5e5954);
+    const a = (i / 3) * Math.PI * 2 + 0.35;
+    const body = new THREE.SphereGeometry(0.32, 10, 8); body.scale(0.62, 0.48, 1.55); body.rotateX(1.15); body.rotateY(a);
+    body.translate(Math.sin(a) * 0.72, y + 1.22, Math.cos(a) * 0.72); k.add(body, 0x4e4a46);
+    const tail = new THREE.SphereGeometry(0.16, 6, 5); tail.scale(1.35, 0.28, 0.55); tail.rotateY(a);
+    tail.translate(Math.sin(a) * 0.28, y + 1.05, Math.cos(a) * 0.28); k.add(tail, 0x3e3c39);
   }
-  k.cyl(0, 0, y + 1.05, 0.4, 0.035, 0.012, 0xe7f3f1);
+  for (let i = 0; i < 8; i++) {
+    const seg = new THREE.BoxGeometry(0.16, 0.14, 0.16); seg.rotateY(i * 0.55); seg.translate(0, y + 1.55 + i * 0.13, 0); k.add(seg, 0x3a3836);
+  }
+  k.cyl(0, 0, y + 2.55, 0.1, 0.62, 0.7, STONE, 20);
+  k.cyl(0, 0, y + 2.62, 0.08, 0.72, 0.76, RIM, 20);
+  k.cyl(0, 0, y + 2.66, 0.04, 0.48, 0.48, 0x9fd0c4, 16);
+  k.cyl(0, 0, y + 2.7, 0.7, 0.035, 0.02, 0xe7f6f2, 8);
+  const spray = new THREE.SphereGeometry(0.1, 8, 6); spray.translate(0, y + 3.42, 0); k.add(spray, 0xf4fbfd);
   return k.mesh('fontana-delfini');
 }
 
