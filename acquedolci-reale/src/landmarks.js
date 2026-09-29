@@ -125,7 +125,7 @@ function municipio(b, fountain) {
   const F = facadeFrame(b.r, dir);
   const k = new Kit(F.ox, F.oz, F.wx, F.wz);
   const g = b.g, W = F.W, D = F.D, h = W / 2;
-  const WALL = 0xe2d6bd, TRIM = 0xefe6d2, DARK = 0x2b3138, ROOF = 0xb5623d, STONE = 0xcfc6b4;
+  const WALL = 0xeadfc8, TRIM = 0xf4efe4, DARK = 0x2b3138, ROOF = 0xb5623d, STONE = 0xd5cec0, IRON = 0x1c1e22;
   const H1 = g + 0.9, CORN = g + 11.6; // basamento, cornicione
   k.box(-h, h, g - 0.6, CORN, -D, 0, WALL);                               // corpo
   k.box(-h - 0.05, h + 0.05, g - 0.6, H1, -D - 0.05, 0.05, STONE);         // basamento in pietra
@@ -160,6 +160,11 @@ function municipio(b, fountain) {
     k.arch(uc, 1.55, g + 6.2, g + 9.6, 0.72, DARK);                         // tre finestroni ad arco
     k.arch(uc, 1.95, g + 6.0, g + 9.85, 0.71, TRIM, 0.04);                  // cornice dell'arco
     k.arch(uc, uc === 0 ? 2.1 : 1.4, H1, g + (uc === 0 ? 4.6 : 4.2), 0.72, uc === 0 ? 0x4a3526 : DARK); // portone e finestre del piano terra
+    if (uc !== 0) {                                                          // cancelli in ferro nei due vani laterali
+      const yA = H1 + 0.15, yB = g + 4.05;
+      for (let du = -0.42; du <= 0.42; du += 0.16) k.box(uc + du - 0.012, uc + du + 0.012, yA, yB, 0.74, 0.78, IRON);
+      k.box(uc - 0.5, uc + 0.5, yB - 0.02, yB + 0.02, 0.74, 0.78, IRON);
+    }
   }
   // balcone con balaustra sotto i tre archi
   k.box(-c2 + 0.3, c2 - 0.3, g + 5.8, g + 6.0, 0.7, 1.7, TRIM);
@@ -181,11 +186,11 @@ function municipio(b, fountain) {
   sideRows(D, (t, y0, y1) => { for (const s of [-1, 1]) k.box(s * h - 0.1, s * h + 0.1, y0, y1, -t - 0.6, -t + 0.6, DARK); });
   sideRows(W, (t, y0, y1) => k.box(-h + t - 0.6, -h + t + 0.6, y0, y1, -D - 0.1, -D + 0.1, DARK));
   // scalinata sul basolato della piazza (strade.js: Y 0,20 + 0,08), non sotto la mesh
-  for (let i = 0; i < 6; i++) k.box(-c2 - 3 + i * 0.25, c2 + 3 - i * 0.25, g + 0.28, g + 0.28 + 0.15 * (i + 1), 0.7, 0.7 + (6 - i) * 0.4, STONE);
+  const NST = 8;
+  for (let i = 0; i < NST; i++) k.box(-c2 - 3.4 + i * 0.2, c2 + 3.4 - i * 0.2, g + 0.28, g + 0.28 + 0.13 * (i + 1), 0.7, 0.7 + (NST - i) * 0.36, STONE);
   // corrimano in ferro ai due lati e in mezzo: la scala è larga, nella foto c'è il passamano
-  const IRON = 0x2a2e32;
-  const wBot = 0.7 + 6 * 0.4, wTop = 0.7 + 0.4;
-  const yBot = g + 0.28 + 0.15 + 0.92, yTop = g + 0.28 + 0.9 + 0.92;
+  const wBot = 0.7 + NST * 0.36, wTop = 0.7 + 0.36;
+  const yBot = g + 0.28 + 0.13 + 0.92, yTop = g + 0.28 + 0.13 * NST + 0.92;
   for (const u of [-c2 - 3.2, 0, c2 + 3.2]) {
     k.rail(u, yBot, wBot, yTop, wTop, 0.045, IRON);
     k.rail(u, yBot - 0.38, wBot, yTop - 0.38, wTop, 0.03, IRON);
@@ -203,8 +208,10 @@ function municipio(b, fountain) {
     const leaf = new THREE.SphereGeometry(0.26 * s, 8, 6); leaf.scale(1, 0.42, 1); leaf.translate(u, y + 0.78 * s, w); k.add(leaf, 0x3d6a34);
     const leaf2 = new THREE.SphereGeometry(0.16 * s, 6, 5); leaf2.scale(1.5, 0.28, 0.55); leaf2.translate(u + 0.04 * s, y + 0.7 * s, w); k.add(leaf2, 0x4e7c3e);
   };
-  pot(-c2 - 4.1, 3.55, 1.2);
-  pot(c2 + 3.9, 3.7, 1.0);
+  pot(-c2 - 4.1, 3.55, 1.35);
+  pot(c2 + 3.9, 3.7, 1.2);
+  pot(-c2 - 1.6, 2.7, 0.95);
+  pot(c2 + 1.5, 2.55, 0.85);
   pot(-c2 - 2.4, 4.55, 0.72);
   // sedie di plastica bianca, a volte accostate di lato (non sono arredo fisso censito)
   const chair = (u, w) => {
@@ -221,21 +228,19 @@ function municipio(b, fountain) {
 function fountain(f) {
   const k = new Kit(f.x, f.z, 0, 1);
   // la vasca poggia sul basolato (Y + 8 cm), non sull'ortofoto: resta geometria, non una macchia nella foto
-  const R = f.r + 0.3, y = f.y + 0.28, STONE = 0xd8d0c0;
-  const ring = new THREE.RingGeometry(R - 0.45, R, 40); ring.rotateX(-Math.PI / 2);
-  k.cyl(0, 0, y - 0.1, 0.7, R, R, STONE, 40);                        // vasca
-  k.cyl(0, 0, y + 0.6, 0.12, R + 0.08, R + 0.08, 0xe6dfd2, 40);      // bordo
-  k.cyl(0, 0, y + 0.45, 0.02, R - 0.35, R - 0.35, 0x4f8f94, 40);     // acqua
-  const rock = new THREE.IcosahedronGeometry(1.2, 1); const p = rock.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + Math.sin(i * 1.7) * 0.18), p.getY(i) * 0.9, p.getZ(i) * (1 + Math.cos(i * 2.3) * 0.18));
-  rock.translate(0, y + 1.0, 0); k.add(rock, 0x8c8578);                // scoglio centrale
-  k.cyl(0, 0, y + 1.8, 1.3, 0.18, 0.14, 0x9c9486);                     // fusto
-  k.cyl(0, 0, y + 3.05, 0.35, 0.25, 0.75, 0xbdb5a6);                   // tazza
-  for (let i = 0; i < 3; i++) {                                         // delfini attorno allo scoglio
-    const a = (i / 3) * Math.PI * 2, d = new THREE.SphereGeometry(0.35, 8, 6); d.scale(1, 0.55, 2.1); d.rotateX(0.6); d.rotateY(a);
-    d.translate(Math.sin(a) * 1.25, y + 1.5, Math.cos(a) * 1.25); k.add(d, 0x6f6a62);
+  // vasca bassa e larga, come si vede dalla piazza: bordo di pietra chiara, acqua verde, delfini sul pelo dell'acqua
+  const R = f.r + 0.55, y = f.y + 0.28, STONE = 0xe4dccc;
+  k.cyl(0, 0, y, 0.48, R - 0.15, R - 0.2, STONE, 48);
+  k.cyl(0, 0, y + 0.42, 0.14, R + 0.02, R + 0.1, 0xf3eee4, 48);
+  k.cyl(0, 0, y + 0.38, 0.05, R - 0.55, R - 0.55, 0x6e9a84, 40);
+  const rock = new THREE.IcosahedronGeometry(0.55, 1); const p = rock.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + Math.sin(i * 1.7) * 0.16), p.getY(i) * 0.7, p.getZ(i) * (1 + Math.cos(i * 2.3) * 0.16));
+  rock.translate(0, y + 0.72, 0); k.add(rock, 0x8c8578);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.4, d = new THREE.SphereGeometry(0.28, 8, 6); d.scale(1, 0.5, 2.2); d.rotateX(0.85); d.rotateY(a);
+    d.translate(Math.sin(a) * 0.85, y + 0.78, Math.cos(a) * 0.85); k.add(d, 0x5e5954);
   }
-  k.cyl(0, 0, y + 3.3, 0.6, 0.06, 0.02, 0xe8f2f4);                     // zampillo
+  k.cyl(0, 0, y + 1.05, 0.4, 0.035, 0.012, 0xe7f3f1);
   return k.mesh('fontana-delfini');
 }
 
@@ -246,7 +251,7 @@ function chiesa(b) {
   const F = facadeFrame(b.r, [0, -1]);
   const k = new Kit(F.ox, F.oz, F.wx, F.wz);
   const g = b.g, W = Math.min(21, F.W), L = F.D, h = W / 2;
-  const YEL = 0xe8d09a, TRIM = 0xf2e6c4, DARK = 0x33302c, WOOD = 0x5a3a24, ROOF = 0xb0603a, LEAD = 0x8e908e;
+  const YEL = 0xf3ead2, TRIM = 0xf8f3e6, DARK = 0x33302c, WOOD = 0x5a3a24, ROOF = 0xb0603a, LEAD = 0x8e908e;
   const nave = Math.min(11, W * 0.55), n2 = nave / 2, rear = Math.min(9, L * 0.28);
   const EN = g + 13, EA = g + 7.5; // gronda navata, gronda navatelle
   // navata e navatelle
@@ -270,6 +275,7 @@ function chiesa(b) {
   // facciata: ordine inferiore su tutta la larghezza, superiore sulla navata, timpano e croce
   const FT = 0.5; // la facciata sporge davanti al corpo
   k.box(-h, h, g - 0.5, g + 9, 0, FT, YEL);
+  k.box(-h - 0.04, h + 0.04, g - 0.5, g + 0.32, -0.02, FT + 0.04, 0xc9c3b4); // zoccolo di pietra grigia, sotto la soglia
   k.box(-h - 0.2, h + 0.2, g + 8.2, g + 9.3, -0.1, FT + 0.3, TRIM);          // trabeazione con l'iscrizione
   k.box(-4, 4, g + 8.45, g + 9.0, FT + 0.3, FT + 0.34, 0xdcc9a0);
   k.box(-n2, n2, g + 9.3, g + 15.6, 0, FT, YEL);

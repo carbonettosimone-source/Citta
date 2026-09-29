@@ -49,14 +49,14 @@ Municipio, fontana e Chiesa Madre restano i modelli a mano sopra. Intorno, sei p
 
 | DBTR | Piazza | Cosa |
 |---|---|---|
-| 1302565 + fontana OSM | Vittorio Emanuele III | Municipio e Fontana dei Delfini (`landmarks.js`) |
-| 1302566 | Vittorio Emanuele III | Palazzo a ovest: due piani, archi al piano terra, persiane verdi, balconi alterni. Intonaco dal colore misurato |
-| 1302564 | Vittorio Emanuele III | Palazzo chiaro a est: due piani di finestre, persiane verdi, balcone a ogni campata. L'ortofoto qui è quasi bianca (campione bruciato): l'intonaco è un gesso chiaro, non quel bianco |
-| 1300978 | Libertà | Chiesa Madre (`landmarks.js`) |
-| 1302693 | Libertà | Palazzo alto a ovest, cinque piani, terrazza con parapetto (niente falde nel LiDAR), loggia ad archi all'ultimo piano |
-| 1302678 | Libertà | Palazzetto a est, quattro piani, persiane brune, balconi. Tinta corretta dal campione quasi bianco dell'ortofoto |
-| 1302669 | Giovanni Paolo II | Villa chiara a sud del giardino, tetto a falde, portone e un balcone al centro, persiane verdi |
-| 1302648 | Giovanni Paolo II | Schiera a ovest: botteghe al piano terra, lesene, balcone a ogni campata |
+| 1302565 + fontana OSM | Vittorio Emanuele III | Municipio in pietra chiara, scala più lunga, cancelli nei vani laterali, vasi di cicadi. Fontana bassa e larga, delfini sul pelo dell'acqua (`landmarks.js`) |
+| 1302566 | Vittorio Emanuele III | Palazzo a ovest: intonaco chiaro, persiane brune chiuse, balcone al piano sopra. Gli archi restano solo sul Municipio |
+| 1302564 | Vittorio Emanuele III | Palazzo a est: due piani, finestre rettangolari, persiane brune chiuse, coppi, senza balconi |
+| 1300978 | Libertà | Chiesa Madre in avorio, zoccolo di pietra grigia, portale in legno (`landmarks.js`) |
+| 1302693 | Libertà | Palazzo alto a ovest: cinque piani, tanti balconi, persiane brune chiuse, terrazza. Niente loggia ad archi |
+| 1302678 | Libertà | Palazzetto bianco a est: persiane verdi chiuse, portone al centro, senza balconi |
+| 1302669 | Giovanni Paolo II | Villa chiara fra gli alberi, persiane verdi, un balcone sul portone, tetto a falde |
+| 1302648 | Giovanni Paolo II | Schiera: piano terra in pietra con botteghe, sopra intonaco chiaro, persiane brune e balconi |
 
 ## Studio di riferimento (solo in locale)
 

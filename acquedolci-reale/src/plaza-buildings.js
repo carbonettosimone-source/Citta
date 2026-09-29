@@ -8,42 +8,51 @@
  *  - 1302566, 1302564 — fianchi di Piazza Vittorio Emanuele III
  *  - 1302693, 1302678 — Piazza Libertà, ai lati della Chiesa Madre
  *  - 1302669, 1302648 — intorno a Piazza Giovanni Paolo II
+ *
+ * Colori e ritmo (agosto 2021 in VE3, giugno 2018 in Libertà, settembre 2025 in GP2) sono
+ * presi guardando le foto di riferimento, non incollando i pixel.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NIGHT } from './daylight.js';
 
-/** @type {Record<number, {name:string, title:string, piazza:string, facing:[number,number], wall:number, trim:number, stone:number, shutter:number, roof:number, bay:number, balcony:'alt'|'every'|'center', ground?:'archi'|'bottega', top?:'loggia', pilastri?:boolean}>} */
+/** @type {Record<number, {name:string, title:string, piazza:string, facing:[number,number], wall:number, trim:number, stone:number, shutter:number, roof:number, bay:number, balcony:'alt'|'every'|'center'|'none', ante?:'chiuse', ground?:'archi'|'bottega', top?:'loggia', pilastri?:boolean, shop?:number}>} */
 export const PIAZZA = {
+  // A ovest della piazza: intonaco chiaro, persiane brune chiuse, balcone al piano sopra. Niente archi: quelli sono del Municipio.
   1302566: {
     name: 'palazzo-ve3-ovest', title: 'Palazzo a ovest del Municipio', piazza: 'Vittorio Emanuele III',
-    facing: [1, -0.2], wall: 0xae947d, trim: 0xefe4d2, stone: 0xc8bfae, shutter: 0x2f4d38, roof: 0xb5623d,
-    bay: 3.15, balcony: 'alt', ground: 'archi',
+    facing: [1, -0.2], wall: 0xe7d3b0, trim: 0xf3ead8, stone: 0xcfc4b0, shutter: 0x7a5234, roof: 0xb15a34,
+    bay: 3.05, balcony: 'every', ante: 'chiuse',
   },
+  // A est, visto di fronte: due piani, finestre rettangolari, persiane brune chiuse, tetto in coppi, quasi senza balconi.
   1302564: {
     name: 'palazzo-ve3-est', title: 'Palazzo chiaro a est del Municipio', piazza: 'Vittorio Emanuele III',
-    facing: [-1, 0.1], wall: 0xf2efe8, trim: 0xf7f4ee, stone: 0xd9d3c6, shutter: 0x3e6b45, roof: 0xb5623d,
-    bay: 2.85, balcony: 'every',
+    facing: [-1, 0.1], wall: 0xf4efe4, trim: 0xf8f4ec, stone: 0xd5cec0, shutter: 0x8a5a32, roof: 0xb15a34,
+    bay: 3.2, balcony: 'none', ante: 'chiuse',
   },
+  // A ovest della chiesa: palazzo alto di abitazione, tanti balconi, persiane brune, terrazza. Non una loggia ad archi.
   1302693: {
     name: 'palazzo-liberta-alto', title: 'Palazzo alto a ovest della Chiesa Madre', piazza: 'Libertà',
-    facing: [1, 0.15], wall: 0x8f857e, trim: 0xe4dccb, stone: 0xb7aea2, shutter: 0x3a342e, roof: 0x9a9086,
-    bay: 2.55, balcony: 'alt', top: 'loggia',
+    facing: [1, 0.15], wall: 0xdcc6a4, trim: 0xefe4cc, stone: 0xc4b79a, shutter: 0x6d4a34, roof: 0xa89880,
+    bay: 3.15, balcony: 'every', ante: 'chiuse',
   },
+  // A est della chiesa: palazzetto bianco, persiane verdi chiuse, portone al centro, senza balconi.
   1302678: {
     name: 'palazzetto-liberta-est', title: 'Palazzetto a est della Chiesa Madre', piazza: 'Libertà',
-    facing: [-1, 0], wall: 0xf0ebe3, trim: 0xf6f1e6, stone: 0xd4cdc0, shutter: 0x6a4a32, roof: 0xb5623d,
-    bay: 2.6, balcony: 'every',
+    facing: [-1, 0], wall: 0xf7f4ee, trim: 0xfbf8f2, stone: 0xddd6c8, shutter: 0x2e6a3c, roof: 0xb15a34,
+    bay: 2.7, balcony: 'none', ante: 'chiuse',
   },
+  // Villa chiara fra gli alberi del giardino: persiane verdi, un balcone sul portone, tetto a falde.
   1302669: {
     name: 'villa-gp2', title: 'Villa chiara a sud del giardino', piazza: 'Giovanni Paolo II',
-    facing: [0, -1], wall: 0xf6f3ec, trim: 0xfaf7f1, stone: 0xddd6c8, shutter: 0x2c5a3c, roof: 0xb5623d,
-    bay: 3.3, balcony: 'center',
+    facing: [0, -1], wall: 0xf3e7c8, trim: 0xf8f2e4, stone: 0xddd4c4, shutter: 0x2c5c38, roof: 0xb15a34,
+    bay: 3.2, balcony: 'center', ante: 'chiuse',
   },
+  // Schiera lungo la via: piano terra in pietra con botteghe, sopra intonaco chiaro, persiane brune e balconi.
   1302648: {
     name: 'schiera-gp2', title: 'Schiera a ovest del giardino', piazza: 'Giovanni Paolo II',
-    facing: [0, -1], wall: 0xa58882, trim: 0xe7d8cc, stone: 0xc4b5a4, shutter: 0x4d5e52, roof: 0xb5623d,
-    bay: 4.3, balcony: 'every', ground: 'bottega', pilastri: true,
+    facing: [0, -1], wall: 0xe6d2b8, trim: 0xf0e4d0, stone: 0xb7aa96, shutter: 0x6a4c36, roof: 0xb15a34,
+    bay: 4.2, balcony: 'every', ante: 'chiuse', ground: 'bottega', pilastri: true, shop: 0x2a2826,
   },
 };
 
@@ -244,8 +253,10 @@ function buildOne(b) {
           continue;
         }
         if (bottega) {
-          const y1 = yFloor + fh * 0.78;
-          orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor + 0.08, y1, Math.min(1.15, spec.bay * 0.32), 0.03, 0.1, SHOP);
+          const hwS = Math.min(1.35, spec.bay * 0.36);
+          const y1 = yFloor + fh * 0.82;
+          orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor + 0.02, y1, hwS + 0.14, 0.02, 0.09, spec.stone);
+          orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor + 0.1, y1 - 0.1, hwS, 0.09, 0.16, spec.shop || SHOP);
           continue;
         }
         const y0 = yFloor + fh * 0.28;
@@ -254,6 +265,14 @@ function buildOne(b) {
         if (arch) {
           addArch(parts, px, pz, tx, tz, nx, nz, y0 - 0.06, y1 + 0.08, hw * 2 + 0.22, spec.trim, 0.02, 0.07);
           addArch(parts, px, pz, tx, tz, nx, nz, y0, y1, hw * 2, GLASS, 0.07, 0.12);
+        } else if (spec.ante === 'chiuse' && spec.shutter) {
+          orientedBox(parts, px, pz, tx, tz, nx, nz, y0 - 0.08, y1 + 0.08, hw + 0.1, 0.02, 0.07, spec.trim);
+          orientedBox(parts, px, pz, tx, tz, nx, nz, y0, y1, hw, 0.07, 0.13, spec.shutter);
+          const span = y1 - y0;
+          for (let s = 1; s <= 3; s++) {
+            const yy = y0 + span * s / 4;
+            orientedBox(parts, px, pz, tx, tz, nx, nz, yy - 0.02, yy + 0.02, hw * 0.92, 0.12, 0.155, 0x241c16);
+          }
         } else {
           orientedBox(parts, px, pz, tx, tz, nx, nz, y0 - 0.08, y1 + 0.08, hw + 0.1, 0.02, 0.07, spec.trim);
           orientedBox(parts, px, pz, tx, tz, nx, nz, y0, y1, hw, 0.07, 0.12, GLASS);
@@ -265,7 +284,7 @@ function buildOne(b) {
         const wantBalcony = f > 0 && !(f === floors - 1 && spec.top === 'loggia')
           && (spec.balcony === 'every' || (spec.balcony === 'alt' && k % 2 === 0) || (spec.balcony === 'center' && isPortal && k === mid && f === 1));
         if (wantBalcony) {
-          const slab = hw + 0.28;
+          const slab = spec.balcony === 'every' ? Math.min(spec.bay * 0.42, 1.6) : hw + 0.28;
           orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor - 0.02, yFloor + 0.08, slab, 0.06, 0.78, spec.stone);
           orientedBox(parts, px, pz, tx, tz, nx, nz, yFloor + 0.82, yFloor + 0.9, slab, 0.68, 0.76, IRON);
           for (const s of [-1, 1]) orientedBox(parts, px + tx * s * (slab - 0.05), pz + tz * s * (slab - 0.05), tx, tz, nx, nz, yFloor + 0.08, yFloor + 0.9, 0.025, 0.66, 0.74, IRON);
