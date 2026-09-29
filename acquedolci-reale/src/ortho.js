@@ -33,6 +33,40 @@ const DETAIL_UNI = `
 uniform sampler2D pebMap; uniform sampler2D grsMap; uniform sampler2D dryMap;
 uniform vec3 pebMean; uniform vec3 grsMean; uniform vec3 dryMean;`;
 
+/**
+ * Tetti a falde: coppi veri disegnati nel riferimento della falda (vRuv: metri lungo la gronda e su
+ * per la pendenza, buildings.js → roofFrame). Il colore resta quello della foto di quel tetto, ma
+ * mediato su 3-4 m (mip più grosso): via le sbavature di facciate e ombre che l'ortofoto proietta sui
+ * tetti. Colonne alterne di coppi (convessi) e canali, ombra dove ogni coppo si sovrappone al
+ * successivo, tono diverso da coppo a coppo. Il disegno sfuma quando il pixel è più grosso di un coppo.
+ */
+const COPPI = `
+varying vec3 vRuv;
+float cHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+vec3 coppi(vec3 sharp) {
+  vec3 low = texture2D(map, vMapUv, 3.0).rgb;
+  vec2 hu = vec2(vWPos.x - hrRect.x, hrRect.y - vWPos.z) / hrRect.z;
+  vec2 e = min(hu, 1.0 - hu);
+  float inside = hrRect.w * smoothstep(0.0, 0.02, min(e.x, e.y));
+  if (inside > 0.0) { vec4 h = texture2D(hrMap, hu, 4.0); low = low * (1.0 - inside * h.a) + h.rgb * inside; }
+  // colore della falda: i riflessi bianchi e le sbavature rosate della foto tornano verso il cotto;
+  // la luminosità resta quella del tetto, la tinta propria resta dove è già calda
+  float L = min(dot(low, vec3(0.2126, 0.7152, 0.0722)), 0.34);
+  vec3 cotto = vec3(0.50, 0.16, 0.07) * (L / 0.226);
+  float warm = clamp((low.r - low.b) / max(low.r, 1e-3) * 1.6 - 0.4, 0.0, 1.0);
+  low = mix(cotto, low, 0.25 + 0.5 * warm);
+  vec2 q = vRuv.xy;
+  float px = length(fwidth(q));
+  float fade = 1.0 - smoothstep(0.12, 0.35, px) * 0.8; // da lontano resta una trama leggera
+  float cu = q.x / 0.23, cv = q.y / 0.42;
+  float fu = fract(cu), col = mod(floor(cu), 2.0);
+  float prof = col > 0.5 ? 0.92 + 0.22 * sin(fu * 3.1416) : 0.74 + 0.1 * sin(fu * 3.1416);
+  float course = 1.0 - 0.3 * smoothstep(0.8, 1.0, fract(cv + col * 0.5));
+  float pat = prof * course * (0.88 + 0.24 * cHash(floor(vec2(cu, cv + col * 0.5))));
+  vec3 base = mix(low, sharp, 0.12);
+  return base * mix(1.0, pat / 0.9, fade);
+}`;
+
 export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
   const m = new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide });
   // il suolo cede nel depth buffer: strade, marciapiedi e strisce disegnati sopra vincono sempre
@@ -43,9 +77,11 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
     sh.uniforms.hrMap = HR.map; sh.uniforms.hrRect = HR.rect;
     if (nearNeutral) Object.assign(sh.uniforms, GROUND);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;' + (roof ? '\nattribute vec3 ruv;\nvarying vec3 vRuv;' : ''))
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;' + (roof ? '\nvRuv = ruv;' : ''));
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform sampler2D hrMap;\nuniform vec4 hrRect;' + (roof ? LAB : '') + (nearNeutral ? LC_GLSL + DETAIL_UNI : ''));
+    // i coppi campionano la mappa: vanno dopo la sua dichiarazione
+    if (roof) sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', `#include <map_pars_fragment>${COPPI}`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       // la tinta dell'ora del giorno (colore del materiale, daylight.js) si toglie qui e si rimette
       // in fondo: i ritocchi dell'ortofoto lavorano sempre sulla foto di giorno
@@ -73,6 +109,7 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         lifted = mix(lifted, vec3(g) * vec3(1.03, 1.0, 0.95), 0.35 + 0.5 * blue);
         diffuseColor.rgb = mix(diffuseColor.rgb, lifted, shade * 0.85);
         ${roof ? `
+        if (vRuv.z > 0.5) diffuseColor.rgb = coppi(diffuseColor.rgb);
         // coppi: nelle foto dal vero sono ~1,4 volte più saturi e più aranci che nell'ortofoto
         // (a*/b* 23/25 contro 18/16, photo-palette): si ritocca solo la tinta dei pixel già caldi
         vec3 lab = rgb2lab(diffuseColor.rgb);
@@ -82,7 +119,7 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         ${nearNeutral ? `
         // da vicino: grana del materiale vero secondo la copertura del suolo (ground.js)
         float dist = distance(vWPos, cameraPosition);
-        float near = 1.0 - smoothstep(60.0, 260.0, dist);
+        float near = 1.0 - smoothstep(150.0, 650.0, dist); // il gioco si guarda da lontano: dettaglio fino a ~650 m
         if (near > 0.0) {
           vec4 lc = landcover(vWPos.xz);
           float wSea = lc.x > 0.02 ? 1.0 : 0.0;

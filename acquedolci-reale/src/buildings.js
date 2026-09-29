@@ -13,7 +13,7 @@ const NO_WINDOWS = new Set(['B006', 'B007', 'B009', 'B010']); // baracca, tettoi
 function hash(n) { let h = Math.imul(n, 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return (h >>> 0) / 4294967296; }
 
 class Buf {
-  constructor() { this.p = []; this.u = []; this.c = []; }
+  constructor() { this.p = []; this.u = []; this.c = []; this.r = []; }
   tri(a, b, c, ua, ub, uc, col) {
     this.p.push(...a, ...b, ...c);
     if (ua) this.u.push(...ua, ...ub, ...uc);
@@ -25,6 +25,7 @@ class Buf {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
     if (this.u.length) g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
     if (this.c.length) g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    if (this.r.length) g.setAttribute('ruv', new THREE.Float32BufferAttribute(this.r, 3));
     g.computeVertexNormals();
     g.computeBoundingSphere();
     return g;
@@ -141,11 +142,14 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
         const fp = face.map(vert);
         let tris;
         try { tris = THREE.ShapeUtils.triangulateShape(fp.map((p) => new THREE.Vector2(p[0], p[2])), []); } catch { continue; }
+        // riferimento della falda per i coppi: e lungo la gronda (orizzontale), s su per la pendenza
+        const fr = roofFrame(fp);
         for (const [i, j, k] of tris) {
           let a = fp[i], c = fp[j], d = fp[k];
           // falda rivolta verso l'alto: (c−a)×(d−a) con componente y positiva
           if ((c[2] - a[2]) * (d[0] - a[0]) - (c[0] - a[0]) * (d[2] - a[2]) < 0) [c, d] = [d, c];
           rb.tri(a, c, d, uvIn(tile, a[0], a[2]), uvIn(tile, c[0], c[2]), uvIn(tile, d[0], d[2]));
+          for (const q of [a, c, d]) rb.r.push(...(fr ? [fr.eu(q), fr.sv(q), 1] : [0, 0, 0]));
           peak = Math.max(peak, a[1], c[1], d[1]);
         }
       }
@@ -157,6 +161,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
       for (const [i, j, k] of tris) {
         const a = [pts[i][0], top, pts[i][1]], bb = [pts[j][0], top, pts[j][1]], c = [pts[k][0], top, pts[k][1]];
         rb.tri(a, bb, c, uvIn(tile, a[0], a[2]), uvIn(tile, bb[0], bb[2]), uvIn(tile, c[0], c[2]));
+        rb.r.push(0, 0, 0, 0, 0, 0, 0, 0, 0); // terrazza: resta la foto (cisterne, pannelli, lastrici)
       }
       if (b.pp) {
         // parapetto da 1 m sul filo della facciata, colore dell'intonaco un filo più scuro
@@ -191,6 +196,23 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   group.add(buildRoofItems(roofItems));
   group.add(buildBalconies(balconies));
   return { group, footprints };
+}
+
+/**
+ * Riferimento di una falda: normale dal primo triangolo non degenere, e = orizzontale lungo la
+ * gronda, s = in salita lungo la falda. Coordinate in metri: i coppi (ortho.js) corrono lungo s.
+ */
+function roofFrame(fp) {
+  const n = new THREE.Vector3();
+  for (let i = 1; i + 1 < fp.length && n.lengthSq() < 1e-6; i++) {
+    const A = new THREE.Vector3(...fp[0]), B = new THREE.Vector3(...fp[i]), C = new THREE.Vector3(...fp[i + 1]);
+    n.crossVectors(B.sub(A), C.sub(A));
+  }
+  if (n.lengthSq() < 1e-6) return null;
+  n.normalize(); if (n.y < 0) n.negate();
+  if (n.y > 0.995) return null; // quasi piana: niente coppi
+  const e = new THREE.Vector3(0, 1, 0).cross(n).normalize(), sl = new THREE.Vector3().crossVectors(n, e).normalize();
+  return { eu: (q) => q[0] * e.x + q[1] * e.y + q[2] * e.z, sv: (q) => q[0] * sl.x + q[1] * sl.y + q[2] * sl.z };
 }
 
 /** Collisione: griglia a secchi sulle piante, punto-in-poligono. */

@@ -70,6 +70,12 @@ Coordinate: EPSG:25833 (UTM 33N) come DBTR, MDT e ortofoto; nel renderer X = est
 
 Un upscaler (Real-ESRGAN e simili) inventa dettaglio plausibile: coppi, auto e aiuole che non ci sono. Il SITR pubblica l'ortofoto 2022 già a 20 cm, quindi si usa quella: 182 tessere a 25 cm (34 MB) sul paese, caricate a gruppi di 3×3 intorno al punto guardato (`src/ortho-hr.js`). Le foto di Commons invece servono solo come riferimento di forma e colore: ingrandirle non aggiungerebbe nulla al modello.
 
+Al posto dell'upscaler, per la vista da lontano del gioco:
+
+- **Coppi veri sui tetti a falde** (`ortho.js` → `COPPI`). Ogni falda ha il suo riferimento: lungo la gronda e su per la pendenza (`buildings.js` → `roofFrame`). Lì si disegnano colonne alterne di coppi e canali, l'ombra dove i coppi si sovrappongono e il tono che cambia da coppo a coppo. Il colore resta quello della foto di quel tetto, mediato su 3-4 m, così spariscono le sbavature di facciate e ombre. Il disegno sfuma quando il pixel è più grosso di un coppo (niente moiré). Le terrazze tengono la foto, con cisterne e pannelli veri.
+- **Dettaglio del suolo** fino a ~650 m invece di 260.
+- **Nitidezza adattiva al contrasto** (AMD CAS, `post.js`): la scena si disegna in un buffer con antialiasing 4×, poi un passaggio rinforza i dettagli fini senza aloni. Si spegne dalle impostazioni.
+
 ## Strade, mare e suolo
 
 - **Strade**: la carreggiata è l'unione (Clipper) delle strisce di tutte le vie, quindi gli incroci si chiudono da soli. Il marciapiede, a larghezza costante per via, è la fascia fino alle facciate; le piazze pedonali sono in basolato. Tutto meno le piante degli edifici, a tessere da 128 m. Nel browser ogni poligono è triangolato e diviso in lati ≤ 6 m per seguire il terreno: la divisione dipende solo dal lato, quindi non restano fessure.

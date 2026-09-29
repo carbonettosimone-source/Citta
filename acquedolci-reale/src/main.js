@@ -12,6 +12,7 @@ import { buildWater } from './water.js';
 import { buildBackground } from './background.js';
 import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
 import { createIntro } from './intro.js';
+import { createPost } from './post.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -218,7 +219,8 @@ $('bDrone').onclick = () => setMode(false);
 setMode(false);
 
 // ---------- impostazioni: nomi dei luoghi, ora del giorno, luci notturne (ricordate nel browser)
-const settings = { names: false, hour: 11, lights: true };
+const settings = { names: false, hour: 11, lights: true, sharp: true };
+const post = createPost(renderer);
 try { Object.assign(settings, JSON.parse(localStorage.getItem('acq-settings') || '{}')); } catch { /* niente memoria: valori di base */ }
 const saveSettings = () => { try { localStorage.setItem('acq-settings', JSON.stringify(settings)); } catch { /* pazienza */ } };
 const basics = new Set();
@@ -240,6 +242,8 @@ $('optNames').checked = settings.names;
 $('optLights').checked = settings.lights;
 $('optNames').onchange = (e) => { settings.names = e.target.checked; saveSettings(); };
 $('optLights').onchange = (e) => { settings.lights = e.target.checked; setHour(settings.hour); };
+$('optSharp').checked = settings.sharp;
+$('optSharp').onchange = (e) => { settings.sharp = e.target.checked; saveSettings(); };
 $('optTime').oninput = (e) => setHour(+e.target.value);
 $('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
@@ -292,11 +296,14 @@ function frame() {
   bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
   if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
   updateLabels();
+  // con la nitidezza la scena passa da un buffer con antialiasing (post.js), altrimenti dritta a schermo
+  renderer.setRenderTarget(settings.sharp ? post.target : null);
   renderer.clear();
   renderer.render(bgScene, bgCamera);
   renderer.clearDepth();
   renderer.render(scene, camera);
+  if (settings.sharp) post.present();
 }
 frame();
-addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro };
