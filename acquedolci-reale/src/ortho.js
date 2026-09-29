@@ -52,18 +52,24 @@ vec3 detailT(sampler2D t, vec2 p, float s) {
 const COPPI = `
 varying vec3 vRuv;
 float cHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float cNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(cHash(i), cHash(i + vec2(1, 0)), f.x), mix(cHash(i + vec2(0, 1)), cHash(i + vec2(1, 1)), f.x), f.y); }
+vec3 srgb(vec3 c) { return pow(c / 255.0, vec3(2.2)); }
 vec3 coppi(vec3 sharp) {
-  vec3 low = texture2D(map, vMapUv, 3.0).rgb;
-  vec2 hu = vec2(vWPos.x - hrRect.x, hrRect.y - vWPos.z) / hrRect.z;
-  vec2 e = min(hu, 1.0 - hu);
-  float inside = hrRect.w * smoothstep(0.0, 0.02, min(e.x, e.y));
-  if (inside > 0.0) { vec4 h = texture2D(hrMap, hu, 4.0); low = low * (1.0 - inside * h.a) + h.rgb * inside; }
-  // colore della falda: i riflessi bianchi e le sbavature rosate della foto tornano verso il cotto;
-  // la luminosità resta quella del tetto, la tinta propria resta dove è già calda
-  float L = min(dot(low, vec3(0.2126, 0.7152, 0.0722)), 0.34);
-  vec3 cotto = vec3(0.50, 0.16, 0.07) * (L / 0.226);
-  float warm = clamp((low.r - low.b) / max(low.r, 1e-3) * 1.6 - 0.4, 0.0, 1.0);
-  low = mix(cotto, low, 0.25 + 0.5 * warm);
+  // tetto a falde tutto procedurale: niente foto (ombre, antenne e comignoli la sporcavano di macchie).
+  // Ogni edificio ha il suo cotto da una gamma vera: nuovo, arancio, sbiadito, invecchiato, bruno
+  float t = fract(vRuv.z) * 6.0;
+  vec3 P0 = srgb(vec3(196, 98, 58)), P1 = srgb(vec3(214, 120, 74)), P2 = srgb(vec3(188, 124, 94));
+  vec3 P3 = srgb(vec3(160, 84, 56)), P4 = srgb(vec3(176, 102, 70)), P5 = srgb(vec3(204, 138, 108));
+  vec3 low = t < 1.0 ? mix(P0, P1, t) : t < 2.0 ? mix(P1, P2, t - 1.0) : t < 3.0 ? mix(P2, P3, t - 2.0)
+           : t < 4.0 ? mix(P3, P4, t - 3.0) : t < 5.0 ? mix(P4, P5, t - 4.0) : mix(P5, P0, t - 5.0);
+  // invecchiamento leggero: chiazze larghe e morbide, mai scure
+  float w = cNoise(vWPos.xz * 0.35) * 0.6 + cNoise(vWPos.xz * 1.3) * 0.4;
+  low *= 0.9 + 0.2 * w;
+  // luce sulla falda (le foto la portavano cotta dentro): sole da sud-est come il volo
+  vec3 fn = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  if (fn.y < 0.0) fn = -fn;
+  low *= 0.72 + 0.42 * max(dot(fn, normalize(vec3(0.45, 0.75, 0.5))), 0.0);
   vec2 q = vRuv.xy;
   float px = length(fwidth(q));
   float fade = 1.0 - smoothstep(0.12, 0.35, px) * 0.8; // da lontano resta una trama leggera
@@ -72,8 +78,7 @@ vec3 coppi(vec3 sharp) {
   float prof = col > 0.5 ? 0.92 + 0.22 * sin(fu * 3.1416) : 0.74 + 0.1 * sin(fu * 3.1416);
   float course = 1.0 - 0.3 * smoothstep(0.8, 1.0, fract(cv + col * 0.5));
   float pat = prof * course * (0.88 + 0.24 * cHash(floor(vec2(cu, cv + col * 0.5))));
-  vec3 base = mix(low, sharp, 0.12);
-  return base * mix(1.0, pat / 0.9, fade);
+  return low * mix(1.0, pat / 0.9, fade);
 }`;
 
 export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
@@ -119,12 +124,14 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         diffuseColor.rgb = mix(diffuseColor.rgb, lifted, shade * 0.85);
         ${roof ? `
         if (vRuv.z > 0.5) diffuseColor.rgb = coppi(diffuseColor.rgb);
-        // coppi: nelle foto dal vero sono ~1,4 volte più saturi e più aranci che nell'ortofoto
-        // (a*/b* 23/25 contro 18/16, photo-palette): si ritocca solo la tinta dei pixel già caldi
-        vec3 lab = rgb2lab(diffuseColor.rgb);
-        float warm = smoothstep(4.0, 12.0, length(lab.yz)) * step(0.0, lab.y) * step(0.0, lab.z);
-        lab.yz *= mix(vec2(1.0), vec2(1.3, 1.55), warm);
-        diffuseColor.rgb = lab2rgb(lab);` : ''}
+        else {
+          // terrazze (foto vera): nelle foto dal vero i toni caldi sono ~1,4 volte più saturi che
+          // nell'ortofoto (photo-palette): si ritocca solo la tinta dei pixel già caldi
+          vec3 lab = rgb2lab(diffuseColor.rgb);
+          float warm = smoothstep(4.0, 12.0, length(lab.yz)) * step(0.0, lab.y) * step(0.0, lab.z);
+          lab.yz *= mix(vec2(1.0), vec2(1.3, 1.55), warm);
+          diffuseColor.rgb = lab2rgb(lab);
+        }` : ''}
         ${nearNeutral ? `
         // Suolo sostituito da vicino (ground.js): dove un pixel copre meno di ~1 m la foto aerea
         // sarebbe una macchia sfocata. Lì la TINTA viene dalla foto mediata su ~4 m (mip grossi)

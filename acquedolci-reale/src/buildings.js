@@ -149,7 +149,8 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
           // falda rivolta verso l'alto: (c−a)×(d−a) con componente y positiva
           if ((c[2] - a[2]) * (d[0] - a[0]) - (c[0] - a[0]) * (d[2] - a[2]) < 0) [c, d] = [d, c];
           rb.tri(a, c, d, uvIn(tile, a[0], a[2]), uvIn(tile, c[0], c[2]), uvIn(tile, d[0], d[2]));
-          for (const q of [a, c, d]) rb.r.push(...(fr ? [fr.eu(q), fr.sv(q), 1] : [0, 0, 0]));
+          // terzo valore: 1 + tinta dell'edificio (0..1), per il cotto procedurale
+          for (const q of [a, c, d]) rb.r.push(...(fr ? [fr.eu(q), fr.sv(q), 1 + hash(b.id * 7 + 3) * 0.999] : [0, 0, 0]));
           peak = Math.max(peak, a[1], c[1], d[1]);
         }
       }
