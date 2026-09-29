@@ -211,24 +211,16 @@ function municipio(b, fountain) {
   const sideRows = (len, place) => { for (let t = 2.2; t < len - 1.5; t += 3) for (const [y0, y1] of [[g + 1.8, g + 4.3], [g + 6.6, g + 9.3]]) place(t, y0, y1); };
   sideRows(D, (t, y0, y1) => { for (const s of [-1, 1]) k.box(s * h - 0.1, s * h + 0.1, y0, y1, -t - 0.6, -t + 0.6, DARK); });
   sideRows(W, (t, y0, y1) => k.box(-h + t - 0.6, -h + t + 0.6, y0, y1, -D - 0.1, -D + 0.1, DARK));
-  // undici gradini dal piano della piazza al pianerottolo del portico
-  const NST = 11, half = c2 + 2.6, landW = 1.55, tread = 0.32;
+  // sette gradini larghi in pietra chiara, come si contano dal drone. Niente ringhiera: in foto non c'è.
+  const NST = 7, half = c2 + 2.6, landW = 1.55, tread = 0.38;
   const rise = (H1 - VE3_TERRACE) / NST;
   k.box(-half + 0.6, half - 0.6, H1 - 0.05, H1 + 0.01, 0.02, landW, STONE);
   for (let i = 0; i < NST; i++) {
     const y1 = H1 - i * rise, y0 = y1 - rise;
-    const wBack = landW + i * tread, wFront = wBack + tread, sq = i * 0.045;
+    const wBack = landW + i * tread, wFront = wBack + tread, sq = i * 0.03;
     k.box(-half + sq, half - sq, y0, y1 + 0.012, wBack, wFront, STONE);
   }
-  const wBot = landW + NST * tread, yHand = 0.9;
-  for (const u of [-half - 0.08, half + 0.08]) {
-    k.rail(u, VE3_TERRACE + yHand, wBot, H1 + yHand, landW, 0.04, IRON);
-    const nb = 14;
-    for (let t = 0; t <= nb; t++) {
-      const f = t / nb, w = wBot + (landW - wBot) * f, y = VE3_TERRACE + (H1 - VE3_TERRACE) * f;
-      k.box(u - 0.016, u + 0.016, y, y + yHand, w - 0.016, w + 0.016, IRON);
-    }
-  }
+  const wBot = landW + NST * tread;
   // cicadi in vaso di cotto: fronde a raggiera, non un cespuglio tondo
   const cycad = (u, w, y, s) => {
     k.cyl(u, w, y, 0.4 * s, 0.2 * s, 0.32 * s, 0xc4623a, 12);
@@ -264,44 +256,19 @@ function municipio(b, fountain) {
 // ---------------------------------------------------------------- Fontana dei Delfini
 function fountain(f) {
   const k = new Kit(f.x, f.z, 0, 1);
-  // vasca a due livelli sul piano della piazza: bordo chiaro, acqua turchina.
-  // Al centro lo scoglio, tre delfini, il fusto tortile grosso, la coppa scura e il getto.
-  const R = f.r + 0.2, y = VE3_TERRACE, STONE = 0xe6dfd2, RIM = 0xf4f0e6, ROCK = 0x6e6a62, DARK = 0x2c2a28;
-  k.cyl(0, 0, y, 0.18, R + 0.55, R + 0.42, STONE, 48);
-  k.cyl(0, 0, y + 0.14, 0.46, R - 0.02, R + 0.06, STONE, 48);
-  k.cyl(0, 0, y + 0.52, 0.12, R + 0.02, R + 0.16, RIM, 48);
-  k.cyl(0, 0, y + 0.4, 0.1, R - 0.5, R - 0.5, 0x4ec4c8, 40);
-  k.cyl(0, 0, y + 0.46, 0.05, R - 1.35, R - 1.35, 0x2a9aa4, 32);
-  const rock = new THREE.IcosahedronGeometry(1.05, 1); const p = rock.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1.2 + Math.sin(i * 1.7) * 0.28), Math.abs(p.getY(i)) * 0.95 + 0.2, p.getZ(i) * (1.12 + Math.cos(i * 2.1) * 0.24));
-  rock.translate(0, y + 1.05, 0); k.add(rock, ROCK);
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.35;
-    const body = new THREE.SphereGeometry(0.38, 10, 8); body.scale(0.62, 0.5, 1.65); body.rotateX(1.15); body.rotateY(a);
-    body.translate(Math.sin(a) * 0.95, y + 1.45, Math.cos(a) * 0.95); k.add(body, 0x4e4a46);
-    const tail = new THREE.SphereGeometry(0.18, 6, 5); tail.scale(1.4, 0.3, 0.55); tail.rotateY(a);
-    tail.translate(Math.sin(a) * 0.35, y + 1.22, Math.cos(a) * 0.35); k.add(tail, 0x3e3c39);
-  }
-  // fusto tortile grosso: anima piena e spira che sale fino alla coppa
-  k.cyl(0, 0, y + 1.55, 1.35, 0.16, 0.18, DARK, 12);
-  for (let i = 0; i < 16; i++) {
-    const t = i / 15, a = t * Math.PI * 2 * 2.4;
-    const seg = new THREE.BoxGeometry(0.38, 0.13, 0.18);
-    seg.rotateY(a);
-    seg.translate(Math.sin(a) * 0.1, y + 1.62 + t * 1.18, Math.cos(a) * 0.1);
-    k.add(seg, DARK);
-  }
-  k.cyl(0, 0, y + 2.78, 0.16, 0.42, 1.05, DARK, 24);
-  k.cyl(0, 0, y + 2.9, 0.1, 1.12, 1.2, 0x3a3834, 28);
-  k.cyl(0, 0, y + 2.96, 0.05, 0.92, 0.92, 0x7ad4d4, 20);
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + 0.2;
-    const spill = new THREE.CylinderGeometry(0.02, 0.045, 1.25, 5);
-    spill.translate(Math.sin(a) * 1.02, y + 2.28, Math.cos(a) * 1.02);
-    k.add(spill, 0xe7f7f6);
-  }
-  k.cyl(0, 0, y + 3.0, 0.85, 0.04, 0.02, 0xe7f6f2, 8);
-  const spray = new THREE.SphereGeometry(0.12, 8, 6); spray.translate(0, y + 3.88, 0); k.add(spray, 0xf4fbfd);
+  // Dal drone: cerchio, anello chiaro, vasca blu, centro piccolo. Niente scoglio, niente disco sospeso.
+  const y = VE3_TERRACE, R = 3.35;
+  const STONE = 0xe4ddd0, RIM = 0xf6f1e8, BRICK = 0xb85a42, WATER = 0x6ec8d4;
+  k.cyl(0, 0, y + 0.02, 0.16, R + 0.95, R + 0.72, STONE, 64);
+  k.cyl(0, 0, y + 0.16, 0.22, R + 0.08, R + 0.28, RIM, 64);
+  k.cyl(0, 0, y + 0.2, 0.08, R - 0.15, R + 0.02, BRICK, 48);
+  k.cyl(0, 0, y + 0.12, 0.06, R - 0.28, R - 0.28, WATER, 48);
+  k.cyl(0, 0, y + 0.14, 0.03, R - 1.15, R - 1.15, 0x4aa8b8, 32);
+  // centro basso: piedistallo e motivo compatto, resta dentro la vasca
+  k.cyl(0, 0, y + 0.16, 0.28, 0.42, 0.55, STONE, 20);
+  k.cyl(0, 0, y + 0.44, 0.55, 0.16, 0.2, 0x3c3a38, 12);
+  k.cyl(0, 0, y + 0.96, 0.1, 0.34, 0.4, 0x2e2c2a, 16);
+  k.cyl(0, 0, y + 1.08, 0.55, 0.035, 0.02, 0xdfeeee, 6);
   return k.mesh('fontana-delfini');
 }
 

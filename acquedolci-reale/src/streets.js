@@ -515,7 +515,7 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   add(mark.mesh(markMat, 3));
   add(paving.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
   add(herring.mesh(polyOff(new THREE.MeshLambertMaterial({ map: spine })), 1));
-  add(ve3.mesh(polyOff(new THREE.MeshLambertMaterial({ map: bricks })), 1));
+  add(ve3.mesh(polyOff(new THREE.MeshLambertMaterial({ map: bricks, color: 0x7a463c })), 1));
   add(brick.mesh(polyOff(new THREE.MeshLambertMaterial({ map: bricks })), 1));
   add(cobble.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
   add(garden.mesh(polyOff(new THREE.MeshLambertMaterial({ map: lawn })), 1));

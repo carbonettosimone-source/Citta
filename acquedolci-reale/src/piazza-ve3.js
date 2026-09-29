@@ -1,8 +1,7 @@
 /**
- * Piazza Vittorio Emanuele III. La pianta è quella delle foto drone: asfalto fra il
- * Municipio e il lastricato, sei rombi chiari grandi sulla spina rossa, anello tondo
- * della fontana, prato a semicerchio verso il mare. Niente ringhiere dove il drone
- * non ne mostra, niente dente di sega, niente griglia di riquadri.
+ * Piazza Vittorio Emanuele III. Pianta misurata sulla foto drone quasi nadirale:
+ * asfalto, griglia di bande chiare, quattro croci ornate (due a sinistra e due a
+ * destra della fontana, allineate), anello tondo, prato a semicerchio verso il mare.
  */
 import * as THREE from 'three';
 
@@ -134,6 +133,117 @@ function settTex() {
   return t;
 }
 
+/**
+ * Quattro croci misurate sulla foto nadirale (fontana a px 591,556, 0,089 m/px).
+ * u lungo la facciata verso ovest, w verso il mare. Allineate a w = 17,3 m.
+ */
+const MOTIFS = [
+  [-21.3, 17.3],
+  [-10.6, 17.3],
+  [16.1, 17.3],
+  [26.4, 17.3],
+];
+
+function hash(i) {
+  const s = Math.sin(i * 127.1) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** lastricato variegato, bande grigio chiaro, quattro croci ornate. Non è la foto: è il tracciato. */
+function paveTex() {
+  const ppm = 42;
+  const u0 = -32, u1 = 34, w0 = 12.05, w1 = 32.2;
+  const W = Math.ceil((u1 - u0) * ppm), H = Math.ceil((w1 - w0) * ppm);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const Xu = (u) => (u - u0) * ppm, Yw = (w) => (w - w0) * ppm;
+  const tones = [[154, 78, 58], [122, 58, 44], [176, 96, 70], [108, 50, 40], [186, 112, 84], [138, 70, 54]];
+  const tw = 0.46, th = 0.24;
+  for (let w = w0; w < w1; w += th) {
+    const row = Math.round((w - w0) / th);
+    const off = (row & 1) ? tw * 0.5 : 0;
+    for (let u = u0 - tw; u < u1 + tw; u += tw) {
+      const n = hash(row * 13 + Math.round((u + off) * 8));
+      const t = tones[(row + Math.floor(n * 6)) % tones.length];
+      const k = 0.86 + n * 0.22;
+      g.fillStyle = `rgb(${t[0] * k},${t[1] * k},${t[2] * k})`;
+      g.fillRect(Xu(u + off) + 1, Yw(w) + 1, tw * ppm - 1.4, th * ppm - 1.2);
+    }
+  }
+  // bande della griglia, cornici dei pannelli
+  g.fillStyle = '#d9d3c6';
+  const band = 0.34, pitchU = 5.35, pitchW = 4.6;
+  for (let u = -30.2; u <= 32; u += pitchU) g.fillRect(Xu(u), Yw(w0), band * ppm, (w1 - w0) * ppm);
+  for (let w = 12.5; w <= 31.4; w += pitchW) g.fillRect(Xu(u0), Yw(w), (u1 - u0) * ppm, band * ppm);
+  // quattro croci ornate di piastrelle chiare
+  const creams = ['#f4efe6', '#e6dccb', '#f7f3ec', '#ddd3c2'];
+  const tile = 0.3;
+  const stamp = (u, w, s, col) => {
+    const du = u - 1.97, dw = w - 24.28;
+    if (du * du + dw * dw < 5.05 * 5.05) return;
+    g.fillStyle = col;
+    g.fillRect(Xu(u - s * 0.46), Yw(w - s * 0.46), s * 0.92 * ppm, s * 0.92 * ppm);
+  };
+  for (const [cu, cw] of MOTIFS) {
+    const arm = 3.45, thick = 1.05, darm = 2.35, dth = 0.62;
+    for (let t = -arm; t <= arm + 1e-6; t += tile) {
+      for (let s = -thick / 2; s <= thick / 2 + 1e-6; s += tile) {
+        const col = creams[(Math.round(t / tile) + Math.round(s / tile) * 3) & 3];
+        stamp(cu + t, cw + s, tile, col);
+        stamp(cu + s, cw + t, tile, col);
+      }
+    }
+    for (let t = -darm; t <= darm + 1e-6; t += tile) {
+      for (let s = -dth / 2; s <= dth / 2 + 1e-6; s += tile) {
+        const col = creams[(Math.round(t / tile) * 2 + Math.round(s / tile) + 1) & 3];
+        const a = (t + s) * 0.7071, b = (t - s) * 0.7071;
+        stamp(cu + a, cw + b, tile * 0.92, col);
+        stamp(cu + a, cw - b, tile * 0.92, col);
+      }
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      stamp(cu + Math.cos(a) * 0.55, cw + Math.sin(a) * 0.55, 0.42, '#f7f4ee');
+    }
+    stamp(cu, cw, 0.55, '#c9bba6');
+  }
+  // buco della vasca: ci sta l'anello e l'acqua, non il lastricato
+  g.globalCompositeOperation = 'destination-out';
+  g.beginPath();
+  g.arc(Xu(1.97), Yw(24.28), 4.85 * ppm, 0, Math.PI * 2);
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return { tex, u0, u1, w0, w1 };
+}
+
+function dryGrassTex() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 512;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#cbb67a'; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 90; i++) {
+    const n = hash(i * 3.1);
+    g.fillStyle = n > 0.5 ? '#b6a15e' : '#d8c48a';
+    g.beginPath();
+    g.ellipse(hash(i + 1) * 512, hash(i + 2) * 512, 18 + n * 70, 10 + hash(i + 4) * 28, n * 3, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (let i = 0; i < 2500; i++) {
+    const n = hash(i * 1.7 + 9);
+    g.strokeStyle = `rgb(${120 + n * 70},${130 + n * 50},${50 + n * 30})`;
+    g.lineWidth = 1;
+    const x = hash(i + 20) * 512, y = hash(i + 40) * 512;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + (n - 0.5) * 8, y - 4 - n * 7); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
 export function buildVe3Plaza(heightAt, polys) {
   ve3Polys = polys;
   planVe3Stair(heightAt);
@@ -175,46 +285,11 @@ export function buildVe3Plaza(heightAt, polys) {
   // asfalto fra la facciata e il lastricato: nelle foto è una strada grigia larga, non spina
   quad(-28, 0.35, 30, 12.15, yPave, lambert(0x86888c));
 
-  // sei motivi grandi, ognuno una griglia di mattonelle chiare a rombo (come nel drone),
-  // non una losanga piena. Tre fra la strada e la vasca, tre più avanti: il centrale
-  // si ferma prima dell'anello.
+  // lastricato tracciato: griglia, quattro croci, buco della vasca
   {
-    const ppm = 36;
-    const u0 = -26, u1 = 28, w0 = 12.2, w1 = 27.2;
-    const W = Math.ceil((u1 - u0) * ppm), H = Math.ceil((w1 - w0) * ppm);
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const g = cv.getContext('2d');
-    const Xu = (u) => (u - u0) * ppm, Yw = (w) => (w - w0) * ppm;
-    const panels = [
-      [-13, 14.55, 6.05, 2.15],
-      [2, 14.55, 6.05, 2.15],
-      [17, 14.55, 6.05, 2.15],
-      [-13, 18.85, 5.5, 1.85],
-      [2, 18.35, 3.6, 1.35],
-      [17, 18.85, 5.5, 1.85],
-    ];
-    const step = 1.42, hs = 0.7;
-    for (const [cu, cw, ru, rw] of panels) {
-      for (let w = cw - rw; w <= cw + rw + 1e-6; w += step) {
-        for (let u = cu - ru; u <= cu + ru + 1e-6; u += step) {
-          if (Math.abs(u - cu) / ru + Math.abs(w - cw) / rw > 0.94) continue;
-          const du = u - 1.97, dw = w - 24.28;
-          if (du * du + dw * dw < 5.15 * 5.15) continue;
-          const n = ((Math.round(u / step) + Math.round(w / step)) & 1) ? 18 : 0;
-          g.fillStyle = `rgb(${236 + n},${228 + n},${214 + n})`;
-          g.beginPath();
-          g.moveTo(Xu(u), Yw(w - hs));
-          g.lineTo(Xu(u + hs * 0.92), Yw(w));
-          g.lineTo(Xu(u), Yw(w + hs));
-          g.lineTo(Xu(u - hs * 0.92), Yw(w));
-          g.fill();
-        }
-      }
-    }
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    const { tex, u0, u1, w0, w1 } = paveTex();
     const A = xzOf(u0, w0), B = xzOf(u1, w0), C = xzOf(u1, w1), D = xzOf(u0, w1);
-    const y = yPave + 0.025;
+    const y = yPave + 0.03;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute([
       A[0], y, A[1], B[0], y, B[1], C[0], y, C[1],
@@ -223,80 +298,86 @@ export function buildVe3Plaza(heightAt, polys) {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
-      map: tex, transparent: true, alphaTest: 0.2, side: THREE.DoubleSide,
+      map: tex, transparent: true, alphaTest: 0.15, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
     }));
     m.receiveShadow = true;
     group.add(m);
   }
 
-  // prato a semicerchio verso il mare, erba secca come nel drone
+  // prato a semicerchio, erba secca, bordo morbido. Niente ringhiera.
+  const grass = dryGrassTex();
+  const grassMat = new THREE.MeshLambertMaterial({ map: grass, side: THREE.DoubleSide });
+  grassMat.polygonOffset = true; grassMat.polygonOffsetFactor = -2; grassMat.polygonOffsetUnits = -2;
   {
-    const pos = [];
-    const y = yPave;
+    const y = yPave + 0.035;
     const [cx, cz] = xzOf(LAWN_U, LAWN_W);
-    const N = 36;
+    const N = 96;
+    const pos = [], uv = [];
     for (let i = 0; i < N; i++) {
       const a0 = -Math.PI / 2 + (i / N) * Math.PI;
       const a1 = -Math.PI / 2 + ((i + 1) / N) * Math.PI;
       const p0 = xzOf(LAWN_U + Math.sin(a0) * LAWN_R, LAWN_W + Math.cos(a0) * LAWN_R);
       const p1 = xzOf(LAWN_U + Math.sin(a1) * LAWN_R, LAWN_W + Math.cos(a1) * LAWN_R);
       pos.push(cx, y, cz, p0[0], y, p0[1], p1[0], y, p1[1]);
+      const u0 = 0.5, v0 = 0.15;
+      uv.push(u0, v0, 0.5 + Math.sin(a0) * 0.45, 0.15 + Math.cos(a0) * 0.7, 0.5 + Math.sin(a1) * 0.45, 0.15 + Math.cos(a1) * 0.7);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, lambert(0xc2b06a));
+    const m = new THREE.Mesh(geo, grassMat);
     m.receiveShadow = true;
     group.add(m);
-    // scivolo d'erba sul ciglio verso la via inferiore: niente muro, niente ringhiera
-    const apron = [];
+    const apron = [], auv = [];
     for (let i = 0; i < N; i++) {
       const a0 = -Math.PI / 2 + (i / N) * Math.PI;
       const a1 = -Math.PI / 2 + ((i + 1) / N) * Math.PI;
       const inn = (a) => xzOf(LAWN_U + Math.sin(a) * LAWN_R, LAWN_W + Math.cos(a) * LAWN_R);
-      const out = (a) => xzOf(LAWN_U + Math.sin(a) * (LAWN_R + 2.4), LAWN_W + Math.cos(a) * (LAWN_R + 2.4));
+      const out = (a) => xzOf(LAWN_U + Math.sin(a) * (LAWN_R + 2.6), LAWN_W + Math.cos(a) * (LAWN_R + 2.6));
       const i0 = inn(a0), i1 = inn(a1), o0 = out(a0), o1 = out(a1);
-      const y0 = Math.min(T, heightAt(o0[0], o0[1]) + 0.18);
-      const y1 = Math.min(T, heightAt(o1[0], o1[1]) + 0.18);
+      const y0 = Math.min(T, heightAt(o0[0], o0[1]) + 0.12);
+      const y1 = Math.min(T, heightAt(o1[0], o1[1]) + 0.12);
       apron.push(
         i0[0], y, i0[1], o0[0], y0, o0[1], o1[0], y1, o1[1],
         i0[0], y, i0[1], o1[0], y1, o1[1], i1[0], y, i1[1],
       );
+      auv.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
     }
     const ag = new THREE.BufferGeometry();
     ag.setAttribute('position', new THREE.Float32BufferAttribute(apron, 3));
+    ag.setAttribute('uv', new THREE.Float32BufferAttribute(auv, 2));
     ag.computeVertexNormals();
-    const am = new THREE.Mesh(ag, lambert(0xb7a45e));
+    const am = new THREE.Mesh(ag, grassMat);
     am.receiveShadow = true;
     group.add(am);
   }
 
-  // cespugli radi sul prato, come nel drone: non una siepe lungo l'arco
-  const bush = new THREE.IcosahedronGeometry(1, 1);
-  const shrubs = [
-    [LAWN_U - 6.2, LAWN_W + 2.4, 0.55],
-    [LAWN_U - 2.1, LAWN_W + 5.6, 0.7],
-    [LAWN_U + 3.4, LAWN_W + 4.2, 0.48],
-    [LAWN_U + 7.1, LAWN_W + 1.8, 0.6],
-    [LAWN_U + 0.6, LAWN_W + 8.6, 0.85],
-    [LAWN_U - 4.4, LAWN_W + 8.0, 0.42],
-    [LAWN_U + 5.2, LAWN_W + 7.4, 0.5],
-  ];
-  for (const [u, w, sc] of shrubs) {
+  // cespugli sferici sul bordo del prato, come nel drone
+  const bush = new THREE.SphereGeometry(1, 18, 14);
+  const shrubs = [];
+  for (let i = 0; i < 9; i++) {
+    const a = -Math.PI / 2 + ((i + 0.35) / 9) * Math.PI;
+    const r = LAWN_R - 0.35;
+    shrubs.push([LAWN_U + Math.sin(a) * r, LAWN_W + Math.cos(a) * r, 0.42 + (i % 3) * 0.16]);
+  }
+  shrubs.push([LAWN_U - 2.4, LAWN_W + 3.6, 0.55], [LAWN_U + 3.1, LAWN_W + 5.2, 0.48], [LAWN_U + 0.4, LAWN_W + 7.8, 0.7], [LAWN_U - 5.2, LAWN_W + 6.4, 0.4]);
+  const bushCols = [0x6d7a3e, 0x8a8448, 0x5e6a38, 0x7d8a4a];
+  shrubs.forEach(([u, w, sc], i) => {
     const [x, z] = xzOf(u, w);
-    const m = new THREE.Mesh(bush, leaf);
-    m.scale.set(sc, sc * 0.65, sc);
-    m.position.set(x, T + sc * 0.4, z);
+    const m = new THREE.Mesh(bush, lambert(bushCols[i % bushCols.length]));
+    m.scale.set(sc, sc * 0.82, sc);
+    m.position.set(x, T + sc * 0.7, z);
     m.castShadow = true;
     group.add(m);
-  }
+  });
 
   const up = new THREE.Vector3(0, 1, 0);
   // +X locale lungo la facciata (verso ovest)
   const benchYaw = Math.atan2(NWx, NWz);
   const seat = new THREE.BoxGeometry(1.7, 0.1, 0.46), leg = new THREE.BoxGeometry(0.16, 0.36, 0.38);
-  for (const [u, w] of [[-24, 16.5], [28, 16.5], [LAWN_U - 9.5, LAWN_W - 0.8], [LAWN_U + 9.5, LAWN_W - 0.8]]) {
+  for (const [u, w] of [[LAWN_U - 8.4, LAWN_W - 1.1], [LAWN_U + 8.6, LAWN_W - 1.1]]) {
     const [x, z] = xzOf(u, w);
     const qn = new THREE.Quaternion().setFromAxisAngle(up, benchYaw);
     for (const [geo, mat, dy, lx, lz] of [[seat, benchC, 0.4, 0, 0], [leg, stoneDk, 0.18, -0.62, 0], [leg, stoneDk, 0.18, 0.62, 0]]) {
