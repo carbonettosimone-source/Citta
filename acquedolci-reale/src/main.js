@@ -13,6 +13,8 @@ import { buildBackground } from './background.js';
 import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
 import { createIntro } from './intro.js';
 import { createPost } from './post.js';
+import { attachGoogleClip } from './google-clip.js';
+import { createGoogleLayer } from './google-tiles.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -251,6 +253,73 @@ $('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
 setHour(settings.hour);
 
+// assi all'origine (Municipio): rosso = est, verde = su, blu = sud. Servono a controllare l'allineamento.
+function makeAxes(y0) {
+  const g = new THREE.Group();
+  g.name = 'origin-axes';
+  g.renderOrder = 10;
+  const mat = (color) => new THREE.MeshBasicMaterial({ color, fog: false, depthTest: false, toneMapped: false });
+  const add = (dir, color) => {
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 64, 12), mat(color));
+    const head = new THREE.Mesh(new THREE.ConeGeometry(3.4, 8, 12), mat(color));
+    shaft.position.copy(dir).multiplyScalar(32);
+    head.position.copy(dir).multiplyScalar(68);
+    const lay = (m) => {
+      if (Math.abs(dir.x) > 0.5) m.rotation.z = -Math.PI / 2;
+      if (Math.abs(dir.z) > 0.5) m.rotation.x = Math.PI / 2;
+      m.renderOrder = 10;
+      g.add(m);
+    };
+    lay(shaft); lay(head);
+  };
+  add(new THREE.Vector3(1, 0, 0), 0xff2a2a);
+  add(new THREE.Vector3(0, 1, 0), 0x2adf4a);
+  add(new THREE.Vector3(0, 0, 1), 0x3a6dff);
+  const o = new THREE.Mesh(new THREE.SphereGeometry(2.4, 16, 12), mat(0xffffff));
+  o.renderOrder = 10;
+  g.add(o);
+  g.position.y = y0 + 1.2;
+  g.visible = false;
+  return g;
+}
+attachGoogleClip(scene);
+const axes = makeAxes(g0);
+scene.add(axes);
+axes.visible = !!settings.axes;
+$('optAxes').checked = axes.visible;
+$('optAxes').onchange = (e) => { settings.axes = e.target.checked; axes.visible = settings.axes; saveSettings(); };
+
+const google = createGoogleLayer({
+  scene, renderer, origin: model.origin, heightAt,
+  onStatus: (t) => { $('gStatus').textContent = t; },
+  onAttrib: (show, text) => {
+    $('gAttrib').hidden = !show;
+    $('gCopy').textContent = text;
+    const logo = $('gLogo');
+    if (show && !logo.getAttribute('src')) logo.src = 'https://maps.gstatic.com/mapfiles/api-3/images/google4.png';
+  },
+});
+const envKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
+let storedKey = '';
+try { storedKey = (localStorage.getItem('acq-gkey') || '').trim(); } catch { /* niente memoria */ }
+if (storedKey) $('optGKey').value = storedKey;
+let keyTimer = 0;
+function applyGKey() {
+  const typed = $('optGKey').value.trim();
+  try {
+    if (typed) localStorage.setItem('acq-gkey', typed);
+    else localStorage.removeItem('acq-gkey');
+  } catch { /* il browser ha bloccato la memoria */ }
+  google.setKey(typed || envKey);
+}
+$('optGKey').addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { e.preventDefault(); clearTimeout(keyTimer); applyGKey(); }
+});
+$('optGKey').addEventListener('input', () => { clearTimeout(keyTimer); keyTimer = setTimeout(applyGKey, 500); });
+$('optGKey').addEventListener('change', () => { clearTimeout(keyTimer); applyGKey(); });
+applyGKey();
+
 // ---------- intro: panoramiche e titolo (intro.js), poi il paese libero dalla vista di partenza
 const intro = createIntro({
   camera, controls, heightAt, setTime: applyHour,
@@ -298,6 +367,7 @@ function frame() {
   bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
   if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
   updateLabels();
+  google.update(camera, walker);
   // con la nitidezza la scena passa da un buffer con antialiasing (post.js), altrimenti dritta a schermo
   renderer.setRenderTarget(settings.sharp ? post.target : null);
   renderer.clear();
@@ -308,4 +378,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro };
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, axes, googleActive: () => google.active() };

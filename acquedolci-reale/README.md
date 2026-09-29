@@ -100,6 +100,24 @@ Il pulsante ⚙︎ apre le impostazioni, che restano salvate nel browser:
 - **Nomi dei luoghi:** spenti di base.
 - **Ora del giorno:** 0–24, sulla data di oggi, ora di Roma. Il pulsante "Adesso" porta all'ora attuale.
 - **Luci notturne:** accese o spente.
+- **Nitidezza:** antialiasing in un passaggio in più.
+- **Chiave Google (3D / Street View):** vedi sotto. Senza chiave il paese disegnato non cambia.
+- **Assi all'origine:** rosso verso est, verde in su, blu verso sud, sul Municipio. Spenti di base; servono a vedere se la mesh di Google cade sul terreno.
+
+## 3D di Google sulle tre piazze
+
+Il disegno del paese resta la base. Con una chiave si può sostituire, in un raggio di circa 180 m intorno al Municipio e alla Fontana dei Delfini, a Piazza Libertà e a Piazza Giovanni Paolo II, la mesh fotorealistica delle Photorealistic 3D Tiles. A piedi, fermi su quei tre punti, arriva anche una panoramica Street View (poche tessere, non l'archivio intero).
+
+La chiave **non sta nel repository** e non viene messa nella build pubblicata. Si incolla in Impostazioni: resta solo nel browser (`localStorage`, chiave `acq-gkey`). Per provare in locale si può anche avere `VITE_GOOGLE_MAPS_API_KEY` nell'ambiente di `npm run dev`; la build di GitHub Pages va fatta **senza** quella variabile, altrimenti Vite la scriverebbe nel JavaScript.
+
+Sulla chiave, in Google Cloud:
+
+- abilita **Map Tiles API** (tile 3D e sessione Street View);
+- restringi il referrer HTTP a `https://carbonettosimone-source.github.io/*` e a localhost (`http://localhost:*` e `http://127.0.0.1:*`).
+
+Le richieste partono dal browser, con il token di sessione che crea Map Tiles. Non si scaricano glb da mettere in git e non si copiano i pixel di Street View sulle texture del paese. Quando il 3D è in vista, in basso compaiono il marchio Google e la riga di copyright che arriva con le tile. I decoder in `public/basis` e `public/draco` sono quelli di three.js (mesh compresse), non dati Google.
+
+Senza chiave non parte nessuna richiesta: restano spina, asfalto, prato e i modelli tipici.
 
 Come funziona l'ora del giorno (`src/daylight.js`):
 
@@ -128,4 +146,4 @@ L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 c
 - Il fondale non è misurato: la profondità cresce con la distanza da riva (5 cm per metro, al massimo 6 m). Anche le onde sono tipiche, non osservate.
 - La piazza davanti alla Chiesa Madre è quella dell'ortofoto 2022: le siepi della foto del 2006 non ci sono più. Le superfici sono geometria e materiali disegnati, non un ingrandimento della foto e non i pixel di Street View.
 - **Dati OSM delle piazze** (estratto già in `acquedolci-lowpoly/public/data/acquedolci.json`, non un nuovo scarico Overpass): tre `place=square` ad anello chiuso — Piazza Vittorio Emanuele III (intorno al Municipio), Piazza Libertà (Chiesa Madre), Piazza Giovanni Paolo II — più Piazza Federico II, che è un parcheggio nominato piazza (`amenity=parking`), non un asse. Non ci sono aree `highway=pedestrian` né `amenity=marketplace`. L'anello di Piazza Vittorio Emanuele III gira intorno al palazzo e non contiene il sagrato della Fontana dei Delfini: quel vuoto lo copre il riempimento (strada intorno, centro edificato, non verde). Lo stesso riempimento prende altri slarghi compatti del paese; un prato, la spiaggia, un fondo agricolo o un vuoto troppo grande restano suolo, con l'albedo del materiale in vista Drone. Il tipo di pavimento (spina, asfalto, prato) si sceglie nel renderer dal punto, quindi non serve rifare `streets.json` per cambiare solo il materiale. Per rifare i poligoni: `node scripts/build-landcover.mjs` se manca `data/landcover.png`, poi `node scripts/build-streets.mjs` → `public/data/streets.json`.
-- Mancano auto, persone e la grafica del chiosco (niente marchi copiati dalle foto). I vasi, le sedie, la cancellata, il chiosco e le aiuole sono modelli tipici messi dove cadono pianta e foto, non un rilievo.
+- Mancano auto, persone e la grafica del chiosco (niente marchi copiati dalle foto). Senza la chiave Google, vasi, sedie, cancellata, chiosco e aiuole sono modelli tipici messi dove cadono pianta e foto, non un rilievo. Con la chiave, dentro i tre dischi quel disegno si nasconde e al suo posto c'è la mesh di Google.
