@@ -307,6 +307,25 @@ function species(x, y, h, r) {
 // motore, in coordinate equirettangolari centrate su (38.056, 14.585) → UTM → locali. Fuori dagli
 // edifici DBTR (le chiome sopra i tetti sono spesso falsi positivi del modello).
 const trees = [];
+// copertura del suolo (build-landcover.mjs): niente alberi né cespugli in mare o sulla spiaggia —
+// lì le "chiome" Meta/WRI e il verde dell'ortofoto sono falsi positivi (ombrelloni, alghe, onde)
+const lcPath = new URL('data/landcover.png', root);
+const lcMeta = existsSync(lcPath) ? read('data/landcover.json') : null;
+const lc = lcMeta ? decodePNG(readFileSync(lcPath)) : null;
+function onBeach(ux, uy) {
+  if (!lc) return false;
+  const cx = Math.floor((ux - lcMeta.xmin) / lcMeta.step), cy = Math.floor((lcMeta.ymax - uy) / lcMeta.step);
+  if (cx < 0 || cy < 0 || cx >= lc.width || cy >= lc.height) return false;
+  const i = (cy * lc.width + cx) * 3;
+  if (lc.data[i] > 0 || lc.data[i + 1] > 60) return true;
+  // niente piante a meno di 12 m dal mare
+  for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+    const x = cx + dx, y = cy + dy;
+    if (x >= 0 && y >= 0 && x < lc.width && y < lc.height && lc.data[(y * lc.width + x) * 3] > 0) return true;
+  }
+  return false;
+}
+let beachDropped = 0;
 // chiome Meta/WRI estratte da scripts/fetch-canopy.mjs, già in UTM e già senza quelle sui tetti DBTR
 const canopyPath = new URL('data/canopy.json', root);
 if (existsSync(canopyPath)) {
@@ -316,6 +335,7 @@ if (existsSync(canopyPath)) {
   const best = new Map();
   for (const t of can) { const k = `${Math.floor(t[0] / 5)},${Math.floor(t[1] / 5)}`; const o = best.get(k); if (!o || t[2] > o[2]) best.set(k, t); }
   for (const [ux, uy, h0, r0] of best.values()) {
+    if (onBeach(ux, uy)) { beachDropped++; continue; }
     const x = ux - OX, z = -(uy - OY);
     const h = Math.min(22, h0), r = Math.min(8, r0 || 2);
     trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +h.toFixed(1), +r.toFixed(1), species(ux, uy, h, r));
@@ -323,11 +343,8 @@ if (existsSync(canopyPath)) {
 }
 // Cespugli: dove l'ortofoto è verde (copertura del suolo, build-landcover.mjs) ma non c'è né un
 // albero Meta/WRI, né un edificio, né la spiaggia. Uno ogni ~2 celle da 2 m, alto 0,5-1,8 m.
-const lcPath = new URL('data/landcover.png', root);
 let shrubs = 0;
-if (existsSync(lcPath)) {
-  const lcMeta = read('data/landcover.json');
-  const lc = decodePNG(readFileSync(lcPath));
+if (lc) {
   const treeGrid = new Map(); // celle da 4 m coperte da una chioma
   for (let i = 0; i < trees.length; i += 6) {
     const [x, z, , , r] = trees.slice(i, i + 6), R = r * 0.9;
@@ -347,12 +364,13 @@ if (existsSync(lcPath)) {
     const ux = lcMeta.xmin + (cx + hash(cx * 31 + cy)) * lcMeta.step, uy = lcMeta.ymax - (cy + hash(cy * 17 + cx)) * lcMeta.step;
     const x = ux - OX, z = -(uy - OY);
     if (treeGrid.has(`${Math.floor(x / 4)},${Math.floor(z / 4)}`) || inB(x, z)) continue;
+    if (onBeach(ux, uy)) { beachDropped++; continue; }
     const h = 0.5 + hsh * 2.6, r = 0.6 + hash(cx * 13 + cy * 3) * 0.9;
     trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +h.toFixed(1), +r.toFixed(1), 5);
     shrubs++;
   }
 }
-console.log('cespugli dal verde dell\'ortofoto:', shrubs);
+console.log('cespugli dal verde dell\'ortofoto:', shrubs, '· tolti da spiaggia e mare:', beachDropped);
 const spCount = [0, 0, 0, 0, 0, 0]; for (let i = 5; i < trees.length; i += 6) spCount[trees[i]]++;
 console.log('alberi', trees.length / 6, 'per specie [latifoglia, pino, ulivo, agrume, palma, cespuglio]:', spCount);
 

@@ -72,6 +72,26 @@ Il litorale da Cefalù a Capo d'Orlando (con Madonie e Nebrodi) e le sette Eolie
 - **Curvatura terrestre:** con rifrazione standard (k = 0,13), a 50 km il mare copre ~170 m. Per questo dal paese delle Eolie si vedono solo le cime, come dal vero.
 - **Foschia:** esponenziale. Il paese resta nitido, le isole sono sagome azzurrine.
 
+## Impostazioni e ora del giorno
+
+Il pulsante ⚙︎ apre le impostazioni, che restano salvate nel browser:
+
+- **Nomi dei luoghi:** spenti di base.
+- **Ora del giorno:** 0–24, sulla data di oggi, ora di Roma. Il pulsante "Adesso" porta all'ora attuale.
+- **Luci notturne:** accese o spente.
+
+Come funziona l'ora del giorno (`src/daylight.js`):
+
+- **Sole e luna:** posizione vera per Acquedolci, con formule SunCalc/Meeus semplificate. La fase della luna esce dalla direzione del sole.
+- **Cielo e luce:** il colore del cielo (giorno, tramonto, notte), la foschia, le stelle e le luci di sole, cielo e luna seguono l'ora.
+- **Superfici con la luce della foto:** ortofoto e sfondo prendono una tinta del momento. I ritocchi della foto si fanno prima della tinta, così di notte le ombre non si "schiariscono".
+- **Di notte:**
+  - si accende circa un terzo delle finestre, a caso per palazzo;
+  - i lampioni fanno pozze di luce sulla strada e hanno un alone;
+  - Municipio, Chiesa Madre e castello sono illuminati dai fari.
+
+Le luci notturne sono tipiche, non censite.
+
 ## Colori dal vero
 
 L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 contro 1,3 nelle foto da terra. `photo-palette.mjs` estrae dalle panoramiche solo i pixel d'intonaco (via cielo, mare, verde, coppi, ombre). Poi `build-model.mjs` porta la tinta di ogni edificio sulla distribuzione dal vero per quantili: l'ordine resta quello misurato, la luminosità anche. I coppi nelle foto sono ~1,4 volte più saturi e più aranci; il ritocco è nello shader dei tetti (`ortho.js`, in CIELAB).
@@ -82,6 +102,7 @@ L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 c
 - Facciate: dove dall'alto non se ne vede nessuna (edifici bassi, tetti chiari come i muri, ombre) il colore è preso dalla distribuzione di quelli misurati. Finestre e piani terra sono moduli tipici, non le aperture vere.
 - Mapillary nel bbox copre quasi solo l'autostrada A20: non è usato per le facciate.
 - Lampioni, cisterne, solari termici e balconi sono tipici del paese ma non censiti: posizione plausibile, non rilevata. I casotti scala invece sono misurati.
+- Niente alberi né cespugli sulla spiaggia né entro 12 m dal mare: lì le chiome Meta/WRI e il "verde" dell'ortofoto (l'acqua bassa della battigia) sono falsi positivi.
 - Nessuna palma: i dati non la distinguono con sicurezza da altre chiome strette. Gli alberi lungo Via Lungomare, controllati sull'ortofoto a 25 cm, sono pini domestici.
 - Il fondale non è misurato: la profondità cresce con la distanza da riva (5 cm per metro, al massimo 6 m). Anche le onde sono tipiche, non osservate.
 - La piazza davanti alla Chiesa Madre è come nell'ortofoto 2022 (pavimentata): le siepi della foto del 2006 non ci sono più.

@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { NIGHT } from './daylight.js';
 
 /** Raccoglie pezzi colorati nel riferimento di una facciata e li fonde in una sola mesh. */
 class Kit {
@@ -71,7 +72,15 @@ class Kit {
   mesh(name) {
     const g = mergeGeometries(this.parts);
     g.computeVertexNormals();
-    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+    // di notte i monumenti sono illuminati dai fari: luce calda dal basso sulle loro tinte
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uNight = NIGHT;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vY;').replace('#include <project_vertex>', '#include <project_vertex>\nvY = (modelMatrix * vec4(transformed, 1.0)).y;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uNight; varying float vY;')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.78, 0.5) * uNight * 0.38;');
+    };
+    const m = new THREE.Mesh(g, mat);
     m.name = name; m.castShadow = m.receiveShadow = true;
     return m;
   }

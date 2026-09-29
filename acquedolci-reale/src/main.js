@@ -10,6 +10,7 @@ import { createOrthoHR } from './ortho-hr.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
 import { buildBackground } from './background.js';
+import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -25,8 +26,8 @@ renderer.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const HAZE = 0xcfdde8;
 scene.background = null; // il colore di fondo lo mette la passata dello sfondo
-// foschia esponenziale: il paese resta nitido, a 50 km le Eolie sono sagome azzurrine
-scene.fog = new THREE.FogExp2(HAZE, 1.6e-5);
+// foschia esponenziale: il paese resta nitido, l'orizzonte velato, le Eolie sagome azzurrine
+scene.fog = new THREE.FogExp2(HAZE, 2.6e-5);
 // sfondo lontano (background.js): scena e camera a parte, disegnate prima del paese
 renderer.autoClear = false;
 const bgScene = new THREE.Scene();
@@ -35,33 +36,17 @@ bgScene.fog = scene.fog;
 const bgCamera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 50, 250000);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 12000);
 
-// luce di tarda mattinata da sud-est (come il volo dell'ortofoto: ombre verso nord-ovest)
-scene.add(new THREE.HemisphereLight(0xdfeeff, 0x8a7a66, 1.25));
+// luci: sole (con ombre), cielo/terreno, luna. Le governa l'ora del giorno (daylight.js)
+const hemi = new THREE.HemisphereLight(0xdfeeff, 0x8a7a66, 1.25);
 const sun = new THREE.DirectionalLight(0xfff2dc, 2.1);
 sun.position.set(300, 500, 350);
 sun.castShadow = true;
 sun.shadow.mapSize.set(touch ? 1024 : 2048, touch ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -300, right: 300, top: 300, bottom: -300, near: 10, far: 1500 });
 sun.shadow.bias = -0.0005;
-scene.add(sun, sun.target);
-
-// cielo: cupola con sfumatura foschia → azzurro e alone attorno al sole, segue la camera
-const sky = new THREE.Mesh(new THREE.SphereGeometry(200000, 32, 16), new THREE.ShaderMaterial({
-  side: THREE.BackSide, depthWrite: false, fog: false,
-  uniforms: { uSun: { value: sun.position.clone().normalize() }, uH: { value: new THREE.Color(HAZE) }, uZ: { value: new THREE.Color(0x3f7fc0) } },
-  vertexShader: 'varying vec3 vD; void main() { vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform vec3 uSun, uH, uZ; varying vec3 vD;
-    void main() {
-      float h = max(vD.y, 0.0);
-      vec3 c = mix(uH, uZ, pow(h, 0.55));
-      float s = max(dot(vD, uSun), 0.0);
-      c += vec3(1.0, 0.93, 0.8) * (pow(s, 12.0) * 0.25 + pow(s, 900.0) * 2.0);
-      gl_FragColor = vec4(c, 1.0);
-      #include <colorspace_fragment>
-    }`,
-}));
-sky.renderOrder = -1; sky.frustumCulled = false;
-bgScene.add(sky);
+const moonLight = new THREE.DirectionalLight(0x9fb2d6, 0);
+scene.add(hemi, sun, sun.target, moonLight);
+const sky = createSky(bgScene);
 
 async function load() {
   say('modello degli edifici');
@@ -147,6 +132,7 @@ for (const p of farLabels) {
 }
 const tmp = new THREE.Vector3();
 function updateLabels() {
+  if (!settings.names) { for (const l of labels) l.el.style.display = 'none'; return; }
   // le più vicine per prime; una etichetta che si sovrappone a una già messa non si mostra
   const maxD = walker.on ? 260 : 900;
   const placed = [];
@@ -230,6 +216,34 @@ $('bWalk').onclick = () => setMode(true);
 $('bDrone').onclick = () => setMode(false);
 setMode(false);
 
+// ---------- impostazioni: nomi dei luoghi, ora del giorno, luci notturne (ricordate nel browser)
+const settings = { names: false, hour: 11, lights: true };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('acq-settings') || '{}')); } catch { /* niente memoria: valori di base */ }
+const saveSettings = () => { try { localStorage.setItem('acq-settings', JSON.stringify(settings)); } catch { /* pazienza */ } };
+const basics = new Set();
+for (const sc of [scene, bgScene]) sc.traverse((o) => { const m = o.material; if (o.isMesh && m?.isMeshBasicMaterial && m.blending === THREE.NormalBlending) basics.add(m); });
+const lamps = scene.getObjectByName('lamps');
+const dayCtx = { sky, sun, hemi, moonLight, fog: scene.fog, bgScene, basics: [...basics], waters: [water.uniforms, farSea.uniforms], lights: true, sunDir: new THREE.Vector3(0, 1, 0) };
+const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+function setHour(h) {
+  settings.hour = h;
+  dayCtx.lights = settings.lights;
+  const { sun: S, moon: M } = applyTime(h, dayCtx);
+  lamps?.userData.night?.(NIGHT.value);
+  $('optTime').value = h; $('timeOut').textContent = hhmm(h);
+  const moonTxt = M.alt > 0 ? `luna ${Math.round(M.lit * 100)}% alta ${Math.round(M.alt * 57.3)}°` : 'luna sotto l\'orizzonte';
+  $('sunInfo').textContent = `sole ${Math.round(S.alt * 57.3)}° · ${moonTxt}`;
+  saveSettings();
+}
+$('optNames').checked = settings.names;
+$('optLights').checked = settings.lights;
+$('optNames').onchange = (e) => { settings.names = e.target.checked; saveSettings(); };
+$('optLights').onchange = (e) => { settings.lights = e.target.checked; setHour(settings.hour); };
+$('optTime').oninput = (e) => setHour(+e.target.value);
+$('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
+$('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
+setHour(settings.hour);
+
 const clock = new THREE.Clock();
 function stepWalk(dt) {
   const k = walker.keys;
@@ -255,10 +269,11 @@ function frame() {
   if (walker.on) stepWalk(dt); else controls.update();
   // l'ombra segue ciò che si guarda
   const focus = walker.on ? walker.pos : controls.target;
-  sun.position.set(focus.x + 300, focus.y + 500, focus.z + 350);
+  const sd = dayCtx.sunDir.y > 0.02 ? dayCtx.sunDir : new THREE.Vector3(0.4, 0.6, 0.45).normalize();
+  sun.position.set(focus.x + sd.x * 800, focus.y + sd.y * 800, focus.z + sd.z * 800);
   sun.target.position.copy(focus);
   trees.update(camera);
-  sky.position.copy(camera.position);
+  sky.follow(camera);
   hr.update(focus);
   water.update(clock.elapsedTime);
   farSea.update(clock.elapsedTime, camera);
@@ -272,4 +287,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera };
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings };

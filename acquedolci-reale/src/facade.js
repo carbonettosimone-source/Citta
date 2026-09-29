@@ -5,6 +5,7 @@
  * (le palazzine del dopoguerra che dominano le foto panoramiche).
  */
 import * as THREE from 'three';
+import { NIGHT } from './daylight.js';
 
 export const BAY = 3.5, FLOOR = 3.1;
 
@@ -78,8 +79,30 @@ function tex(cv) {
   return t;
 }
 
+/**
+ * Di notte una parte delle finestre si accende: il vano (stesso rettangolo disegnato in draw) emette
+ * luce calda o fredda. Quali finestre, lo decide un hash della campata/piano (parte intera delle uv)
+ * mescolato col colore dell'edificio, così ogni palazzo ha il suo schema.
+ */
+function litWindows(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uNight = NIGHT;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uNight;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        if (uNight > 0.0) {
+          vec2 cell = floor(vMapUv), f = fract(vMapUv);
+          float win = step(0.36, f.x) * step(f.x, 0.64) * step(0.30, f.y) * step(f.y, 0.77);
+          float h = fract(sin(dot(cell + vColor.rg * 97.0, vec2(12.9898, 78.233))) * 43758.5453);
+          vec3 warm = h < 0.27 ? vec3(1.0, 0.72, 0.4) : vec3(0.8, 0.86, 1.0);
+          totalEmissiveRadiance += win * step(h, 0.34) * uNight * warm * 1.3;
+        }`);
+  };
+  return m;
+}
+
 export function facadeMaterials() {
-  const mats = [0, 1, 2, 3].map((k) => new THREE.MeshLambertMaterial({ map: draw(k), vertexColors: true, side: THREE.DoubleSide }));
+  const mats = [0, 1, 2, 3].map((k) => litWindows(new THREE.MeshLambertMaterial({ map: draw(k), vertexColors: true, side: THREE.DoubleSide })));
   mats.push(new THREE.MeshLambertMaterial({ map: drawGround(), vertexColors: true, side: THREE.DoubleSide }));
   return mats;
 }

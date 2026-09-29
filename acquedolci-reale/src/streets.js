@@ -220,13 +220,34 @@ function buildLamps(list, heightAt) {
   const arm = new THREE.BoxGeometry(0.06, 0.06, 1.3); arm.translate(0, 6.4, 0.6);
   const head = new THREE.BoxGeometry(0.28, 0.12, 0.55); head.translate(0, 6.33, 1.2);
   const metal = new THREE.MeshLambertMaterial({ color: 0x4a4f52 });
-  const light = new THREE.MeshLambertMaterial({ color: 0xfff4d6, emissive: 0x6a6040 });
+  const light = new THREE.MeshLambertMaterial({ color: 0xfff4d6, emissive: 0xffc070, emissiveIntensity: 0.1 });
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   for (const [geo, mat] of [[pole, metal], [arm, metal], [head, light]]) {
     const im = new THREE.InstancedMesh(geo, mat, list.length);
     list.forEach(([x, z, a], i) => { q.setFromAxisAngle(up, a); m.compose(p.set(x, heightAt(x, z) + 0.3, z), q, s); im.setMatrixAt(i, m); });
     im.castShadow = true; g.add(im);
   }
+  // di notte: pozza di luce sulla strada sotto ogni corpo illuminante e alone attorno alla lampada
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const c2 = cv.getContext('2d'), gr = c2.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,210,150,1)'); gr.addColorStop(0.35, 'rgba(255,190,120,0.55)'); gr.addColorStop(1, 'rgba(255,170,90,0)');
+  c2.fillStyle = gr; c2.fillRect(0, 0, 128, 128);
+  const glowTex = new THREE.CanvasTexture(cv); glowTex.colorSpace = THREE.SRGBColorSpace;
+  const poolMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0, fog: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
+  const pool = new THREE.PlaneGeometry(13, 13); pool.rotateX(-Math.PI / 2);
+  const pools = new THREE.InstancedMesh(pool, poolMat, list.length);
+  const heads = new Float32Array(list.length * 3);
+  list.forEach(([x, z, a], i) => {
+    const hx = x + Math.sin(a) * 1.2, hz = z + Math.cos(a) * 1.2;
+    m.compose(p.set(hx, heightAt(hx, hz) + 0.36, hz), q.identity(), s); pools.setMatrixAt(i, m);
+    heads.set([hx, heightAt(x, z) + 0.3 + 6.25, hz], i * 3);
+  });
+  pools.renderOrder = 4; pools.frustumCulled = false;
+  const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.BufferAttribute(heads, 3));
+  const haloMat = new THREE.PointsMaterial({ map: glowTex, size: 2.6, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+  const halos = new THREE.Points(hg, haloMat); halos.frustumCulled = false;
+  g.add(pools, halos);
+  g.userData.night = (n) => { poolMat.opacity = n * 0.8; haloMat.opacity = n; light.emissiveIntensity = 0.1 + n * 1.6; pools.visible = halos.visible = n > 0.01; };
   return g;
 }
 

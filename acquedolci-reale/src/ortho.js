@@ -47,6 +47,9 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform sampler2D hrMap;\nuniform vec4 hrRect;' + (roof ? LAB : '') + (nearNeutral ? LC_GLSL + DETAIL_UNI : ''));
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      // la tinta dell'ora del giorno (colore del materiale, daylight.js) si toglie qui e si rimette
+      // in fondo: i ritocchi dell'ortofoto lavorano sempre sulla foto di giorno
+      diffuseColor.rgb /= max(diffuse, vec3(1e-3));
       {
         // dentro la finestra a 25 cm la foto fine sostituisce quella a 0,5 m, con i bordi sfumati
         vec2 hu = vec2(vWPos.x - hrRect.x, hrRect.y - vWPos.z) / hrRect.z;
@@ -95,7 +98,8 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
           c = mix(c, beach, 0.8 * wBeach);
           diffuseColor.rgb = mix(base, c, near * (1.0 - wSea));
         }` : ''}
-      }`);
+      }
+      diffuseColor.rgb *= diffuse;`);
   };
   return m;
 }

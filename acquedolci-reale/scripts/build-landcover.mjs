@@ -36,7 +36,8 @@ function dtmAt(x, y) {
 }
 // classificazione del pixel: acqua (azzurro/blu, rosso basso), verde (eccesso di verde)
 const isWater = (r, g, b) => b - r > 8 && (g - r > 0 || b > 90);
-const isGreen = (r, g, b) => 2 * g - r - b > 18 && g > 50;
+// verde vero: più verde che blu (l'acqua turchese della battigia ha il verde alto ma anche il blu)
+const isGreen = (r, g, b) => 2 * g - r - b > 18 && g > 50 && g > b + 8;
 
 // prima la base (2,5 m) su tutto, poi il nucleo a 0,5 m che la sostituisce dove c'è
 const tiles = [ortho.tiles.find((t) => t.level === 'base'), ...ortho.tiles.filter((t) => t.level === 'core')];
@@ -53,7 +54,8 @@ for (const t of tiles) {
       const k = cy * W + cx;
       if (t.level === 'core' && !touched.has(k)) { touched.add(k); cnt[k] = wat[k] = grn[k] = 0; }
       const i = (py * img.width + px) * 4, r = img.data[i], g = img.data[i + 1], b = img.data[i + 2];
-      cnt[k]++; if (isWater(r, g, b)) wat[k]++; if (isGreen(r, g, b)) grn[k]++;
+      // un pixel d'acqua non è mai verde: l'acqua bassa della battigia è verdastra
+      cnt[k]++; if (isWater(r, g, b)) wat[k]++; else if (isGreen(r, g, b)) grn[k]++;
     }
   }
   console.log('ortofoto', t.file);

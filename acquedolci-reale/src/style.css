@@ -9,6 +9,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #b9d3e6; fon
 #modes button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 #modes button { border: 0; border-radius: 10px; padding: 9px 14px; background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.15); cursor: pointer; }
 #modes button.on { background: var(--accent); color: #fff; }
+#bSet { font-size: 16px; padding: 9px 12px !important; }
+#settings { position: fixed; top: calc(60px + env(safe-area-inset-top, 0px)); right: 12px; width: min(290px, calc(100vw - 24px)); background: var(--paper); border-radius: 12px; padding: 12px 14px; box-shadow: 0 4px 18px rgba(0,0,0,.2); display: grid; gap: 10px; }
+#settings[hidden] { display: none; }
+#settings .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#settings input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+#settings input[type=range] { width: 100%; accent-color: var(--accent); }
+#settings output { font-variant-numeric: tabular-nums; font-weight: 700; }
+#settings small { opacity: .7; font-size: 11px; text-align: right; }
+#bNow { border: 0; border-radius: 8px; padding: 6px 10px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 #hint { position: fixed; bottom: calc(38px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); margin: 0; background: rgba(22,36,46,.75); color: #fff; padding: 6px 12px; border-radius: 10px; font-size: 12px; white-space: nowrap; }
 #credits { position: fixed; left: 0; right: 0; bottom: 0; padding: 4px 16px calc(4px + env(safe-area-inset-bottom, 0px)); font-size: 10px; background: rgba(255,255,255,.7); text-align: center; }
 #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }

@@ -15,6 +15,7 @@ export function buildWater(sunDir, { far = false } = {}) {
     uTime: { value: 0 }, uSun: { value: sunDir.clone().normalize() },
     uDeep: { value: new THREE.Color(0x0d4a66) }, uShallow: { value: new THREE.Color(0x2f9aa0) },
     uSkyH: { value: new THREE.Color(0xc9dcea) }, uSkyZ: { value: new THREE.Color(0x5d93c4) },
+    uTint: { value: new THREE.Color(1, 1, 1) }, uSpec: { value: 3 }, // luce del momento (daylight.js)
   }]);
   uniforms.lcMap = GROUND.lcMap; uniforms.lcRect = GROUND.lcRect;
   const mat = new THREE.ShaderMaterial({
@@ -31,7 +32,7 @@ export function buildWater(sunDir, { far = false } = {}) {
         #include <fog_vertex>
       }`,
     fragmentShader: `
-      uniform float uTime; uniform vec3 uSun, uDeep, uShallow, uSkyH, uSkyZ;
+      uniform float uTime, uSpec; uniform vec3 uSun, uDeep, uShallow, uSkyH, uSkyZ, uTint;
       varying vec3 vW;
       ${LC_GLSL}
       #include <common>
@@ -70,14 +71,14 @@ export function buildWater(sunDir, { far = false } = {}) {
         vec3 R = reflect(-V, N);
         vec3 sky = mix(uSkyH, uSkyZ, clamp(R.y * 1.6, 0.0, 1.0));
         float depth = smoothstep(0.0, 45.0, shore);
-        vec3 body = mix(uShallow, uDeep, depth);
+        vec3 body = mix(uShallow, uDeep, depth) * uTint;
         float sunDiff = max(dot(N, uSun), 0.0);
         vec3 col = mix(body * (0.55 + 0.45 * sunDiff), sky, fres);
-        col += vec3(1.0, 0.95, 0.85) * pow(max(dot(R, uSun), 0.0), 350.0) * 3.0;
+        col += vec3(1.0, 0.95, 0.85) * pow(max(dot(R, uSun), 0.0), 350.0) * uSpec;
         // battigia: fasce di schiuma che corrono verso riva e si rompono col rumore
         float band = sin(shore * 0.9 + uTime * 1.3) * 0.5 + 0.5;
         float foam = (1.0 - smoothstep(0.5, 7.0, shore)) * smoothstep(0.55, 0.95, band * noise(vW.xz * 0.7 + uTime * 0.2) + 0.35 * (1.0 - smoothstep(0.0, 2.0, shore)));
-        col = mix(col, vec3(0.93, 0.95, 0.95), clamp(foam, 0.0, 1.0));
+        col = mix(col, vec3(0.93, 0.95, 0.95) * uTint, clamp(foam, 0.0, 1.0));
         // trasparenza: a riva si vede il fondale (ortofoto), al largo l'acqua è piena
         float alpha = mix(0.35, 0.96, smoothstep(0.0, 25.0, shore));
         alpha = max(alpha, foam * 0.9);
@@ -104,5 +105,5 @@ export function buildWater(sunDir, { far = false } = {}) {
   }
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = 5; mesh.name = far ? 'mare-sfondo' : 'mare'; mesh.frustumCulled = false;
-  return { mesh, update(t, cam) { uniforms.uTime.value = t; if (far && cam) mesh.position.set(cam.position.x, 0, cam.position.z); } };
+  return { mesh, uniforms, update(t, cam) { uniforms.uTime.value = t; if (far && cam) mesh.position.set(cam.position.x, 0, cam.position.z); } };
 }
