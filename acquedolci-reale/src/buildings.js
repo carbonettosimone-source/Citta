@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { BAY, FLOOR } from './facade.js';
 import { orthoMaterial } from './ortho.js';
+import { isPlazaBuilding } from './plaza-buildings.js';
 
 const NO_WINDOWS = new Set(['B006', 'B007', 'B009', 'B010']); // baracca, tettoia, cabina, serra
 
@@ -60,8 +61,8 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
     for (let i = 0; i < b.r.length; i += 2) pts.push([b.r[i], b.r[i + 1]]);
     if (pts.length < 3) continue;
     const top = b.g + b.h;
-    if (b.lm) {
-      // modellato a parte in landmarks.js: qui resta solo l'ingombro per le collisioni
+    if (b.lm || isPlazaBuilding(b.id)) {
+      // modellato a parte (landmarks.js o plaza-buildings.js): qui resta solo l'ingombro per le collisioni
       footprints.push({ pts, top, minX: Math.min(...pts.map((p) => p[0])), maxX: Math.max(...pts.map((p) => p[0])), minZ: Math.min(...pts.map((p) => p[1])), maxZ: Math.max(...pts.map((p) => p[1])), canopy: false });
       continue;
     }

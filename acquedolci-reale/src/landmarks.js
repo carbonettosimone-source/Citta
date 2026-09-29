@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NIGHT } from './daylight.js';
 import { buildPlazaDressing } from './plaza-props.js';
+import { buildPlazaBuildings } from './plaza-buildings.js';
 
 /** Raccoglie pezzi colorati nel riferimento di una facciata e li fonde in una sola mesh. */
 class Kit {
@@ -404,6 +405,7 @@ export function buildLandmarks(model, heightAt) {
   }
   if (lm.fountain) group.add(fountain(lm.fountain));
   if (lm.ruins?.length) group.add(ruinsAndCastle(lm, heightAt));
+  group.add(buildPlazaBuildings(model));
   group.add(buildPlazaDressing(heightAt));
   return group;
 }

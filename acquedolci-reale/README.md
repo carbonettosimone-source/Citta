@@ -43,6 +43,34 @@ Pianta, altezze e orientamento vengono dai dati (DBTR, LiDAR, ortofoto). Forme e
 - **Chiesa Madre di San Benedetto il Moro**: foto di Subbass1 ([02](https://commons.wikimedia.org/wiki/File:Acquedolci,_Chiesa_Madre_della_Beata_Vergine_Assunta_(02).jpg), [12](https://commons.wikimedia.org/wiki/File:Acquedolci,_Chiesa_San_Benedetto_il_Moro_(12).jpg)), CC BY-SA 4.0; Azotoliquido, CC BY-SA 3.0
 - **Castello Larcan-Gravina, torri e cappella di San Giuseppe**: [foto di Azotoliquido](https://commons.wikimedia.org/wiki/File:Acquedolci_castello.JPG), CC BY-SA 3.0
 
+## Primo lotto sulle tre piazze (`src/plaza-buildings.js`)
+
+Municipio, fontana e Chiesa Madre restano i modelli a mano sopra. Intorno, sei palazzi con la pianta DBTR e l'altezza LiDAR del modello (il tetto a falde è lo scheletro già calcolato, color cotto, non la foto di Street View). Finestre, cornici, persiane e balconi sono geometria, un ritmo per edificio. I muri in comune restano ciechi.
+
+| DBTR | Piazza | Cosa |
+|---|---|---|
+| 1302565 + fontana OSM | Vittorio Emanuele III | Municipio e Fontana dei Delfini (`landmarks.js`) |
+| 1302566 | Vittorio Emanuele III | Palazzo a ovest: due piani, archi al piano terra, persiane verdi, balconi alterni. Intonaco dal colore misurato |
+| 1302564 | Vittorio Emanuele III | Palazzo chiaro a est: due piani di finestre, persiane verdi, balcone a ogni campata. L'ortofoto qui è quasi bianca (campione bruciato): l'intonaco è un gesso chiaro, non quel bianco |
+| 1300978 | Libertà | Chiesa Madre (`landmarks.js`) |
+| 1302693 | Libertà | Palazzo alto a ovest, cinque piani, terrazza con parapetto (niente falde nel LiDAR), loggia ad archi all'ultimo piano |
+| 1302678 | Libertà | Palazzetto a est, quattro piani, persiane brune, balconi. Tinta corretta dal campione quasi bianco dell'ortofoto |
+| 1302669 | Giovanni Paolo II | Villa chiara a sud del giardino, tetto a falde, portone e un balcone al centro, persiane verdi |
+| 1302648 | Giovanni Paolo II | Schiera a ovest: botteghe al piano terra, lesene, balcone a ogni campata |
+
+## Studio di riferimento (solo in locale)
+
+Le foto di Street View servono a chi modella le mesh. Non sono texture, non stanno in `public/` e non partono dal gioco. La chiave non si incolla nelle Impostazioni e non va in git.
+
+```bash
+# nella shell, mai in un file del repository
+VITE_GOOGLE_MAPS_API_KEY=… node scripts/reference-studio.mjs
+```
+
+Lo script scrive `acquedolci-reale/reference/` (gitignored): un JPEG per piazza e per i quattro orientamenti, più `index.json` con id del panorama e data. Senza chiave esce subito e non chiama Google. Sulla chiave, in Google Cloud, abilita Street View Static API e non lasciarla libera: per lo script a riga di comando va bene un limite per IP; una chiave da pagina va ristretta al referrer `https://carbonettosimone-source.github.io/*` e a localhost, ma questo script non è una pagina. La build di GitHub Pages si fa **senza** `VITE_GOOGLE_MAPS_API_KEY`, altrimenti Vite la scriverebbe nel JavaScript.
+
+In Impostazioni c'è la stessa nota, in breve. Il paese in gioco resta intero: niente tile 3D, niente maschera, niente panorami dentro la scena.
+
 ## Pipeline
 
 ```bash
@@ -101,23 +129,6 @@ Il pulsante ⚙︎ apre le impostazioni, che restano salvate nel browser:
 - **Ora del giorno:** 0–24, sulla data di oggi, ora di Roma. Il pulsante "Adesso" porta all'ora attuale.
 - **Luci notturne:** accese o spente.
 - **Nitidezza:** antialiasing in un passaggio in più.
-- **Chiave Google (3D / Street View):** vedi sotto. Senza chiave il paese disegnato non cambia.
-- **Assi all'origine:** rosso verso est, verde in su, blu verso sud, sul Municipio. Spenti di base; servono a vedere se la mesh di Google cade sul terreno.
-
-## 3D di Google sulle tre piazze
-
-Il disegno del paese resta la base. Con una chiave si può sostituire, in un raggio di circa 180 m intorno al Municipio e alla Fontana dei Delfini, a Piazza Libertà e a Piazza Giovanni Paolo II, la mesh fotorealistica delle Photorealistic 3D Tiles. A piedi, fermi su quei tre punti, arriva anche una panoramica Street View (poche tessere, non l'archivio intero).
-
-La chiave **non sta nel repository** e non viene messa nella build pubblicata. Si incolla in Impostazioni: resta solo nel browser (`localStorage`, chiave `acq-gkey`). Per provare in locale si può anche avere `VITE_GOOGLE_MAPS_API_KEY` nell'ambiente di `npm run dev`; la build di GitHub Pages va fatta **senza** quella variabile, altrimenti Vite la scriverebbe nel JavaScript.
-
-Sulla chiave, in Google Cloud:
-
-- abilita **Map Tiles API** (tile 3D e sessione Street View);
-- restringi il referrer HTTP a `https://carbonettosimone-source.github.io/*` e a localhost (`http://localhost:*` e `http://127.0.0.1:*`).
-
-Le richieste partono dal browser, con il token di sessione che crea Map Tiles. Non si scaricano glb da mettere in git e non si copiano i pixel di Street View sulle texture del paese. Quando il 3D è in vista, in basso compaiono il marchio Google e la riga di copyright che arriva con le tile. I decoder in `public/basis` e `public/draco` sono quelli di three.js (mesh compresse), non dati Google.
-
-Senza chiave non parte nessuna richiesta: restano spina, asfalto, prato e i modelli tipici.
 
 Come funziona l'ora del giorno (`src/daylight.js`):
 
@@ -146,4 +157,4 @@ L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 c
 - Il fondale non è misurato: la profondità cresce con la distanza da riva (5 cm per metro, al massimo 6 m). Anche le onde sono tipiche, non osservate.
 - La piazza davanti alla Chiesa Madre è quella dell'ortofoto 2022: le siepi della foto del 2006 non ci sono più. Le superfici sono geometria e materiali disegnati, non un ingrandimento della foto e non i pixel di Street View.
 - **Dati OSM delle piazze** (estratto già in `acquedolci-lowpoly/public/data/acquedolci.json`, non un nuovo scarico Overpass): tre `place=square` ad anello chiuso — Piazza Vittorio Emanuele III (intorno al Municipio), Piazza Libertà (Chiesa Madre), Piazza Giovanni Paolo II — più Piazza Federico II, che è un parcheggio nominato piazza (`amenity=parking`), non un asse. Non ci sono aree `highway=pedestrian` né `amenity=marketplace`. L'anello di Piazza Vittorio Emanuele III gira intorno al palazzo e non contiene il sagrato della Fontana dei Delfini: quel vuoto lo copre il riempimento (strada intorno, centro edificato, non verde). Lo stesso riempimento prende altri slarghi compatti del paese; un prato, la spiaggia, un fondo agricolo o un vuoto troppo grande restano suolo, con l'albedo del materiale in vista Drone. Il tipo di pavimento (spina, asfalto, prato) si sceglie nel renderer dal punto, quindi non serve rifare `streets.json` per cambiare solo il materiale. Per rifare i poligoni: `node scripts/build-landcover.mjs` se manca `data/landcover.png`, poi `node scripts/build-streets.mjs` → `public/data/streets.json`.
-- Mancano auto, persone e la grafica del chiosco (niente marchi copiati dalle foto). Senza la chiave Google, vasi, sedie, cancellata, chiosco e aiuole sono modelli tipici messi dove cadono pianta e foto, non un rilievo. Con la chiave, dentro i tre dischi quel disegno si nasconde e al suo posto c'è la mesh di Google.
+- Mancano auto, persone e la grafica del chiosco (niente marchi copiati dalle foto). Vasi, sedie, cancellata, chiosco e aiuole sono modelli messi dove cadono pianta e foto, non un rilievo. I sei palazzi del primo lotto seguono pianta e altezza misurate; il ritmo di finestre e balconi è disegnato, non copiato da una foto. Le altre facciate del paese restano il modulo tipico.

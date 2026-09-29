@@ -28,18 +28,12 @@
     <div class="row"><button id="bNow" type="button">Adesso</button><small id="sunInfo"></small></div>
     <label class="row"><span>Luci notturne</span><input type="checkbox" id="optLights" checked /></label>
     <label class="row"><span>Nitidezza</span><input type="checkbox" id="optSharp" checked /></label>
-    <label class="stack">Chiave Google (3D / Street View)
-      <input type="password" id="optGKey" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="incolla qui la chiave" maxlength="200" />
-    </label>
-    <p class="note" id="gHint">Senza chiave resta il paese disegnato. La chiave resta solo in questo browser. Restringila al referrer https://carbonettosimone-source.github.io/* e a localhost, e abilita Map Tiles API e Street View.</p>
-    <p class="note" id="gStatus" aria-live="polite"></p>
-    <label class="row"><span>Assi all'origine</span><input type="checkbox" id="optAxes" /></label>
+    <p class="note">Lo studio di riferimento non è nel gioco. In locale, con <code>VITE_GOOGLE_MAPS_API_KEY</code> solo nella shell: <code>node scripts/reference-studio.mjs</code>. La chiave non va in git. Vedi il README.</p>
     <button id="bIntro" type="button">Rivedi l'intro</button>
   </section>
   <div id="joy"><i></i></div>
   <p id="hint"></p>
   <footer id="credits">
-    <span id="gAttrib" hidden><img id="gLogo" alt="Google" height="14" /> <span id="gCopy"></span> · </span>
     Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
     Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)
   </footer>

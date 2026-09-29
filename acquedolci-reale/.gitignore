@@ -2,3 +2,5 @@ node_modules/
 dist/
 data/ortho-hr/
 public/data/
+# foto di lavoro dello studio di riferimento: non entrano nel gioco né in git
+reference/
