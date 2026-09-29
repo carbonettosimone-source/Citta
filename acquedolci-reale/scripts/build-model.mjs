@@ -425,6 +425,8 @@ import { cpSync, rmSync } from 'node:fs';
 }
 cpSync(new URL('data/ortho.json', root), new URL('public/data/ortho.json', root));
 // copertura del suolo (build-landcover.mjs): mare, spiaggia, verde
+// sfondo lontano (fetch-background.mjs): litorale ed Eolie
+if (existsSync(new URL('data/bg/', root))) cpSync(new URL('data/bg/', root), new URL('public/data/bg/', root), { recursive: true });
 for (const f of ['landcover.png', 'landcover.json']) if (existsSync(new URL(`data/${f}`, root))) cpSync(new URL(`data/${f}`, root), new URL(`public/data/${f}`, root));
 cpSync(new URL('data/ortho/', root), new URL('public/data/ortho/', root), { recursive: true });
 // ortofoto a 25 cm a tessere (fetch-ortho-hr.mjs), caricata a pezzi intorno a chi guarda

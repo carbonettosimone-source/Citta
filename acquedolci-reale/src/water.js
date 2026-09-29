@@ -7,8 +7,10 @@
  */
 import * as THREE from 'three';
 import { GROUND, LC_GLSL } from './ground.js';
+import { CURVE_GLSL } from './background.js';
 
-export function buildWater(sunDir) {
+/** far: il mare dello sfondo (fino all'orizzonte, con curvatura terrestre), altrimenti quello del paese */
+export function buildWater(sunDir, { far = false } = {}) {
   const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
     uTime: { value: 0 }, uSun: { value: sunDir.clone().normalize() },
     uDeep: { value: new THREE.Color(0x0d4a66) }, uShallow: { value: new THREE.Color(0x2f9aa0) },
@@ -21,8 +23,10 @@ export function buildWater(sunDir) {
       varying vec3 vW;
       #include <fog_pars_vertex>
       void main() {
-        vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz;
-        vec4 mvPosition = viewMatrix * w;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        ${far ? CURVE_GLSL : ''}
+        vW = wp.xyz;
+        vec4 mvPosition = viewMatrix * wp;
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
@@ -44,10 +48,12 @@ export function buildWater(sunDir) {
       float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
       void main() {
+        float shore = 80.0; // distanza da riva in m (80 = mare aperto)
+        ${far ? '' : `
+        // mare del paese: solo dentro la copertura del suolo; fuori c'è quello dello sfondo
         vec4 lc = landcover(vW.xz);
-        float shore; // distanza da riva in m (80 = mare aperto)
-        if (lc.x < 0.0) { if (vW.z > -300.0) discard; shore = 80.0; }   // fuori dai dati: mare solo a nord della costa
-        else { if (lc.x < 0.06) discard; shore = clamp((lc.x * 255.0 - 30.0) / 225.0 * 80.0, 0.0, 80.0); }
+        if (lc.x < 0.06) discard;
+        shore = clamp((lc.x * 255.0 - 30.0) / 225.0 * 80.0, 0.0, 80.0);`}
         float dist = distance(cameraPosition, vW);
         // onde: il mare da nord-ovest (il Tirreno davanti ad Acquedolci), più corte vicino a riva
         vec2 g = vec2(0.0);
@@ -81,9 +87,22 @@ export function buildWater(sunDir) {
         #include <fog_fragment>
       }`,
   });
-  const geo = new THREE.PlaneGeometry(60000, 60000);
-  geo.rotateX(-Math.PI / 2);
+  let geo;
+  if (far) {
+    // disco centrato su chi guarda: anelli sempre più radi fino a 200 km, così la curvatura si piega bene
+    const R = [0]; for (let r = 30; r < 200000; r *= 1.12) R.push(r); R.push(200000);
+    const SEG = 128, pos = [], idx = [];
+    for (const r of R) for (let s = 0; s < SEG; s++) { const a = (s / SEG) * Math.PI * 2; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); }
+    for (let i = 0; i < R.length - 1; i++) for (let s = 0; s < SEG; s++) {
+      const a = i * SEG + s, b = i * SEG + (s + 1) % SEG, c = a + SEG, d = b + SEG;
+      idx.push(a, b, c, b, d, c); // antiorario visto dall'alto
+    }
+    geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+  } else {
+    const r = GROUND.lcRect.value;
+    geo = new THREE.PlaneGeometry(r.z, r.w); geo.rotateX(-Math.PI / 2); geo.translate(r.x + r.z / 2, 0, r.y + r.w / 2);
+  }
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = 0.0; mesh.renderOrder = 5; mesh.name = 'sea';
-  return { mesh, update(t) { uniforms.uTime.value = t; } };
+  mesh.renderOrder = 5; mesh.name = far ? 'mare-sfondo' : 'mare'; mesh.frustumCulled = false;
+  return { mesh, update(t, cam) { uniforms.uTime.value = t; if (far && cam) mesh.position.set(cam.position.x, 0, cam.position.z); } };
 }

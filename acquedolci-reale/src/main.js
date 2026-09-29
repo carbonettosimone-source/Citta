@@ -9,6 +9,7 @@ import { buildLandmarks } from './landmarks.js';
 import { createOrthoHR } from './ortho-hr.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
+import { buildBackground } from './background.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -23,8 +24,15 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const HAZE = 0xcfdde8;
-scene.background = new THREE.Color(HAZE);
-scene.fog = new THREE.Fog(HAZE, 1500, 5200);
+scene.background = null; // il colore di fondo lo mette la passata dello sfondo
+// foschia esponenziale: il paese resta nitido, a 50 km le Eolie sono sagome azzurrine
+scene.fog = new THREE.FogExp2(HAZE, 1.6e-5);
+// sfondo lontano (background.js): scena e camera a parte, disegnate prima del paese
+renderer.autoClear = false;
+const bgScene = new THREE.Scene();
+bgScene.background = new THREE.Color(HAZE);
+bgScene.fog = scene.fog;
+const bgCamera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 50, 250000);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 12000);
 
 // luce di tarda mattinata da sud-est (come il volo dell'ortofoto: ombre verso nord-ovest)
@@ -38,7 +46,7 @@ sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
 // cielo: cupola con sfumatura foschia → azzurro e alone attorno al sole, segue la camera
-const sky = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), new THREE.ShaderMaterial({
+const sky = new THREE.Mesh(new THREE.SphereGeometry(200000, 32, 16), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: { uSun: { value: sun.position.clone().normalize() }, uH: { value: new THREE.Color(HAZE) }, uZ: { value: new THREE.Color(0x3f7fc0) } },
   vertexShader: 'varying vec3 vD; void main() { vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -53,7 +61,7 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), new THREE.Sha
     }`,
 }));
 sky.renderOrder = -1; sky.frustumCulled = false;
-scene.add(sky);
+bgScene.add(sky);
 
 async function load() {
   say('modello degli edifici');
@@ -92,9 +100,16 @@ async function load() {
     if (lcTex) initGround(lcTex, lcMeta, model.origin);
   }
   say('terreno');
-  scene.add(buildTerrain({ orthoMeta, textures, heightAt, origin: model.origin }));
+  const bounds = { xmin: dtmMeta.xmin, xmax: dtmMeta.xmin + (dtmMeta.width - 1) * dtmMeta.step, ymax: dtmMeta.ymax, ymin: dtmMeta.ymax - (dtmMeta.height - 1) * dtmMeta.step };
+  scene.add(buildTerrain({ orthoMeta, textures, heightAt, origin: model.origin, bounds }));
   const water = buildWater(sun.position.clone().sub(sun.target.position));
   scene.add(water.mesh);
+  say('litorale ed Eolie');
+  const farSea = buildWater(sun.position.clone().sub(sun.target.position), { far: true });
+  bgScene.add(farSea.mesh);
+  const d = dtmMeta, inner = { x0: d.xmin - model.origin[0], x1: d.xmin + d.width * d.step - model.origin[0], z0: model.origin[1] - d.ymax, z1: model.origin[1] - d.ymax + d.height * d.step };
+  const bg = await buildBackground(model.origin, inner);
+  bgScene.add(bg.group);
   say('edifici');
   const { group, footprints } = buildBuildings({ model, orthoMeta, textures, facadeMats: facadeMaterials() });
   scene.add(group);
@@ -110,10 +125,10 @@ async function load() {
   const nLidar = model.buildings.filter((b) => b.src === 'lidar').length;
   $('sub').textContent = `${model.buildings.length} edifici reali · ${nLidar} con altezza LiDAR`;
   const hr = hrMeta ? createOrthoHR(hrMeta, model.origin, renderer) : { update() {} };
-  return { model, heightAt, collider, trees, streets, hr, water };
+  return { model, heightAt, collider, trees, streets, hr, water, farSea, farLabels: bg.labels };
 }
 
-const { model, heightAt, collider, trees, streets, hr, water } = await load();
+const { model, heightAt, collider, trees, streets, hr, water, farSea, farLabels } = await load();
 $('loader').classList.add('hide');
 
 // ---------- etichette dei luoghi (nomi OSM)
@@ -123,6 +138,13 @@ const labels = model.pois.map((p) => {
   $('labels').appendChild(el);
   return { el, v: new THREE.Vector3(p.x, p.y + 14, p.z) };
 });
+// isole e paesi lontani: etichette sempre visibili, alla quota della cima meno la curvatura terrestre
+for (const p of farLabels) {
+  const el = document.createElement('div');
+  el.className = 'lbl far'; el.textContent = p.name;
+  $('labels').appendChild(el);
+  labels.push({ el, far: true, v: new THREE.Vector3(p.x, p.y, p.z), top: p.y });
+}
 const tmp = new THREE.Vector3();
 function updateLabels() {
   // le più vicine per prime; una etichetta che si sovrappone a una già messa non si mostra
@@ -130,8 +152,10 @@ function updateLabels() {
   const placed = [];
   const order = labels.map((l) => ({ l, d: camera.position.distanceTo(l.v) })).sort((a, b) => a.d - b.d);
   for (const { l, d } of order) {
-    tmp.copy(l.v).project(camera);
-    let show = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && d < maxD;
+    if (l.far) { const dx = l.v.x - camera.position.x, dz = l.v.z - camera.position.z; l.v.y = l.top + 120 - (dx * dx + dz * dz) / 1.465e7; }
+    // i lontani si proiettano con la camera dello sfondo (il paese ha il far a 12 km)
+    tmp.copy(l.v).project(l.far ? bgCamera : camera);
+    let show = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && (l.far ? d > 3000 : d < maxD);
     const x = (tmp.x * 0.5 + 0.5) * innerWidth, y = (-tmp.y * 0.5 + 0.5) * innerHeight;
     const w = l.el.textContent.length * 7 + 16;
     if (show && placed.some((p) => Math.abs(p.x - x) < (p.w + w) / 2 && Math.abs(p.y - y) < 24)) show = false;
@@ -237,9 +261,15 @@ function frame() {
   sky.position.copy(camera.position);
   hr.update(focus);
   water.update(clock.elapsedTime);
+  farSea.update(clock.elapsedTime, camera);
+  bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
+  if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
   updateLabels();
+  renderer.clear();
+  renderer.render(bgScene, bgCamera);
+  renderer.clearDepth();
   renderer.render(scene, camera);
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer };
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera };

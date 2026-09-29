@@ -19,6 +19,7 @@ Acquedolci ricostruita in 3D solo da dati reali e aperti: dove esiste un dato mi
 | Tetti a falde (866) | LiDAR + colore dei coppi nell'ortofoto, padiglione con straight skeleton | |
 | Casotti scala sulle terrazze (121) | volumi misurati dal LiDAR sopra il tetto | |
 | Nomi dei luoghi | OpenStreetMap | ODbL |
+| Sfondo: litorale Cefalù–Capo d'Orlando (MDT 100 m, foto 25 m) e isole Eolie (MDT 40 m, foto 12 m) | MDT 2013 e ortofoto 2022 — SITR | CC BY 4.0 |
 | Castello Larcan-Gravina: perimetro dei ruderi | DBTR 2013, strato Altre strutture (rudere) | CC BY 4.0 |
 
 ## Luoghi d'interesse modellati a mano (`src/landmarks.js`)
@@ -43,6 +44,7 @@ node scripts/fetch-dbtr-extra.mjs                        # strade, muri, vegetaz
 NODE_USE_ENV_PROXY=1 node scripts/fetch-canopy.mjs       # chiome Meta/WRI → data/canopy.json
 node scripts/facade-from-ortho.mjs                       # colori facciata e tetto → data/facade-colors.json
 node scripts/build-landcover.mjs                         # mare, spiaggia, verde + MDT della costa → data/landcover.png, data/dtm-sea.bin
+node scripts/fetch-background.mjs                        # litorale ed Eolie a bassa risoluzione → data/bg/
 node scripts/build-model.mjs                             # edifici, tetti, alberi → public/data/
 node scripts/build-streets.mjs                           # strade, muri, lampioni → public/data/streets.json (~5 min)
 npm run dev                                              # http://127.0.0.1:5190
@@ -61,6 +63,14 @@ Un upscaler (Real-ESRGAN e simili) inventa dettaglio plausibile: coppi, auto e a
 - **Mare**: c'è dove l'ortofoto vede acqua collegata al mare aperto (le piscine no). Le onde sono treni sinusoidali con normali analitiche, spenti quando diventano più corti di pochi pixel (niente moiré). Ci sono il riflesso del cielo con Fresnel, il sole, la trasparenza sul bassofondo e la schiuma della battigia.
 - **Costa**: il MDT 2013 ha il mare a 0 m e taglia la spiaggia sulla riva del 2013. Il fondale scende con la distanza da riva, e la spiaggia del 2022 resta asciutta.
 - **Suolo da vicino**: detail mapping. La tinta viene dalla foto, la grana dal materiale giusto: ciottoli sulla spiaggia, erba sul verde, terra ed erba secca altrove.
+
+## Sfondo: litorale ed Eolie
+
+Il litorale da Cefalù a Capo d'Orlando (con Madonie e Nebrodi) e le sette Eolie vengono dalle stesse fonti del paese, a bassa risoluzione, quindi hanno gli stessi colori. Le isole stanno nella posizione vera.
+
+- **Passata separata:** lo sfondo si disegna prima del paese, con una camera gemella (50 m – 250 km). Il paese poi si disegna sopra con la sua precisione (0,5 m – 12 km): niente z-fighting e niente logarithmic depth, che romperebbe il polygonOffset delle strade.
+- **Curvatura terrestre:** con rifrazione standard (k = 0,13), a 50 km il mare copre ~170 m. Per questo dal paese delle Eolie si vedono solo le cime, come dal vero.
+- **Foschia:** esponenziale. Il paese resta nitido, le isole sono sagome azzurrine.
 
 ## Colori dal vero
 
