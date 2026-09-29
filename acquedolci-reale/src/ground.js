@@ -57,6 +57,23 @@ const dry = () => canvasTex(256, (g, S) => {
   for (let i = 0; i < 500; i++) { const v = 90 + r() * 100; g.fillStyle = `rgb(${v},${v - 6},${v - 16})`; g.beginPath(); g.arc(r() * S, r() * S, 0.8 + r() * 1.8, 0, 7); g.fill(); }
 });
 
+/** pavimentato: lastre di pietra e cemento sfalsate, fughe scure, qualche macchia */
+const paving = () => canvasTex(512, (g, S) => {
+  const r = rnd(33);
+  g.fillStyle = '#6f6a62'; g.fillRect(0, 0, S, S);
+  const rows = 8, h = S / rows;
+  for (let j = 0; j < rows; j++) {
+    let x = -(j % 2) * 40;
+    while (x < S) {
+      const w = 60 + r() * 70, v = 150 + r() * 45;
+      g.fillStyle = `rgb(${v},${v - 4},${v - 12})`; g.fillRect(x + 2, j * h + 2, w - 4, h - 4);
+      for (let i = 0; i < 40; i++) { const t = r() * 30; g.fillStyle = `rgba(${t},${t},${t},0.08)`; g.fillRect(x + 2 + r() * (w - 6), j * h + 2 + r() * (h - 6), 2, 2); }
+      x += w;
+    }
+  }
+  for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(60,55,50,${0.05 + r() * 0.07})`; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 40, 6 + r() * 20, r() * 3, 0, 7); g.fill(); }
+});
+
 /** uniform condivisi dal materiale del suolo (ortho.js) */
 const blank = new THREE.DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
 export const GROUND = {
@@ -64,6 +81,7 @@ export const GROUND = {
   pebMap: { value: blank }, pebMean: { value: new THREE.Vector3(1, 1, 1) },
   grsMap: { value: blank }, grsMean: { value: new THREE.Vector3(1, 1, 1) },
   dryMap: { value: blank }, dryMean: { value: new THREE.Vector3(1, 1, 1) },
+  pavMap: { value: blank }, pavMean: { value: new THREE.Vector3(1, 1, 1) },
 };
 
 export function initGround(lcTex, lcMeta, origin) {
@@ -72,7 +90,7 @@ export function initGround(lcTex, lcMeta, origin) {
   lcTex.minFilter = THREE.LinearFilter; lcTex.generateMipmaps = false; lcTex.needsUpdate = true;
   GROUND.lcMap.value = lcTex;
   GROUND.lcRect.value.set(lcMeta.xmin - OX, OY - lcMeta.ymax, lcMeta.width * lcMeta.step, lcMeta.height * lcMeta.step);
-  for (const [k, f] of [['peb', pebbles], ['grs', grass], ['dry', dry]]) { const { t, mean } = f(); GROUND[`${k}Map`].value = t; GROUND[`${k}Mean`].value = mean; }
+  for (const [k, f] of [['peb', pebbles], ['grs', grass], ['dry', dry], ['pav', paving]]) { const { t, mean } = f(); GROUND[`${k}Map`].value = t; GROUND[`${k}Mean`].value = mean; }
 }
 
 /** GLSL: campiona la copertura del suolo in coordinate mondo. rgb = mare, spiaggia, verde */

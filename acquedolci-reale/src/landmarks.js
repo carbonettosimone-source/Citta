@@ -198,7 +198,9 @@ function fountain(f) {
 
 // ---------------------------------------------------------------- Chiesa Madre
 function chiesa(b) {
-  const F = facadeFrame(b.r, [0, 1]); // facciata a sud, sul sagrato (ortofoto)
+  // facciata a NORD, sulla piazza coi giardini: nella foto frontale (Azotoliquido) dietro la facciata
+  // ci sono le montagne, che stanno a sud. Canonica e campanile quindi a sud (retro).
+  const F = facadeFrame(b.r, [0, -1]);
   const k = new Kit(F.ox, F.oz, F.wx, F.wz);
   const g = b.g, W = Math.min(21, F.W), L = F.D, h = W / 2;
   const YEL = 0xe8d09a, TRIM = 0xf2e6c4, DARK = 0x33302c, WOOD = 0x5a3a24, ROOF = 0xb0603a, LEAD = 0x8e908e;
@@ -244,7 +246,8 @@ function chiesa(b) {
   for (const s of [-1, 1]) { k.arch(s * 5.2, 1.5, g + 0.4, g + 3.6, FT + 0.05, WOOD); k.arch(s * 5.2, 1.7, g + 3.9, g + 5.3, FT + 0.05, TRIM, 0.05); }
   k.arch(0, 1.4, g + 10.5, g + 13.9, FT + 0.05, DARK);                        // finestrone dell'ordine superiore
   for (let i = 0; i < 4; i++) k.box(-3 + i * 0.1, 3 - i * 0.1, g - 0.5, g + 0.15 * (i + 1) - 0.3, FT, FT + 0.5 + (4 - i) * 0.35, 0xc9c0ae); // gradini
-  // corpo posteriore a tre piani (canonica) e campanile sull'angolo nord-est
+  // corpo posteriore a tre piani (canonica) e campanile sull'angolo posteriore a +u (sud-ovest):
+  // nella foto del fianco (Subbass1) facciata a sinistra, campanile a destra sul lato vicino
   k.box(-h, h, g - 0.5, g + 11, -L, -L + rear, YEL);
   k.box(-h - 0.2, h + 0.2, g + 10.8, g + 11.3, -L - 0.2, -L + rear + 0.2, TRIM);
   for (let u = -h + 1.5; u < h - 1; u += 2.8) for (const y of [g + 1.5, g + 5, g + 8.2]) k.box(u - 0.5, u + 0.5, y, y + 1.6, -L - 0.08, -L + 0.02, DARK);

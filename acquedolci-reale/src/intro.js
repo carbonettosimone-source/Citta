@@ -21,9 +21,9 @@ const SHOTS = [
     hour: 16.5, dur: 8.5, caption: '…di famiglia in famiglia, di favore in favore.',
     from: { cam: [-60, 150, -330], look: [-8, 5, -20] }, to: { cam: [40, 95, -230], look: [-6, 8, -5] },
   },
-  { // la Chiesa Madre e il suo quartiere, salendo
+  { // la Chiesa Madre dalla sua piazza (a nord), con le montagne dietro, salendo
     hour: 17.75, dur: 8.5, caption: 'Tutti si conoscono. Tutti devono qualcosa a qualcuno.',
-    from: { cam: [-150, 75, 330], look: [-212, 12, 110] }, to: { cam: [-60, 150, 420], look: [-200, 10, 60] },
+    from: { cam: [-160, 70, -70], look: [-212, 14, 112] }, to: { cam: [-280, 140, -170], look: [-205, 10, 150] },
   },
   { // panoramica finale: si sale sopra il paese verso il mare, le Eolie all'orizzonte
     hour: 18.6, dur: 14, final: true,
