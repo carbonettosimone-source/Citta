@@ -75,50 +75,83 @@ function densify(flat, extra = []) {
   return out;
 }
 
-export function buildStreets(data, heightAt) {
+/**
+ * Poligono con buchi → triangoli che seguono il terreno. Ogni lato più lungo di MAXE viene diviso a
+ * metà (bisezione del lato più lungo): la divisione dipende solo dal lato, quindi due triangoli
+ * vicini lo dividono negli stessi punti e non restano fessure.
+ */
+const MAXE = 6;
+function fillPolys(polys, heightAt, yOff, uvScale, out) {
+  for (const rings of polys) {
+    // contorno già diviso in tratti ≤ MAXE (in parti uguali: due poligoni con un lato in comune lo
+    // dividono negli stessi punti), così la triangolazione non fa lunghe schegge da ridividere
+    const toV = (r) => {
+      const v = [];
+      for (let i = 0; i < r.length; i += 2) {
+        const x0 = r[i], z0 = r[i + 1], x1 = r[(i + 2) % r.length], z1 = r[(i + 3) % r.length];
+        const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / MAXE));
+        for (let k = 0; k < n; k++) v.push(new THREE.Vector2(x0 + (x1 - x0) * k / n, z0 + (z1 - z0) * k / n));
+      }
+      return v;
+    };
+    const outer = toV(rings[0]), holes = rings.slice(1).map(toV);
+    const all = outer.concat(...holes);
+    const faces = THREE.ShapeUtils.triangulateShape(outer, holes);
+    const stack = faces.map(([a, b, c]) => [[all[a].x, all[a].y], [all[b].x, all[b].y], [all[c].x, all[c].y]]);
+    while (stack.length) {
+      const t = stack.pop();
+      let li = -1, lm = (MAXE * 1.6) ** 2;
+      for (let i = 0; i < 3; i++) { const p = t[i], q = t[(i + 1) % 3]; const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2; if (d > lm) { lm = d; li = i; } }
+      if (li < 0) {
+        for (const [x, z] of t) { out.p.push(x, heightAt(x, z) + yOff, z); out.u.push(x / uvScale, z / uvScale); }
+        continue;
+      }
+      const a = t[li], b = t[(li + 1) % 3], c = t[(li + 2) % 3], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      stack.push([a, m, c], [m, b, c]);
+    }
+  }
+}
+
+export function buildStreets(data, heightAt, inBuilding = () => false) {
   const group = new THREE.Group(); group.name = 'streets';
   const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip();
   const Y = 0.2, CURB = 0.12; // 20 cm sul modello del terreno: tra i vertici della maglia il terreno sporge di qualche cm
   const junc = data.junctions;
   const nearJunction = (x, z, pad) => junc.some(([jx, jz, r]) => Math.abs(jx - x) < r + pad && Math.abs(jz - z) < r + pad && Math.hypot(jx - x, jz - z) < r + pad);
 
-  for (const rd of data.roads) {
-    const P = densify(rd.p, [rd.sl, rd.sr]);
-    const half = rd.cw / 2;
-    for (let i = 1; i < P.length; i++) {
-      const a = P[i - 1], b = P[i];
-      const L = (p, o) => [p.x + p.nx * o, heightAt(p.x + p.nx * o, p.z + p.nz * o) + Y, p.z + p.nz * o];
-      const va = a.s / 4, vb = b.s / 4;
-      // carreggiata: u attraverso (0..cw/4), v lungo (s/4): asfalto a ripetizione 4 m
-      asphalt.quad(L(a, half), L(a, -half), L(b, -half), L(b, half), [0, va], [rd.cw / 4, va], [rd.cw / 4, vb], [0, vb]);
-      // marciapiedi: rialzati, interrotti vicino agli incroci (lì la carreggiata continua)
-      for (const side of [1, -1]) {
-        const wa = side > 0 ? a.e[0] : a.e[1], wb = side > 0 ? b.e[0] : b.e[1];
-        if (!(wa > 0 && wb > 0)) continue;
-        if (nearJunction(a.x, a.z, 1.0) || nearJunction(b.x, b.z, 1.0)) continue;
-        const Wp = (p, o) => { const [x, y, z] = L(p, o); return [x, y + CURB, z]; };
-        const ia = side * half, ib = side * half, oa = side * (half + wa), ob = side * (half + wb);
-        walk.quad(Wp(a, ia), Wp(a, oa), Wp(b, ob), Wp(b, ib), [0, a.s / 1.6], [wa / 1.6, a.s / 1.6], [wb / 1.6, b.s / 1.6], [0, b.s / 1.6]);
-        // cordolo: faccia verticale verso la carreggiata
-        const c0 = L(a, ia), c1 = L(b, ib);
-        curb.quad(c0, c1, [c1[0], c1[1] + CURB, c1[2]], [c0[0], c0[1] + CURB, c0[2]], [0, 0], [1, 0], [1, 1], [0, 1]);
-      }
-      // mezzeria tratteggiata: 3 m pieno, 3 m vuoto
-      if (rd.mk && Math.floor(a.s / 3) % 2 === 0) {
-        const w = 0.07;
-        const M = (p, o) => { const [x, y, z] = L(p, o); return [x, y + 0.03, z]; };
-        mark.quad(M(a, w), M(a, -w), M(b, -w), M(b, w), [0, 0], [1, 0], [1, 1], [0, 1]);
+  // superfici vere (build-streets.mjs): carreggiata = unione delle vie, marciapiede = fascia fino alle
+  // facciate, basolato sulle piazze pedonali. Niente nastri sovrapposti, niente dischi agli incroci.
+  const S = data.surf;
+  fillPolys(S.asphalt, heightAt, Y, 4, asphalt);
+  fillPolys(S.walk, heightAt, Y + CURB, 1.6, walk);
+  fillPolys(S.paving, heightAt, Y + 0.04, 1.5, paving);
+  // cordolo: un gradino lungo tutto il contorno dei marciapiedi, tranne i tagli fra tessere
+  const onTileEdge = (x0, z0, x1, z1) => (Math.abs(x0 - x1) < 0.01 && Math.abs(x0 / S.tile - Math.round(x0 / S.tile)) < 1e-4) || (Math.abs(z0 - z1) < 0.01 && Math.abs(z0 / S.tile - Math.round(z0 / S.tile)) < 1e-4);
+  for (const rings of S.walk) for (const r of rings) {
+    for (let i = 0; i < r.length; i += 2) {
+      const j = (i + 2) % r.length, x0 = r[i], z0 = r[i + 1], x1 = r[j], z1 = r[j + 1];
+      if (onTileEdge(x0, z0, x1, z1)) continue;
+      // contro una facciata il gradino non si vede: si salta
+      const L = Math.hypot(x1 - x0, z1 - z0) || 1, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, ox = -(z1 - z0) / L * 0.4, oz = (x1 - x0) / L * 0.4;
+      if (inBuilding(mx + ox, mz + oz) || inBuilding(mx - ox, mz - oz)) continue;
+      const n = Math.max(1, Math.ceil(L / MAXE));
+      for (let k = 0; k < n; k++) {
+        const ax = x0 + (x1 - x0) * k / n, az = z0 + (z1 - z0) * k / n, bx = x0 + (x1 - x0) * (k + 1) / n, bz = z0 + (z1 - z0) * (k + 1) / n;
+        const ya = heightAt(ax, az) + Y, yb = heightAt(bx, bz) + Y;
+        curb.quad([ax, ya, az], [bx, yb, bz], [bx, yb + CURB, bz], [ax, ya + CURB, az], [0, 0], [1, 0], [1, 1], [0, 1]);
       }
     }
   }
-  // incroci: dischi d'asfalto che chiudono i giunti fra le vie
-  for (const [x, z, r] of junc) {
-    const n = 16, y0 = heightAt(x, z) + Y - 0.004;
-    for (let k = 0; k < n; k++) {
-      const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
-      const p0 = [x + Math.sin(a0) * r, 0, z + Math.cos(a0) * r], p1 = [x + Math.sin(a1) * r, 0, z + Math.cos(a1) * r];
-      p0[1] = heightAt(p0[0], p0[2]) + Y - 0.004; p1[1] = heightAt(p1[0], p1[2]) + Y - 0.004;
-      asphalt.tri([x, y0, z], p1, p0, [x / 4, z / 4], [p1[0] / 4, p1[2] / 4], [p0[0] / 4, p0[2] / 4]);
+  // mezzeria tratteggiata (3 m pieno, 3 m vuoto), interrotta negli incroci
+  for (const rd of data.roads) {
+    if (!rd.mk) continue;
+    const P = densify(rd.p);
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1], b = P[i];
+      if (Math.floor(a.s / 3) % 2 || nearJunction(a.x, a.z, 2) || nearJunction(b.x, b.z, 2)) continue;
+      const w = 0.07;
+      const M = (p, o) => { const x = p.x + p.nx * o, z = p.z + p.nz * o; return [x, heightAt(x, z) + Y + 0.03, z]; };
+      mark.quad(M(a, w), M(a, -w), M(b, -w), M(b, w), [0, 0], [1, 0], [1, 1], [0, 1]);
     }
   }
   // strisce pedonali: bande bianche da 50 cm lungo l'asse della via, lunghe quanto la carreggiata
@@ -130,17 +163,6 @@ export function buildStreets(data, heightAt) {
       const cx = x + nx * o, cz = z + nz * o;
       const pt = (dl, dw) => { const px = cx + tx * dl + nx * dw, pz = cz + tz * dl + nz * dw; return [px, heightAt(px, pz) + Y + 0.03, pz]; };
       mark.quad(pt(-1.5, -0.25), pt(-1.5, 0.25), pt(1.5, 0.25), pt(1.5, -0.25), [0, 0], [1, 0], [1, 1], [0, 1]);
-    }
-  }
-  // pedonali, sentieri, scalinate: nastri di basolato
-  for (const pa of data.paths) {
-    if (pa.k === 'track') continue;
-    const P = densify(pa.p);
-    const hw = pa.w / 2;
-    for (let i = 1; i < P.length; i++) {
-      const a = P[i - 1], b = P[i];
-      const L = (p, o) => [p.x + p.nx * o, heightAt(p.x + p.nx * o, p.z + p.nz * o) + Y + 0.03, p.z + p.nz * o];
-      paving.quad(L(a, hw), L(a, -hw), L(b, -hw), L(b, hw), [0, a.s / 1.5], [pa.w / 1.5, a.s / 1.5], [pa.w / 1.5, b.s / 1.5], [0, b.s / 1.5]);
     }
   }
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
@@ -174,7 +196,7 @@ function buildWalls(list, heightAt) {
     const [h, t, hex] = SPEC[w.k]; c.setHex(hex);
     for (let i = 2; i < w.p.length; i += 2) {
       const a = [w.p[i - 2], w.p[i - 1]], b = [w.p[i], w.p[i + 1]];
-      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4));
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 8));
       for (let k = 0; k < n; k++) {
         const p0 = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], p1 = [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n];
         box(p0, p1, h, t, heightAt(...p0) - 0.3, heightAt(...p1) - 0.3);

@@ -7,6 +7,8 @@ import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
 import { buildLandmarks } from './landmarks.js';
 import { createOrthoHR } from './ortho-hr.js';
+import { initGround } from './ground.js';
+import { buildWater } from './water.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -16,11 +18,13 @@ if (touch) document.body.classList.add('touch');
 const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = !touch;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// ombre anche sul telefono (mappa più piccola): danno profondità a vie e cortili
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = touch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xb9d3e6);
-scene.fog = new THREE.Fog(0xb9d3e6, 1500, 5200);
+const HAZE = 0xcfdde8;
+scene.background = new THREE.Color(HAZE);
+scene.fog = new THREE.Fog(HAZE, 1500, 5200);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 12000);
 
 // luce di tarda mattinata da sud-est (come il volo dell'ortofoto: ombre verso nord-ovest)
@@ -28,10 +32,28 @@ scene.add(new THREE.HemisphereLight(0xdfeeff, 0x8a7a66, 1.25));
 const sun = new THREE.DirectionalLight(0xfff2dc, 2.1);
 sun.position.set(300, 500, 350);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(touch ? 1024 : 2048, touch ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -300, right: 300, top: 300, bottom: -300, near: 10, far: 1500 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
+
+// cielo: cupola con sfumatura foschia → azzurro e alone attorno al sole, segue la camera
+const sky = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { uSun: { value: sun.position.clone().normalize() }, uH: { value: new THREE.Color(HAZE) }, uZ: { value: new THREE.Color(0x3f7fc0) } },
+  vertexShader: 'varying vec3 vD; void main() { vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform vec3 uSun, uH, uZ; varying vec3 vD;
+    void main() {
+      float h = max(vD.y, 0.0);
+      vec3 c = mix(uH, uZ, pow(h, 0.55));
+      float s = max(dot(vD, uSun), 0.0);
+      c += vec3(1.0, 0.93, 0.8) * (pow(s, 12.0) * 0.25 + pow(s, 900.0) * 2.0);
+      gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
+    }`,
+}));
+sky.renderOrder = -1; sky.frustumCulled = false;
+scene.add(sky);
 
 async function load() {
   say('modello degli edifici');
@@ -48,7 +70,8 @@ async function load() {
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   const dm = new Uint16Array(bytes.buffer);
   const heights = new Float32Array(dm.length);
-  for (let i = 0; i < dm.length; i++) heights[i] = dm[i] / 10;
+  const off = dtmMeta.offset || 0; // fondale marino sotto zero (build-landcover.mjs)
+  for (let i = 0; i < dm.length; i++) heights[i] = dm[i] / 10 + off;
   const heightAt = makeHeightSampler(dtmMeta, heights, model.origin);
 
   say('ortofoto 2022');
@@ -62,13 +85,22 @@ async function load() {
     }, undefined, () => res());
   })));
 
+  // copertura del suolo (mare, spiaggia, verde): materiali da vicino e superficie del mare
+  const lcMeta = await fetch('data/landcover.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (lcMeta) {
+    const lcTex = await new THREE.TextureLoader().loadAsync('data/landcover.png').catch(() => null);
+    if (lcTex) initGround(lcTex, lcMeta, model.origin);
+  }
   say('terreno');
   scene.add(buildTerrain({ orthoMeta, textures, heightAt, origin: model.origin }));
-  say('strade');
-  scene.add(buildStreets(streets, heightAt));
+  const water = buildWater(sun.position.clone().sub(sun.target.position));
+  scene.add(water.mesh);
   say('edifici');
   const { group, footprints } = buildBuildings({ model, orthoMeta, textures, facadeMats: facadeMaterials() });
   scene.add(group);
+  const collider = makeCollider(footprints);
+  say('strade');
+  scene.add(buildStreets(streets, heightAt, collider));
   say('luoghi d\'interesse');
   scene.add(buildLandmarks(model, heightAt));
   say('alberi');
@@ -78,10 +110,10 @@ async function load() {
   const nLidar = model.buildings.filter((b) => b.src === 'lidar').length;
   $('sub').textContent = `${model.buildings.length} edifici reali · ${nLidar} con altezza LiDAR`;
   const hr = hrMeta ? createOrthoHR(hrMeta, model.origin, renderer) : { update() {} };
-  return { model, heightAt, collider: makeCollider(footprints), trees, streets, hr };
+  return { model, heightAt, collider, trees, streets, hr, water };
 }
 
-const { model, heightAt, collider, trees, streets, hr } = await load();
+const { model, heightAt, collider, trees, streets, hr, water } = await load();
 $('loader').classList.add('hide');
 
 // ---------- etichette dei luoghi (nomi OSM)
@@ -202,7 +234,9 @@ function frame() {
   sun.position.set(focus.x + 300, focus.y + 500, focus.z + 350);
   sun.target.position.copy(focus);
   trees.update(camera);
+  sky.position.copy(camera.position);
   hr.update(focus);
+  water.update(clock.elapsedTime);
   updateLabels();
   renderer.render(scene, camera);
 }

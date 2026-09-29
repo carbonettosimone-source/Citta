@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { toUtm33 } from './geo.mjs';
 import { toLab, fromLab, quantiles, rankIn, atRank } from './lib/lab.mjs';
+import { decodePNG } from './lib/png.mjs';
 
 // straight skeleton (CGAL compilato in Wasm, solo per il web): ambiente minimo per caricarlo in Node
 globalThis.self = globalThis; globalThis.window = globalThis; globalThis.document = { currentScript: { src: 'http://localhost/' } };
@@ -320,8 +321,40 @@ if (existsSync(canopyPath)) {
     trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +h.toFixed(1), +r.toFixed(1), species(ux, uy, h, r));
   }
 }
-const spCount = [0, 0, 0, 0, 0]; for (let i = 5; i < trees.length; i += 6) spCount[trees[i]]++;
-console.log('alberi', trees.length / 6, 'per specie [latifoglia, pino, ulivo, agrume, palma]:', spCount);
+// Cespugli: dove l'ortofoto è verde (copertura del suolo, build-landcover.mjs) ma non c'è né un
+// albero Meta/WRI, né un edificio, né la spiaggia. Uno ogni ~2 celle da 2 m, alto 0,5-1,8 m.
+const lcPath = new URL('data/landcover.png', root);
+let shrubs = 0;
+if (existsSync(lcPath)) {
+  const lcMeta = read('data/landcover.json');
+  const lc = decodePNG(readFileSync(lcPath));
+  const treeGrid = new Map(); // celle da 4 m coperte da una chioma
+  for (let i = 0; i < trees.length; i += 6) {
+    const [x, z, , , r] = trees.slice(i, i + 6), R = r * 0.9;
+    for (let gx = Math.floor((x - R) / 4); gx <= Math.floor((x + R) / 4); gx++) for (let gz = Math.floor((z - R) / 4); gz <= Math.floor((z + R) / 4); gz++) treeGrid.set(`${gx},${gz}`, 1);
+  }
+  const bGrid = new Map(); // celle da 8 m → piante degli edifici
+  for (const b of out) {
+    const xs = [], zs = []; for (let i = 0; i < b.r.length; i += 2) { xs.push(b.r[i]); zs.push(b.r[i + 1]); }
+    for (let gx = Math.floor(Math.min(...xs) / 8); gx <= Math.floor(Math.max(...xs) / 8); gx++) for (let gz = Math.floor(Math.min(...zs) / 8); gz <= Math.floor(Math.max(...zs) / 8); gz++) { const k = `${gx},${gz}`; if (!bGrid.has(k)) bGrid.set(k, []); bGrid.get(k).push(b); }
+  }
+  const inB = (x, z) => (bGrid.get(`${Math.floor(x / 8)},${Math.floor(z / 8)}`) || []).some((b) => { const R = []; for (let i = 0; i < b.r.length; i += 2) R.push([b.r[i], b.r[i + 1]]); return inRingXY(x, z, R); });
+  for (let cy = 0; cy < lc.height; cy++) for (let cx = 0; cx < lc.width; cx++) {
+    const i = (cy * lc.width + cx) * 3;
+    if (lc.data[i] || lc.data[i + 1] > 40 || lc.data[i + 2] < 150) continue; // mare, spiaggia, poco verde
+    const hsh = hash(cy * 7919 + cx);
+    if (hsh > 0.5) continue;
+    const ux = lcMeta.xmin + (cx + hash(cx * 31 + cy)) * lcMeta.step, uy = lcMeta.ymax - (cy + hash(cy * 17 + cx)) * lcMeta.step;
+    const x = ux - OX, z = -(uy - OY);
+    if (treeGrid.has(`${Math.floor(x / 4)},${Math.floor(z / 4)}`) || inB(x, z)) continue;
+    const h = 0.5 + hsh * 2.6, r = 0.6 + hash(cx * 13 + cy * 3) * 0.9;
+    trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +h.toFixed(1), +r.toFixed(1), 5);
+    shrubs++;
+  }
+}
+console.log('cespugli dal verde dell\'ortofoto:', shrubs);
+const spCount = [0, 0, 0, 0, 0, 0]; for (let i = 5; i < trees.length; i += 6) spCount[trees[i]]++;
+console.log('alberi', trees.length / 6, 'per specie [latifoglia, pino, ulivo, agrume, palma, cespuglio]:', spCount);
 
 // ---- luoghi d'interesse modellati a mano (src/landmarks.js) da foto di riferimento (Wikimedia
 // Commons): qui solo dove sono e quanto misurano, dai dati. Il renderer generico li salta.
@@ -380,12 +413,19 @@ import { cpSync, rmSync } from 'node:fs';
 // terreno per il web: quote in decimetri (Uint16, 10 cm bastano) in base64 dentro un JSON — un
 // .bin non è un tipo servito dove si pubblica, e così pesa meno della metà dei Float32
 {
-  const dm = new Uint16Array(dtm.length);
-  for (let i = 0; i < dtm.length; i++) dm[i] = Math.max(0, Math.min(65535, Math.round(dtm[i] * 10)));
-  writeFileSync(new URL('public/data/dtm.json', root), JSON.stringify({ ...dtmMeta, encoding: 'uint16-dm-base64', data: Buffer.from(dm.buffer).toString('base64') }));
+  // MDT con la costa corretta da build-landcover.mjs (fondale sotto il mare), se c'è; quote in
+  // decimetri sopra OFFSET, così anche il fondale negativo sta in un Uint16
+  const seaPath = new URL('data/dtm-sea.bin', root);
+  const src = existsSync(seaPath) ? (() => { const b = readFileSync(seaPath); return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4); })() : dtm;
+  const OFFSET = -10;
+  const dm = new Uint16Array(src.length);
+  for (let i = 0; i < src.length; i++) dm[i] = Math.max(0, Math.min(65535, Math.round((src[i] - OFFSET) * 10)));
+  writeFileSync(new URL('public/data/dtm.json', root), JSON.stringify({ ...dtmMeta, encoding: 'uint16-dm-base64', offset: OFFSET, data: Buffer.from(dm.buffer).toString('base64') }));
   rmSync(new URL('public/data/dtm.bin', root), { force: true });
 }
 cpSync(new URL('data/ortho.json', root), new URL('public/data/ortho.json', root));
+// copertura del suolo (build-landcover.mjs): mare, spiaggia, verde
+for (const f of ['landcover.png', 'landcover.json']) if (existsSync(new URL(`data/${f}`, root))) cpSync(new URL(`data/${f}`, root), new URL(`public/data/${f}`, root));
 cpSync(new URL('data/ortho/', root), new URL('public/data/ortho/', root), { recursive: true });
 // ortofoto a 25 cm a tessere (fetch-ortho-hr.mjs), caricata a pezzi intorno a chi guarda
 if (existsSync(new URL('data/ortho-hr25.json', root))) {

@@ -60,10 +60,5 @@ export function buildTerrain({ orthoMeta, textures, heightAt, origin }) {
     if (t.level === 'base') group.add(gridMesh(t, 12, heightAt, origin, tex, 0.6));
     else group.add(gridMesh(t, 6, heightAt, origin, tex, 0));
   }
-  // mare oltre i dati: piatto e lontano, sotto la costa dell'ortofoto
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshLambertMaterial({ color: 0x2c6a86 }));
-  sea.rotation.x = -Math.PI / 2;
-  sea.position.y = -1.2;
-  group.add(sea);
   return group;
 }

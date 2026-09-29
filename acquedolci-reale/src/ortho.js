@@ -3,12 +3,12 @@
  * "cotte" dentro: viste da vicino diventano macchie scure e bluastre sulla strada. Qui le ombre
  * profonde vengono schiarite e desaturate (niente dominante blu), la luce resta quella della foto.
  *
- * Per il suolo (`nearNeutral`): vicino a chi guarda (entro ~30–90 m) la foto aerea è ingrandita
- * decine di volte e il suo colore medio (ombre + auto + tetti inclinati) vira al malva; lì sfuma
- * verso un grigio caldo da asfalto/pietra, conservando la luminosità della foto. Da lontano resta
- * l'ortofoto pura.
+ * Per il suolo (`nearNeutral`): vicino a chi guarda la foto aerea è ingrandita decine di volte;
+ * lì si aggiunge la grana del materiale vero secondo la copertura del suolo (ground.js).
+ * Da lontano resta l'ortofoto pura.
  */
 import * as THREE from 'three';
+import { GROUND, LC_GLSL } from './ground.js';
 
 /** finestra di ortofoto a 25 cm condivisa da tutti i materiali (ortho-hr.js): rect = X0, Y0, lato, attiva */
 const blank = new THREE.DataTexture(new Uint8Array(4), 1, 1); blank.needsUpdate = true;
@@ -29,6 +29,10 @@ vec3 lab2rgb(vec3 l) {
   return max(mat3(3.2406, -0.9689, 0.0557, -1.5372, 1.8758, -0.2040, -0.4986, 0.0415, 1.0570) * x, 0.0);
 }`;
 
+const DETAIL_UNI = `
+uniform sampler2D pebMap; uniform sampler2D grsMap; uniform sampler2D dryMap;
+uniform vec3 pebMean; uniform vec3 grsMean; uniform vec3 dryMean;`;
+
 export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
   const m = new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide });
   // il suolo cede nel depth buffer: strade, marciapiedi e strisce disegnati sopra vincono sempre
@@ -37,10 +41,11 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
   m.customProgramCacheKey = () => `ortho-${nearNeutral}-${roof}`;
   m.onBeforeCompile = (sh) => {
     sh.uniforms.hrMap = HR.map; sh.uniforms.hrRect = HR.rect;
+    if (nearNeutral) Object.assign(sh.uniforms, GROUND);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform sampler2D hrMap;\nuniform vec4 hrRect;' + (roof ? LAB : ''));
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform sampler2D hrMap;\nuniform vec4 hrRect;' + (roof ? LAB : '') + (nearNeutral ? LC_GLSL + DETAIL_UNI : ''));
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       {
         // dentro la finestra a 25 cm la foto fine sostituisce quella a 0,5 m, con i bordi sfumati
@@ -49,7 +54,9 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         float inside = hrRect.w * smoothstep(0.0, 0.02, min(e.x, e.y));
         if (inside > 0.0) {
           vec4 h = texture2D(hrMap, hu);
-          diffuseColor.rgb = mix(diffuseColor.rgb, h.rgb, inside * h.a);
+          // le tessere mancanti sono trasparenti (nero, alfa 0): miscela premoltiplicata, così il
+          // bordo filtrato fra tessera e vuoto non fa una riga scura
+          diffuseColor.rgb = diffuseColor.rgb * (1.0 - inside * h.a) + h.rgb * inside;
         }
       }
       {
@@ -70,10 +77,24 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         lab.yz *= mix(vec2(1.0), vec2(1.3, 1.55), warm);
         diffuseColor.rgb = lab2rgb(lab);` : ''}
         ${nearNeutral ? `
-        float near = 1.0 - smoothstep(30.0, 90.0, distance(vWPos, cameraPosition));
-        float lum = dot(diffuseColor.rgb, vec3(0.3333));
-        vec3 stone = vec3(max(lum, 0.10)) * vec3(1.05, 1.0, 0.92);
-        diffuseColor.rgb = mix(diffuseColor.rgb, stone, near * 0.7);` : ''}
+        // da vicino: grana del materiale vero secondo la copertura del suolo (ground.js)
+        float dist = distance(vWPos, cameraPosition);
+        float near = 1.0 - smoothstep(60.0, 260.0, dist);
+        if (near > 0.0) {
+          vec4 lc = landcover(vWPos.xz);
+          float wSea = lc.x > 0.02 ? 1.0 : 0.0;
+          float wBeach = max(lc.y, 0.0), wGreen = max(lc.z, 0.0) * (1.0 - wBeach);
+          float wDry = clamp(1.0 - wBeach - wGreen - wSea, 0.0, 1.0);
+          vec3 peb = texture2D(pebMap, vWPos.xz / 2.2).rgb;
+          vec3 grs = texture2D(grsMap, vWPos.xz / 1.6).rgb / grsMean;
+          vec3 dry = texture2D(dryMap, vWPos.xz / 2.8).rgb / dryMean;
+          vec3 base = diffuseColor.rgb;
+          // spiaggia: i ciottoli prendono la luminosità della foto ma hanno colore e forma propri
+          vec3 beach = peb * (dot(base, vec3(0.333)) / max(dot(pebMean, vec3(0.333)), 0.01));
+          vec3 c = base * mix(vec3(1.0), dry, 0.75 * wDry) * mix(vec3(1.0), grs, 0.85 * wGreen);
+          c = mix(c, beach, 0.8 * wBeach);
+          diffuseColor.rgb = mix(base, c, near * (1.0 - wSea));
+        }` : ''}
       }`);
   };
   return m;

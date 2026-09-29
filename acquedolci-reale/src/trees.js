@@ -27,6 +27,8 @@ function speciesGeometry(kind) {
       return mergeGeometries([trunk(0.25, 0.05), blob(1, 0.5, 1, 0.55, 0x2c4f25)]);
     case 4: // palma: stipite sottile, ciuffo di foglie a stella
       return mergeGeometries([trunk(0.9, 0.03, 0x8a7258), blob(1, 0.1, 1, 0.92, 0x46612f)]);
+    case 5: // cespuglio / macchia bassa: niente tronco, due masse schiacciate
+      return mergeGeometries([blob(1, 0.6, 0.9, 0.45, 0x55713a)]);
     default: // latifoglia mediterranea
       return mergeGeometries([trunk(0.45, 0.05), blob(1, 0.45, 1, 0.64, 0x3b5a2c)]);
   }
@@ -37,7 +39,7 @@ export function buildTrees(flat) {
   group.name = 'trees';
   const n = Math.floor(flat.length / 6);
   if (!n) return { group, update() {} };
-  const geos = [0, 1, 2, 3, 4].map(speciesGeometry);
+  const geos = [0, 1, 2, 3, 4, 5].map(speciesGeometry);
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   // raggruppa per blocco e specie
   const blocks = new Map();
@@ -54,7 +56,7 @@ export function buildTrees(flat) {
     const im = new THREE.InstancedMesh(geos[sp], mat, list.length);
     list.forEach((i, k) => {
       const x = flat[i * 6], z = flat[i * 6 + 1], y = flat[i * 6 + 2];
-      const h = Math.max(sp === 3 ? 2.5 : 3, flat[i * 6 + 3]), r = Math.max(1, flat[i * 6 + 4]);
+      const h = sp === 5 ? flat[i * 6 + 3] : Math.max(sp === 3 ? 2.5 : 3, flat[i * 6 + 3]), r = sp === 5 ? flat[i * 6 + 4] : Math.max(1, flat[i * 6 + 4]);
       q.setFromAxisAngle(up, (i * 2.39996) % (Math.PI * 2));
       m.compose(p.set(x, y, z), q, s.set(r, h, r));
       im.setMatrixAt(k, m);
@@ -62,13 +64,14 @@ export function buildTrees(flat) {
       im.setColorAt(k, c.setScalar(0.85 + t * 0.3));
     });
     im.computeBoundingSphere();
-    im.castShadow = true;
+    im.castShadow = sp !== 5;
+    im.userData.far = sp === 5 ? 450 : DRAW_DIST; // i cespugli si vedono solo da vicino
     meshes.push(im);
     group.add(im);
   }
   /** nasconde i blocchi lontani: ciò che resta lo scarta il frustum culling */
   function update(cam) {
-    for (const im of meshes) im.visible = im.boundingSphere.center.distanceTo(cam.position) - im.boundingSphere.radius < DRAW_DIST;
+    for (const im of meshes) im.visible = im.boundingSphere.center.distanceTo(cam.position) - im.boundingSphere.radius < im.userData.far;
   }
   return { group, update };
 }

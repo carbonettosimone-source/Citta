@@ -13,9 +13,12 @@
  *   roads[]: { k: tipo, p: [x,z,...], cw: carreggiata m, sl/sr: marciapiede sx/dx per vertice, mk: mezzeria }
  *   junctions[]: [x, z, raggio]    crossings[]: [x, z, angolo, larghezza]    benches[]: [x, z]
  *   paths[]: sentieri/pedonali/scalinate { k, p, w }
+ *   surf: { asphalt, walk, paving }: poligoni [[anello esterno, buchi...]] a tessere da 128 m (vedi sotto)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { toUtm33 } from './geo.mjs';
+import { createRequire } from 'node:module';
+const ClipperLib = createRequire(import.meta.url)('clipper-lib');
 
 const root = new URL('..', import.meta.url);
 const read = (p) => JSON.parse(readFileSync(new URL(p, root)));
@@ -27,9 +30,12 @@ const locLL = (lon, lat) => loc(...toUtm33(lon, lat));
 // ---- ostacoli: segmenti in coordinate locali, indice a griglia
 const segs = [];
 const addPath = (pts, closed) => { for (let i = 0; i < pts.length - 1 + (closed ? 1 : 0); i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.05) segs.push([a[0], a[1], b[0], b[1]]); } };
+const buildingRings = [];
 for (const b of read('data/buildings.json').buildings) {
   if (b.code === 'B007') continue; // tettoia: aperta, non chiude la strada
-  addPath(b.rings[0].map(([x, y]) => loc(x, y)), false);
+  const ring = b.rings[0].map(([x, y]) => loc(x, y));
+  addPath(ring, false);
+  buildingRings.push(ring);
 }
 const extra = read('data/dbtr-extra.json');
 for (const f of extra.roadEdges) if (f.code === 'A001' || f.code === 'A002') for (const p of f.parts) addPath(p.map(([x, y]) => loc(x, y)), false);
@@ -118,7 +124,11 @@ for (const f of osm.features) {
     out.push(+x.toFixed(2), +z.toFixed(2));
     sl.push(lw >= 0.7 ? +lw.toFixed(2) : 0); sr.push(rw >= 0.7 ? +rw.toFixed(2) : 0);
   }
-  roads.push({ k: p.highway, p: out, cw: +cw.toFixed(2), sl, sr, mk: marks && cw >= 5.5 ? 1 : 0, name: p.name || null });
+  // marciapiede costante sul tratto (mediana delle misure): i poligoni poi lo tagliano sulle facciate
+  const sws = [...sl, ...sr];
+  const swOn = sws.filter((v) => v > 0);
+  const sw = swOn.length >= sws.length * 0.4 ? median(swOn) : 0;
+  roads.push({ k: p.highway, p: out, cw: +cw.toFixed(2), sl, sr, sw: +(sw || 0).toFixed(2), mk: marks && cw >= 5.5 ? 1 : 0, name: p.name || null });
 }
 
 // ---- incroci: nodi condivisi da ≥2 vie → disco d'asfalto che chiude i giunti
@@ -129,6 +139,67 @@ for (const j of junctions) {
   for (const rd of roads) for (let i = 0; i < rd.p.length; i += 2) if (Math.hypot(rd.p[i] - j[0], rd.p[i + 1] - j[1]) < 3) r = Math.max(r, rd.cw / 2 + 0.3);
   j.push(+r.toFixed(2));
 }
+
+// ---- superfici come poligoni (Clipper): la carreggiata è l'UNIONE delle strisce delle vie, quindi
+// gli incroci si chiudono da soli senza dischi né spigoli; il marciapiede è la fascia fra carreggiata
+// e facciate; piazze pedonali e vialetti in basolato. Tutto meno le piante degli edifici.
+const SC = 100; // Clipper lavora in interi: centimetri
+const toC = (pts) => pts.map(([x, z]) => ({ X: Math.round(x * SC), Y: Math.round(z * SC) }));
+const pairs = (flat) => { const o = []; for (let i = 0; i < flat.length; i += 2) o.push([flat[i], flat[i + 1]]); return o; };
+function buffer(lines) { // lines: [{pts, r}] → poligoni unione dei buffer arrotondati
+  const all = [];
+  for (const { pts, r } of lines) {
+    if (r <= 0 || pts.length < 2) continue;
+    const co = new ClipperLib.ClipperOffset(2, 0.25 * SC);
+    co.AddPath(toC(pts), ClipperLib.JoinType.jtRound, ClipperLib.EndType.etOpenRound);
+    const sol = new ClipperLib.Paths(); co.Execute(sol, r * SC);
+    all.push(...sol);
+  }
+  return op(all, [], ClipperLib.ClipType.ctUnion);
+}
+function op(subj, clip, type) {
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
+  if (clip.length) c.AddPaths(clip, ClipperLib.PolyType.ptClip, true);
+  const sol = new ClipperLib.Paths();
+  c.Execute(type, sol, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return sol;
+}
+const bldC = op(buildingRings.map(toC), [], ClipperLib.ClipType.ctUnion);
+const carLines = roads.filter((r) => r.k !== 'pedestrian').map((r) => ({ pts: pairs(r.p), r: r.cw / 2 }));
+let asphaltC = op(buffer(carLines), bldC, ClipperLib.ClipType.ctDifference);
+const pavLines = [
+  ...roads.filter((r) => r.k === 'pedestrian').map((r) => ({ pts: pairs(r.p), r: r.cw / 2 + r.sw })),
+  ...paths.filter((q) => q.k !== 'track').map((q) => ({ pts: pairs(q.p), r: q.w / 2 })),
+];
+let pavingC = op(op(buffer(pavLines), asphaltC, ClipperLib.ClipType.ctDifference), bldC, ClipperLib.ClipType.ctDifference);
+const walkLines = roads.filter((r) => r.k !== 'pedestrian' && r.sw > 0).map((r) => ({ pts: pairs(r.p), r: r.cw / 2 + r.sw }));
+let walkC = op(op(buffer(walkLines), [...asphaltC, ...pavingC], ClipperLib.ClipType.ctDifference), bldC, ClipperLib.ClipType.ctDifference);
+// via briciole e schegge sotto i 2 m² (fessure fra edifici, punte dei raccordi)
+const clean = (P) => ClipperLib.Clipper.CleanPolygons(P, 0.05 * SC).filter((r) => Math.abs(ClipperLib.Clipper.Area(r)) > 2 * SC * SC || ClipperLib.Clipper.Area(r) < 0);
+asphaltC = clean(asphaltC); pavingC = clean(pavingC); walkC = clean(walkC);
+/** taglia in tessere da T m e restituisce [[esterno, buchi...]] in coordinate locali */
+const T = 128;
+function tiles(P) {
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const r of P) for (const q of r) { x0 = Math.min(x0, q.X); x1 = Math.max(x1, q.X); z0 = Math.min(z0, q.Y); z1 = Math.max(z1, q.Y); }
+  const out = [];
+  for (let tx = Math.floor(x0 / SC / T); tx <= Math.floor(x1 / SC / T); tx++) for (let tz = Math.floor(z0 / SC / T); tz <= Math.floor(z1 / SC / T); tz++) {
+    const sq = [[{ X: tx * T * SC, Y: tz * T * SC }, { X: (tx + 1) * T * SC, Y: tz * T * SC }, { X: (tx + 1) * T * SC, Y: (tz + 1) * T * SC }, { X: tx * T * SC, Y: (tz + 1) * T * SC }]];
+    const c = new ClipperLib.Clipper();
+    c.AddPaths(P, ClipperLib.PolyType.ptSubject, true); c.AddPaths(sq, ClipperLib.PolyType.ptClip, true);
+    const tree = new ClipperLib.PolyTree();
+    c.Execute(ClipperLib.ClipType.ctIntersection, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+    for (const ex of ClipperLib.JS.PolyTreeToExPolygons(tree)) {
+      const ring = (r) => r.flatMap((q) => [+(q.X / SC).toFixed(2), +(q.Y / SC).toFixed(2)]);
+      if (ex.outer.length >= 3) out.push([ring(ex.outer), ...ex.holes.filter((h) => h.length >= 3).map(ring)]);
+    }
+  }
+  return out;
+}
+const surf = { tile: T, asphalt: tiles(asphaltC), walk: tiles(walkC), paving: tiles(pavingC) };
+const area = (P) => P.reduce((a, r) => a + ClipperLib.Clipper.Area(r), 0) / SC / SC;
+console.log(`superfici: asfalto ${area(asphaltC).toFixed(0)} m², marciapiedi ${area(walkC).toFixed(0)} m², basolato ${area(pavingC).toFixed(0)} m² · pezzi ${surf.asphalt.length}/${surf.walk.length}/${surf.paving.length}`);
 
 // ---- strisce pedonali e panchine vere (OSM)
 const crossings = [];
@@ -183,7 +254,7 @@ for (const rd of roads) {
 
 writeFileSync(new URL('public/data/streets.json', root), JSON.stringify({
   source: 'Assi: © OpenStreetMap contributors (ODbL); larghezze misurate su DBTR 2013 SITR (CC BY 4.0)',
-  roads, junctions, crossings, benches, paths, walls, lamps,
+  roads: roads.map(({ sl, sr, ...r }) => r), junctions, crossings, benches, paths, walls, lamps, surf,
 }));
 const withSw = roads.filter((r) => r.sl.some((v) => v) || r.sr.some((v) => v)).length;
 const cws = roads.map((r) => r.cw).sort((a, b) => a - b);
