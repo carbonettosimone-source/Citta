@@ -387,13 +387,19 @@ function buildLamps(list, heightAt) {
     im.castShadow = true; g.add(im);
   }
   // di notte: pozza di luce sulla strada sotto ogni corpo illuminante e alone attorno alla lampada
-  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-  const c2 = cv.getContext('2d'), gr = c2.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gr.addColorStop(0, 'rgba(255,210,150,1)'); gr.addColorStop(0.35, 'rgba(255,190,120,0.55)'); gr.addColorStop(1, 'rgba(255,170,90,0)');
-  c2.fillStyle = gr; c2.fillRect(0, 0, 128, 128);
+  // alone morbido: lo zero sta ben dentro il bordo, così non resta un disco tagliato di netto
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+  const c2 = cv.getContext('2d'), gr = c2.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, 'rgba(255,226,186,0.50)');
+  gr.addColorStop(0.08, 'rgba(255,210,155,0.22)');
+  gr.addColorStop(0.22, 'rgba(255,196,130,0.08)');
+  gr.addColorStop(0.42, 'rgba(255,184,114,0.025)');
+  gr.addColorStop(0.62, 'rgba(255,176,100,0)');
+  gr.addColorStop(1, 'rgba(255,170,90,0)');
+  c2.fillStyle = gr; c2.fillRect(0, 0, 256, 256);
   const glowTex = new THREE.CanvasTexture(cv); glowTex.colorSpace = THREE.SRGBColorSpace;
   const poolMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0, fog: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
-  const pool = new THREE.PlaneGeometry(13, 13); pool.rotateX(-Math.PI / 2);
+  const pool = new THREE.PlaneGeometry(18, 18); pool.rotateX(-Math.PI / 2);
   const pools = new THREE.InstancedMesh(pool, poolMat, list.length);
   const heads = new Float32Array(list.length * 3);
   list.forEach(([x, z, a], i) => {
@@ -403,10 +409,10 @@ function buildLamps(list, heightAt) {
   });
   pools.renderOrder = 4; pools.frustumCulled = false;
   const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.BufferAttribute(heads, 3));
-  const haloMat = new THREE.PointsMaterial({ map: glowTex, size: 2.6, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+  const haloMat = new THREE.PointsMaterial({ map: glowTex, size: 16, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0, sizeAttenuation: true });
   const halos = new THREE.Points(hg, haloMat); halos.frustumCulled = false;
   g.add(pools, halos);
-  g.userData.night = (n) => { poolMat.opacity = n * 0.8; haloMat.opacity = n; light.emissiveIntensity = 0.1 + n * 1.6; pools.visible = halos.visible = n > 0.01; };
+  g.userData.night = (n) => { poolMat.opacity = n * 0.4; haloMat.opacity = n * 0.85; light.emissiveIntensity = 0.2 + n * 1.2; pools.visible = halos.visible = n > 0.01; };
   return g;
 }
 

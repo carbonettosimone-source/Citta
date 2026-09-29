@@ -120,7 +120,11 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         vec3 lifted = diffuseColor.rgb * 2.2 + 0.02;
         float g = dot(lifted, vec3(0.3333));
         lifted = mix(lifted, vec3(g) * vec3(1.03, 1.0, 0.95), 0.35 + 0.5 * blue);
-        diffuseColor.rgb = mix(diffuseColor.rgb, lifted, shade * 0.85);
+        // lo schiarimento delle ombre è per il paese da vicino. Sulle colline (pixel grandi) la foto
+        // tiene il suo tono: altrimenti il verde e la roccia diventano un beige slavato.
+        float pxsN = ${nearNeutral ? 'length(fwidth(vWPos.xz))' : '0.0'};
+        float shadeNear = ${nearNeutral ? '1.0 - smoothstep(0.45, 1.6, pxsN)' : '1.0'};
+        diffuseColor.rgb = mix(diffuseColor.rgb, lifted, shade * 0.85 * shadeNear);
         ${roof ? `
         if (vRuv.z > 0.5) diffuseColor.rgb = coppi(diffuseColor.rgb);
         else {
@@ -137,8 +141,10 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         // pavimentato — scelto dalla copertura del suolo. L'ortofoto entra solo come tinta lenta:
         // un po' più chiaro o più scuro, e un filo della sua crominanza. Da pochi metri si rimescola
         // la foto nitida (oggetti veri). Da molto lontano torna l'ortofoto intera.
-        float pxs = length(fwidth(vWPos.xz));
-        float cover = 1.0 - smoothstep(10.0, 26.0, pxs);
+        float pxs = pxsN;
+        // l'albedo del materiale copre il suolo del paese (piazze e sterrato da drone). Oltre pochi
+        // metri per pixel — le colline e lo sfondo — torna la foto, col tono vero.
+        float cover = 1.0 - smoothstep(0.85, 1.7, pxs);
         float near = 1.0 - smoothstep(0.05, 0.22, pxs);
         if (cover > 0.0) {
           vec4 lc = landcover(vWPos.xz);

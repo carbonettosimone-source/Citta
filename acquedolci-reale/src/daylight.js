@@ -134,13 +134,15 @@ export function applyTime(hour, ctx) {
   ctx.sun.color.set(0xfff2dc).lerp(C(0xff9c55), twi * sstep(-1, 3, el));
   ctx.sun.castShadow = el > 0;
   ctx.sunDir = S.dir.clone();
-  ctx.hemi.intensity = 1.25 * (0.1 + 0.9 * day);
-  ctx.hemi.color.set(0x2c3a58).lerp(C(0xdfeeff), day);
-  ctx.hemi.groundColor.set(0x141312).lerp(C(0x8a7a66), day);
-  ctx.moonLight.intensity = 0.5 * (1 - day) * moonUp * (0.3 + 0.7 * Mo.lit);
+  // di notte un po' di cielo e di rimbalzo: si legge la via, non è giorno
+  ctx.hemi.intensity = 1.25 * (0.42 + 0.58 * day);
+  ctx.hemi.color.set(0x6d82a4).lerp(C(0xdfeeff), day);
+  ctx.hemi.groundColor.set(0x4a453e).lerp(C(0x8a7a66), day);
+  ctx.moonLight.intensity = (1 - day) * Math.max(0.28, 0.62 * moonUp * (0.4 + 0.6 * Mo.lit));
   ctx.moonLight.position.copy(Mo.dir).multiplyScalar(1000);
   // superfici con la luce "cotta" (ortofoto, sfondo): tinta del momento
-  const tint = C(0x121829).lerp(C(0xffffff), day).multiply(C(0xffffff).lerp(C(0xffcf9e), twi * 0.7));
+  // l'ortofoto e le montagne non hanno luce propria: di notte la tinta era quasi nera (0x121829)
+  const tint = C(0x5c6e88).lerp(C(0xffffff), day).multiply(C(0xffffff).lerp(C(0xffcf9e), twi * 0.7));
   for (const m of ctx.basics) m.color.copy(tint);
   const up = el > -2;
   for (const w of ctx.waters) {
