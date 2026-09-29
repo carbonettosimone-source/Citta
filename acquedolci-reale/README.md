@@ -4,12 +4,12 @@ Gioco satirico sulla politica di paese in vista delle comunali 2027: si vincono 
 
 **Intro** (`src/intro.js`): quattro inquadrature in movimento, ognuna con la sua ora del giorno, bande nere, dissolvenze e didascalie:
 
-1. dal mare verso la costa;
+1. carrellata laterale lungo la costa, poco al largo;
 2. attorno al castello Larcan-Gravina;
-3. giù sopra i tetti fino al Municipio e alla fontana;
-4. gru davanti alla Chiesa Madre.
+3. dall'alto sulla piazza e sul Municipio;
+4. la Chiesa Madre e il suo quartiere, salendo.
 
-Poi la panoramica finale al tramonto, con le Eolie e il titolo. Si salta con "Salta", Esc o Invio; si rivede dalle impostazioni.
+Tutte da lontano e dall'alto, dove il modello rende meglio. Poi la panoramica finale al tramonto, con le Eolie e il titolo. Si salta con "Salta", Esc o Invio; si rivede dalle impostazioni.
 
 ## Acquedolci Reale
 

@@ -8,25 +8,26 @@
  */
 import * as THREE from 'three';
 
+// viste da lontano e dall'alto: il modello rende bene a colpo d'occhio, non da vicino
 const SHOTS = [
-  { // dal mare verso la costa: il paese sotto i Nebrodi
-    hour: 8.25, dur: 8.5, caption: 'Acquedolci, costa tirrenica. Primavera 2027.',
-    from: { cam: [420, 30, -1650], look: [0, 30, -150] }, to: { cam: [120, 55, -820], look: [-60, 30, 40] },
+  { // carrellata laterale parallela alla costa, poche centinaia di metri al largo
+    hour: 8.25, dur: 9, caption: 'Acquedolci, costa tirrenica. Primavera 2027.',
+    from: { cam: [-750, 85, -760], look: [-420, 25, 60] }, to: { cam: [450, 95, -800], look: [250, 25, 40] },
   },
-  { // giro attorno al castello Larcan-Gravina
-    hour: 10.25, dur: 8, caption: 'Qui il potere si tramanda da secoli…', orbit: { c: [222, -248], r0: 95, r1: 75, a0: 3.9, a1: 5.2, h0: 38, h1: 26, look: 9 },
+  { // giro largo attorno al castello Larcan-Gravina
+    hour: 10.25, dur: 8.5, caption: 'Qui il potere si tramanda da secoli…', orbit: { c: [222, -248], r0: 230, r1: 190, a0: 3.7, a1: 5.1, h0: 110, h1: 85, look: 5 },
   },
-  { // sulla piazza, oltre la fontana, fino al Municipio
-    hour: 16.5, dur: 8, caption: '…di famiglia in famiglia, di favore in favore.',
-    from: { cam: [-4, 48, -125], look: [-8, 6, -10] }, to: { cam: [-9, 7, -58], look: [-2, 12, 8] }, // scende sopra i tetti nella piazza
+  { // dall'alto sulla piazza e sul Municipio
+    hour: 16.5, dur: 8.5, caption: '…di famiglia in famiglia, di favore in favore.',
+    from: { cam: [-60, 150, -330], look: [-8, 5, -20] }, to: { cam: [40, 95, -230], look: [-6, 8, -5] },
   },
-  { // gru davanti alla Chiesa Madre
-    hour: 17.75, dur: 8, caption: 'Tutti si conoscono. Tutti devono qualcosa a qualcuno.',
-    from: { cam: [-200, 3, 172], look: [-212, 12, 118] }, to: { cam: [-190, 42, 235], look: [-212, 16, 105] },
+  { // la Chiesa Madre e il suo quartiere, salendo
+    hour: 17.75, dur: 8.5, caption: 'Tutti si conoscono. Tutti devono qualcosa a qualcuno.',
+    from: { cam: [-150, 75, 330], look: [-212, 12, 110] }, to: { cam: [-60, 150, 420], look: [-200, 10, 60] },
   },
-  { // panoramica finale: si sale sopra i tetti verso il mare, le Eolie all'orizzonte
+  { // panoramica finale: si sale sopra il paese verso il mare, le Eolie all'orizzonte
     hour: 18.6, dur: 14, final: true,
-    from: { cam: [60, 45, 520], look: [0, 20, -300] }, to: { cam: [-40, 230, 820], look: [0, 60, -1800] },
+    from: { cam: [60, 110, 560], look: [0, 20, -300] }, to: { cam: [-40, 280, 860], look: [0, 60, -1800] },
   },
 ];
 
