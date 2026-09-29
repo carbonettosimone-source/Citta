@@ -264,32 +264,44 @@ function municipio(b, fountain) {
 // ---------------------------------------------------------------- Fontana dei Delfini
 function fountain(f) {
   const k = new Kit(f.x, f.z, 0, 1);
-  // vasca a due livelli sul piano della piazza: gradino esterno, bordo chiaro, acqua verdognola.
-  // Al centro lo scoglio, tre delfini, il fusto tortile, la coppa e il getto.
-  const R = f.r + 0.2, y = VE3_TERRACE, STONE = 0xe6dfd2, RIM = 0xf4f0e6, ROCK = 0x7a756c;
+  // vasca a due livelli sul piano della piazza: bordo chiaro, acqua turchina.
+  // Al centro lo scoglio, tre delfini, il fusto tortile grosso, la coppa scura e il getto.
+  const R = f.r + 0.2, y = VE3_TERRACE, STONE = 0xe6dfd2, RIM = 0xf4f0e6, ROCK = 0x6e6a62, DARK = 0x2c2a28;
   k.cyl(0, 0, y, 0.18, R + 0.55, R + 0.42, STONE, 48);
   k.cyl(0, 0, y + 0.14, 0.46, R - 0.02, R + 0.06, STONE, 48);
   k.cyl(0, 0, y + 0.52, 0.12, R + 0.02, R + 0.16, RIM, 48);
-  k.cyl(0, 0, y + 0.42, 0.08, R - 0.55, R - 0.55, 0x7eae98, 40);
-  k.cyl(0, 0, y + 0.46, 0.04, R - 1.15, R - 1.15, 0x5f8f86, 32);
-  const rock = new THREE.IcosahedronGeometry(0.72, 1); const p = rock.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1.15 + Math.sin(i * 1.7) * 0.22), Math.abs(p.getY(i)) * 0.85 + 0.15, p.getZ(i) * (1.05 + Math.cos(i * 2.1) * 0.2));
-  rock.translate(0, y + 0.85, 0); k.add(rock, ROCK);
+  k.cyl(0, 0, y + 0.4, 0.1, R - 0.5, R - 0.5, 0x4ec4c8, 40);
+  k.cyl(0, 0, y + 0.46, 0.05, R - 1.35, R - 1.35, 0x2a9aa4, 32);
+  const rock = new THREE.IcosahedronGeometry(1.05, 1); const p = rock.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1.2 + Math.sin(i * 1.7) * 0.28), Math.abs(p.getY(i)) * 0.95 + 0.2, p.getZ(i) * (1.12 + Math.cos(i * 2.1) * 0.24));
+  rock.translate(0, y + 1.05, 0); k.add(rock, ROCK);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2 + 0.35;
-    const body = new THREE.SphereGeometry(0.32, 10, 8); body.scale(0.62, 0.48, 1.55); body.rotateX(1.15); body.rotateY(a);
-    body.translate(Math.sin(a) * 0.72, y + 1.22, Math.cos(a) * 0.72); k.add(body, 0x4e4a46);
-    const tail = new THREE.SphereGeometry(0.16, 6, 5); tail.scale(1.35, 0.28, 0.55); tail.rotateY(a);
-    tail.translate(Math.sin(a) * 0.28, y + 1.05, Math.cos(a) * 0.28); k.add(tail, 0x3e3c39);
+    const body = new THREE.SphereGeometry(0.38, 10, 8); body.scale(0.62, 0.5, 1.65); body.rotateX(1.15); body.rotateY(a);
+    body.translate(Math.sin(a) * 0.95, y + 1.45, Math.cos(a) * 0.95); k.add(body, 0x4e4a46);
+    const tail = new THREE.SphereGeometry(0.18, 6, 5); tail.scale(1.4, 0.3, 0.55); tail.rotateY(a);
+    tail.translate(Math.sin(a) * 0.35, y + 1.22, Math.cos(a) * 0.35); k.add(tail, 0x3e3c39);
   }
-  for (let i = 0; i < 8; i++) {
-    const seg = new THREE.BoxGeometry(0.16, 0.14, 0.16); seg.rotateY(i * 0.55); seg.translate(0, y + 1.55 + i * 0.13, 0); k.add(seg, 0x3a3836);
+  // fusto tortile grosso: anima piena e spira che sale fino alla coppa
+  k.cyl(0, 0, y + 1.55, 1.35, 0.16, 0.18, DARK, 12);
+  for (let i = 0; i < 16; i++) {
+    const t = i / 15, a = t * Math.PI * 2 * 2.4;
+    const seg = new THREE.BoxGeometry(0.38, 0.13, 0.18);
+    seg.rotateY(a);
+    seg.translate(Math.sin(a) * 0.1, y + 1.62 + t * 1.18, Math.cos(a) * 0.1);
+    k.add(seg, DARK);
   }
-  k.cyl(0, 0, y + 2.55, 0.1, 0.62, 0.7, STONE, 20);
-  k.cyl(0, 0, y + 2.62, 0.08, 0.72, 0.76, RIM, 20);
-  k.cyl(0, 0, y + 2.66, 0.04, 0.48, 0.48, 0x9fd0c4, 16);
-  k.cyl(0, 0, y + 2.7, 0.7, 0.035, 0.02, 0xe7f6f2, 8);
-  const spray = new THREE.SphereGeometry(0.1, 8, 6); spray.translate(0, y + 3.42, 0); k.add(spray, 0xf4fbfd);
+  k.cyl(0, 0, y + 2.78, 0.16, 0.42, 1.05, DARK, 24);
+  k.cyl(0, 0, y + 2.9, 0.1, 1.12, 1.2, 0x3a3834, 28);
+  k.cyl(0, 0, y + 2.96, 0.05, 0.92, 0.92, 0x7ad4d4, 20);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + 0.2;
+    const spill = new THREE.CylinderGeometry(0.02, 0.045, 1.25, 5);
+    spill.translate(Math.sin(a) * 1.02, y + 2.28, Math.cos(a) * 1.02);
+    k.add(spill, 0xe7f7f6);
+  }
+  k.cyl(0, 0, y + 3.0, 0.85, 0.04, 0.02, 0xe7f6f2, 8);
+  const spray = new THREE.SphereGeometry(0.12, 8, 6); spray.translate(0, y + 3.88, 0); k.add(spray, 0xf4fbfd);
   return k.mesh('fontana-delfini');
 }
 

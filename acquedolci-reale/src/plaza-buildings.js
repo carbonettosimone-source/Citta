@@ -29,7 +29,7 @@ export const PIAZZA = {
   // A est del Municipio: intonaco crema, persiane brune chiuse, qualche balcone, tetto in coppi.
   1302564: {
     name: 'palazzo-ve3-est', title: 'Palazzo chiaro a est del Municipio', piazza: 'Vittorio Emanuele III',
-    facing: [-0.85, -0.45], wall: 0xf3ecdf, trim: 0xf8f4ec, stone: 0xd5cec0, shutter: 0x8a5a32, roof: 0xb15a34,
+    facing: [-0.85, -0.45], wall: 0xf3ecdf, trim: 0xf8f4ec, stone: 0xd5cec0, shutter: 0xc47840, roof: 0xb15a34,
     bay: 3.15, balcony: 'alt', ante: 'chiuse',
   },
   // Oltre l'angolo est, stesso intonaco e le stesse persiane.

@@ -11,8 +11,22 @@ import * as THREE from 'three';
 export const VE3_TERRACE = 32.95;
 const FX = -8.54, FZ = -31.15;
 
-/** scala verso nord, sulla via inferiore. zTop è il ciglio del terrazzo. */
-const STAIR = { x0: -13.2, x1: 0.8, zTop: -46.0, tread: 0.34 };
+/** scala sul lato ovest del ciglio nord: il centro, dal satellite, è il giardino a semicerchio */
+const STAIR = { x0: -40.5, x1: -28.2, zTop: -42.4, tread: 0.34 };
+
+/**
+ * Facciata nord del Municipio (pianta DBTR). u corre lungo il fronte verso ovest,
+ * w esce verso la fontana. Gli otto riquadri e il basolato grigio stanno in questo riferimento,
+ * così restano paralleli alla scala d'ingresso e non la coprono.
+ */
+const FAX = 0.275, FAZ = -8.445;
+const NWx = -0.2855, NWz = -0.9584;
+const Ux = -0.9584, Uz = 0.2855;
+const CELL = 5.15;
+const MOTIF_U0 = 2 - CELL * 2;
+const MOTIF_W0 = 0.4;
+const MOTIF_SPLIT = 6.15;
+const MOTIF_W1 = MOTIF_SPLIT + CELL * 2;
 let stairPlan = null;
 
 export function planVe3Stair(heightAt) {
@@ -81,7 +95,7 @@ function ringTex() {
   const cv = document.createElement('canvas'); cv.width = cv.height = S;
   const g = cv.getContext('2d');
   const cx = S / 2, cy = S / 2, px = (m) => m / mpp;
-  const R0 = 8.35, tooth = 1.5, N = 32;
+  const R0 = 5.45, tooth = 1.15, N = 28;
   const outer = (a) => {
     const p = (a * N) / (Math.PI * 2);
     const tri = 1 - Math.abs((p % 1) * 2 - 1);
@@ -101,40 +115,40 @@ function ringTex() {
     const a0 = (i / 28) * Math.PI * 2, a1 = ((i + 1) / 28) * Math.PI * 2;
     g.fillStyle = i % 2 ? '#d9d3c6' : '#c8c1b2';
     g.beginPath();
-    g.moveTo(cx + Math.sin(a0) * px(6.55), cy + Math.cos(a0) * px(6.55));
-    g.lineTo(cx + Math.sin(a0) * px(11.2), cy + Math.cos(a0) * px(11.2));
-    g.lineTo(cx + Math.sin(a1) * px(11.2), cy + Math.cos(a1) * px(11.2));
-    g.lineTo(cx + Math.sin(a1) * px(6.55), cy + Math.cos(a1) * px(6.55));
+    g.moveTo(cx + Math.sin(a0) * px(5.2), cy + Math.cos(a0) * px(5.2));
+    g.lineTo(cx + Math.sin(a0) * px(7.2), cy + Math.cos(a0) * px(7.2));
+    g.lineTo(cx + Math.sin(a1) * px(7.2), cy + Math.cos(a1) * px(7.2));
+    g.lineTo(cx + Math.sin(a1) * px(5.2), cy + Math.cos(a1) * px(5.2));
     g.fill();
   }
   g.strokeStyle = 'rgba(70,64,56,0.55)'; g.lineWidth = 3;
-  for (const R of [7.7, 9.05]) { g.beginPath(); g.arc(cx, cy, px(R), 0, Math.PI * 2); g.stroke(); }
+  for (const R of [5.7, 6.35]) { g.beginPath(); g.arc(cx, cy, px(R), 0, Math.PI * 2); g.stroke(); }
   g.restore();
   // fascia di mattoni rossi messi in radiale
   g.save();
-  g.beginPath(); g.arc(cx, cy, px(6.45), 0, 7); g.arc(cx, cy, px(4.85), 0, 7, true); g.clip();
+  g.beginPath(); g.arc(cx, cy, px(5.15), 0, 7); g.arc(cx, cy, px(4.15), 0, 7, true); g.clip();
   for (let i = 0; i < 90; i++) {
     const a0 = (i / 90) * Math.PI * 2, a1 = ((i + 1) / 90) * Math.PI * 2;
     const n = (Math.sin(i * 12.3) * 0.5 + 0.5);
     g.fillStyle = `rgb(${150 + n * 40},${72 + n * 24},${54 + n * 14})`;
     g.beginPath();
-    g.moveTo(cx + Math.sin(a0) * px(4.8), cy + Math.cos(a0) * px(4.8));
-    g.lineTo(cx + Math.sin(a0) * px(6.5), cy + Math.cos(a0) * px(6.5));
-    g.lineTo(cx + Math.sin(a1) * px(6.5), cy + Math.cos(a1) * px(6.5));
-    g.lineTo(cx + Math.sin(a1) * px(4.8), cy + Math.cos(a1) * px(4.8));
+    g.moveTo(cx + Math.sin(a0) * px(4.1), cy + Math.cos(a0) * px(4.1));
+    g.lineTo(cx + Math.sin(a0) * px(5.2), cy + Math.cos(a0) * px(5.2));
+    g.lineTo(cx + Math.sin(a1) * px(5.2), cy + Math.cos(a1) * px(5.2));
+    g.lineTo(cx + Math.sin(a1) * px(4.1), cy + Math.cos(a1) * px(4.1));
     g.fill();
   }
   g.restore();
   // anello interno di pietra chiara, a conci
   g.save();
-  g.beginPath(); g.arc(cx, cy, px(4.8), 0, 7); g.arc(cx, cy, px(3.58), 0, 7, true); g.clip();
+  g.beginPath(); g.arc(cx, cy, px(4.15), 0, 7); g.arc(cx, cy, px(3.52), 0, 7, true); g.clip();
   for (let i = 0; i < 48; i++) {
     const a0 = (i / 48) * Math.PI * 2, a1 = ((i + 1) / 48) * Math.PI * 2;
     g.fillStyle = i % 2 ? '#efeae0' : '#e0d9cc';
     g.beginPath();
     g.moveTo(cx + Math.sin(a0) * px(3.55), cy + Math.cos(a0) * px(3.55));
-    g.lineTo(cx + Math.sin(a0) * px(4.85), cy + Math.cos(a0) * px(4.85));
-    g.lineTo(cx + Math.sin(a1) * px(4.85), cy + Math.cos(a1) * px(4.85));
+    g.lineTo(cx + Math.sin(a0) * px(4.2), cy + Math.cos(a0) * px(4.2));
+    g.lineTo(cx + Math.sin(a1) * px(4.2), cy + Math.cos(a1) * px(4.2));
     g.lineTo(cx + Math.sin(a1) * px(3.55), cy + Math.cos(a1) * px(3.55));
     g.fill();
   }
@@ -143,6 +157,64 @@ function ringTex() {
   g.beginPath(); g.arc(cx, cy, px(3.5), 0, Math.PI * 2); g.fill();
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+
+function paintHerring(g, x, y, w, h, tone) {
+  g.save();
+  g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.translate(x + w / 2, y + h / 2);
+  g.rotate(Math.PI / 4);
+  const D = Math.hypot(w, h) + 8;
+  const bw = 12, bh = 5.5, gap = 1.4;
+  let row = 0;
+  for (let py = -D; py < D; py += bh + gap, row++) {
+    const shift = (row % 2) * ((bw + gap) * 0.5);
+    let col = 0;
+    for (let px = -D; px < D; px += bw + gap, col++) {
+      g.fillStyle = tone(Math.abs(Math.sin(row * 1.7 + col * 2.3)));
+      g.fillRect(px + shift, py, bw, bh);
+    }
+  }
+  g.restore();
+}
+
+/** otto riquadri col rombo chiaro, e il basolato grigio davanti alla scala */
+function motifTex() {
+  const ppm = 46;
+  const du = CELL * 4, dw = MOTIF_W1 - MOTIF_W0;
+  const W = Math.round(du * ppm), H = Math.round(dw * ppm);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const Xu = (u) => (u - MOTIF_U0) * ppm;
+  const Yw = (w) => (MOTIF_W1 - w) * ppm;
+  const red = (n) => `rgb(${150 + n * 55 | 0},${74 + n * 40 | 0},${50 + n * 20 | 0})`;
+  const grey = (n) => `rgb(${108 + n * 42 | 0},${106 + n * 40 | 0},${98 + n * 34 | 0})`;
+  const gy0 = Yw(MOTIF_SPLIT), gh = Yw(MOTIF_W0) - gy0;
+  g.fillStyle = '#5e5c56'; g.fillRect(0, gy0, W, gh);
+  paintHerring(g, 0, gy0, W, gh, grey);
+  const border = 0.30 * ppm;
+  for (let row = 0; row < 2; row++) {
+    const wA = MOTIF_SPLIT + row * CELL, wB = wA + CELL;
+    for (let col = 0; col < 4; col++) {
+      const uA = MOTIF_U0 + col * CELL, uB = uA + CELL;
+      const x = Xu(uA), y = Yw(wB), ww = Xu(uB) - x, hh = Yw(wA) - y;
+      g.fillStyle = '#e4dcc8'; g.fillRect(x, y, ww, hh);
+      paintHerring(g, x + border, y + border, ww - border * 2, hh - border * 2, red);
+      const cx = x + ww / 2, cy = y + hh / 2, r = ww * 0.25;
+      g.beginPath();
+      g.moveTo(cx, cy - r); g.lineTo(cx + r * 0.72, cy - r * 0.15);
+      g.lineTo(cx + r, cy); g.lineTo(cx + r * 0.72, cy + r * 0.15);
+      g.lineTo(cx, cy + r); g.lineTo(cx - r * 0.72, cy + r * 0.15);
+      g.lineTo(cx - r, cy); g.lineTo(cx - r * 0.72, cy - r * 0.15);
+      g.closePath();
+      g.fillStyle = '#efe6d4'; g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = 'rgba(110,100,86,0.65)'; g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.flipY = true;
   return t;
 }
 
@@ -194,7 +266,6 @@ export function buildVe3Plaza(heightAt, polys) {
   const stone = lambert(0xe4ddd0);
   const stoneDk = lambert(0xcfc6b6);
   const iron = lambert(0x1c2220);
-  const soil = lambert(0x4d6434);
   const leaf = lambert(0x3c6a32);
   const leafDk = lambert(0x2a5228);
   const potC = lambert(0xc4623a);
@@ -212,6 +283,34 @@ export function buildVe3Plaza(heightAt, polys) {
     m.position.set(FX, T + 0.03, FZ);
     m.receiveShadow = true;
     group.add(m);
+  }
+
+  // dal satellite: basolato grigio contro la facciata, poi due file di quattro riquadri col rombo
+  {
+    const at = (u, w) => [
+      FAX + Ux * u + NWx * w,
+      FAZ + Uz * u + NWz * w,
+    ];
+    const u1 = MOTIF_U0 + CELL * 4;
+    const p00 = at(MOTIF_U0, MOTIF_W0), p10 = at(u1, MOTIF_W0), p11 = at(u1, MOTIF_W1), p01 = at(MOTIF_U0, MOTIF_W1);
+    const y = T + 0.045;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([
+      p00[0], y, p00[1], p10[0], y, p10[1], p11[0], y, p11[1],
+      p00[0], y, p00[1], p11[0], y, p11[1], p01[0], y, p01[1],
+    ], 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([
+      0, 0, 1, 0, 1, 1,
+      0, 0, 1, 1, 0, 1,
+    ], 2));
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshLambertMaterial({
+      map: motifTex(), side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.receiveShadow = true;
+    group.add(mesh);
   }
 
   // muretto di contenimento dove il piano sta sopra la via, ringhiera a barre
@@ -352,33 +451,60 @@ export function buildVe3Plaza(heightAt, polys) {
     }
   }
 
-  // verde a nord della fontana: aiuole, siepe, cespugli sferici, una palma
-  const bed = (x0, z0, x1, z1) => {
-    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, dx = x1 - x0, dz = z1 - z0;
-    const y = T;
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(dx, 0.42, dz), stone);
-    rim.position.set(cx, y + 0.21, cz); rim.castShadow = rim.receiveShadow = true; group.add(rim);
-    const earth = new THREE.Mesh(new THREE.BoxGeometry(dx - 0.28, 0.28, dz - 0.28), soil);
-    earth.position.set(cx, y + 0.34, cz); earth.receiveShadow = true; group.add(earth);
-    const hedge = new THREE.Mesh(new THREE.BoxGeometry(dx - 0.5, 0.38, dz - 0.5), leaf);
-    hedge.position.set(cx, y + 0.62, cz); hedge.castShadow = true; group.add(hedge);
-  };
-  bed(-30.5, -41.2, -23.2, -37.4);
-  bed(3.2, -42.4, 9.4, -38.6);
-  // siepe bassa spezzata, appena fuori dal dente di sega
-  for (const [x0, x1, z] of [[-20, -12, -42.6], [-10, -2, -42.8], [0.5, 6.5, -42.5]]) {
-    const h = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.55, 0.7), leafDk);
-    h.position.set((x0 + x1) / 2, T + 0.28, z); h.castShadow = true; group.add(h);
+  // giardino a semicerchio a nord della fontana: il diametro guarda la vasca, l'arco va verso il mare
+  const GZ = FZ - 7.7, GR = 9.0;
+  {
+    const grass = new THREE.Mesh(
+      new THREE.CircleGeometry(GR, 36, 0, Math.PI),
+      lambert(0x6d8a42),
+    );
+    grass.rotation.x = -Math.PI / 2;
+    grass.position.set(FX, T + 0.025, GZ);
+    grass.receiveShadow = true;
+    group.add(grass);
+    const arc = (r, hgt, mat, step) => {
+      const n = Math.max(6, Math.round((Math.PI * r) / step));
+      for (let i = 0; i < n; i++) {
+        const a0 = -Math.PI / 2 + (i / n) * Math.PI;
+        const a1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI;
+        const a = (a0 + a1) / 2;
+        const box = new THREE.Mesh(new THREE.BoxGeometry(step * 0.96, hgt, 0.58), mat);
+        box.position.set(FX + Math.sin(a) * r, T + hgt * 0.5, GZ - Math.cos(a) * r);
+        box.rotation.y = -a;
+        box.castShadow = true;
+        group.add(box);
+      }
+    };
+    arc(3.15, 0.58, leafDk, 0.72);
+    arc(5.85, 0.66, leaf, 0.78);
+    arc(8.45, 0.72, leafDk, 0.82);
+    for (const a of [-0.85, -0.28, 0.28, 0.85]) {
+      const len = 5.2;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, len), leaf);
+      const mx = FX + Math.sin(a) * (3.15 + len / 2);
+      const mz = GZ - Math.cos(a) * (3.15 + len / 2);
+      box.position.set(mx, T + 0.26, mz);
+      box.rotation.y = -a;
+      box.castShadow = true;
+      group.add(box);
+    }
   }
   const bush = new THREE.IcosahedronGeometry(1, 1);
-  const bushes = [[-18.2, -41.2, 0.85], [-14.4, -40.6, 1.05], [-6.2, -41.5, 0.95], [-1.5, -41.1, 1.15], [2.4, -41.4, 0.9], [5.6, -40.5, 0.8], [-22.4, -39.2, 0.7], [7.2, -39.4, 0.75]];
+  const bushes = [];
+  for (const [r, n, sc] of [[8.45, 7, 0.72], [5.85, 5, 0.55]]) {
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + ((i + 0.5) / n) * Math.PI;
+      bushes.push([FX + Math.sin(a) * r, GZ - Math.cos(a) * r, sc]);
+    }
+  }
+  bushes.push([FX - GR + 0.2, GZ + 0.35, 0.85], [FX + GR - 0.2, GZ + 0.35, 0.8], [FX - 4.2, GZ - 1.4, 0.62]);
   for (const [x, z, r] of bushes) {
     const m = new THREE.Mesh(bush, leaf);
-    m.scale.setScalar(r); m.position.set(x, T + r * 0.72, z); m.castShadow = true; group.add(m);
+    m.scale.setScalar(r); m.position.set(x, T + r * 0.7, z); m.castShadow = true; group.add(m);
   }
   // palma sul lato ovest del verde, come si vede arrivando da sud
   {
-    const x = -27.2, z = -34.6, y = T;
+    const x = -24.2, z = -36.2, y = T;
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 3.2, 7), lambert(0x6a5438));
     trunk.position.set(x, y + 1.7, z); trunk.castShadow = true; group.add(trunk);
     for (let i = 0; i < 8; i++) {
@@ -392,7 +518,13 @@ export function buildVe3Plaza(heightAt, polys) {
 
   // panchine chiare in pietra, senza schienale di legno
   const seat = new THREE.BoxGeometry(1.85, 0.1, 0.48), leg = new THREE.BoxGeometry(0.16, 0.38, 0.4);
-  for (const [x, z, yaw] of [[8.4, -36.2, 0], [-21.5, -34.8, 0.4], [12.6, -30.5, Math.PI / 2], [-4.2, -24.8, 0.15]]) {
+  const benchYaw = Math.atan2(NWx, NWz);
+  for (const [x, z, yaw] of [
+    [FX - 6.6, FZ - 6.9, 0],
+    [FX + 6.6, FZ - 6.9, 0],
+    [5.9, -21.9, benchYaw],
+    [-16.4, -18.2, benchYaw],
+  ]) {
     const y = T + 0.02;
     const qn = new THREE.Quaternion().setFromAxisAngle(up, yaw);
     for (const [geo, mat, dy, lx, lz] of [[seat, benchC, 0.42, 0, 0], [leg, stoneDk, 0.2, -0.7, 0], [leg, stoneDk, 0.2, 0.7, 0]]) {
@@ -406,7 +538,7 @@ export function buildVe3Plaza(heightAt, polys) {
   // lampioni a due globi, come sul lato ovest della piazza
   const globeMat = new THREE.MeshLambertMaterial({ color: 0xfff4dc, emissive: 0xffe0a8, emissiveIntensity: 0.18 });
   const metal = lambert(0x2a2e30);
-  for (const [x, z, yaw] of [[-33.5, -26.5, 0.6], [-18.4, -18.6, 0.2], [18.2, -34.5, -0.4]]) {
+  for (const [x, z, yaw] of [[-33.5, -26.5, 0.55], [-16.2, -16.1, benchYaw], [6.8, -20.3, benchYaw]]) {
     const y = T;
     const qn = new THREE.Quaternion().setFromAxisAngle(up, yaw);
     const put = (geo, mat, px, py, pz) => {
