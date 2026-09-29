@@ -33,3 +33,28 @@ body.walk.touch #joy { display: block; }
 #loader span { font-size: 12px; opacity: .7; }
 #loader.hide { opacity: 0; pointer-events: none; }
 @media (max-width: 600px) { #credits { font-size: 8.5px; } #hud h1 { font-size: 15px; } }
+
+/* ---------- intro */
+#intro { position: fixed; inset: 0; z-index: 20; pointer-events: none; color: #f4e7c5; }
+#intro[hidden] { display: none; }
+#intro.out { opacity: 0; transition: opacity .7s; }
+#introFade { position: absolute; inset: 0; background: #000; opacity: 1; }
+#intro .bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; }
+#intro .bar.top { top: 0; } #intro .bar.bottom { bottom: 0; }
+#introCap { position: absolute; left: 0; right: 0; bottom: calc(11vh + 18px); margin: 0; text-align: center; padding: 0 20px; font: 400 clamp(15px, 2.2vw, 22px)/1.35 Cinzel, Georgia, serif; letter-spacing: .04em; text-shadow: 0 2px 10px rgba(0,0,0,.8); opacity: 0; transition: opacity .9s; }
+#introCap.show { opacity: 1; }
+#introTitle { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; gap: 6px; padding: 0 16px; opacity: 0; transition: opacity 2.2s; }
+#intro.title #introTitle { opacity: 1; }
+#introTitle h2 { margin: 0; font: 700 clamp(34px, 7.5vw, 92px)/1.02 "Cinzel Decorative", Cinzel, Georgia, serif; color: #f1d58a; letter-spacing: .02em;
+  background: linear-gradient(180deg, #fff3c4 0%, #e9c46a 45%, #a8732a 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 3px 2px rgba(0,0,0,.55)) drop-shadow(0 0 24px rgba(255,190,90,.35)); }
+#introTitle .sub { margin: 4px 0 10px; font: 600 clamp(16px, 2.6vw, 28px) Cinzel, Georgia, serif; letter-spacing: .35em; color: #f4e7c5; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+#introTitle .tag { margin: 0; font: italic 400 clamp(13px, 1.7vw, 18px)/1.4 Georgia, serif; color: #f4e7c5; text-shadow: 0 2px 8px rgba(0,0,0,.9); max-width: 34em; }
+#introTitle .tag.small { font: 400 clamp(11px, 1.3vw, 14px) Cinzel, Georgia, serif; letter-spacing: .3em; text-transform: uppercase; opacity: .85; margin-top: 4px; }
+#introPlay { margin-top: 18px; pointer-events: auto; border: 1px solid #e9c46a; background: rgba(20,14,6,.55); color: #f1d58a; font: 600 clamp(13px, 1.6vw, 16px) Cinzel, Georgia, serif; letter-spacing: .15em; padding: 11px 22px; border-radius: 4px; cursor: pointer; opacity: 0; transform: translateY(8px); transition: opacity 1s, transform 1s, background .2s; }
+#intro.play #introPlay { opacity: 1; transform: none; }
+#introPlay:hover, #introPlay:focus-visible { background: rgba(233,196,106,.2); outline: none; }
+#introSkip { position: absolute; right: 16px; bottom: calc(11vh + 14px); pointer-events: auto; border: 0; background: rgba(0,0,0,.45); color: #f4e7c5; font: 600 13px system-ui, sans-serif; padding: 7px 12px; border-radius: 6px; cursor: pointer; }
+#intro.final #introSkip, #intro.final #introCap { display: none; }
+body.intro #hud, body.intro #modes, body.intro #settings, body.intro #hint, body.intro #labels, body.intro #credits { visibility: hidden; }
+#bIntro { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }

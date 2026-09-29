@@ -11,6 +11,7 @@ import { initGround } from './ground.js';
 import { buildWater } from './water.js';
 import { buildBackground } from './background.js';
 import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
+import { createIntro } from './intro.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -225,16 +226,16 @@ for (const sc of [scene, bgScene]) sc.traverse((o) => { const m = o.material; if
 const lamps = scene.getObjectByName('lamps');
 const dayCtx = { sky, sun, hemi, moonLight, fog: scene.fog, bgScene, basics: [...basics], waters: [water.uniforms, farSea.uniforms], lights: true, sunDir: new THREE.Vector3(0, 1, 0) };
 const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
-function setHour(h) {
-  settings.hour = h;
+/** applica un'ora senza salvarla (l'intro ha le sue ore) */
+function applyHour(h) {
   dayCtx.lights = settings.lights;
   const { sun: S, moon: M } = applyTime(h, dayCtx);
   lamps?.userData.night?.(NIGHT.value);
   $('optTime').value = h; $('timeOut').textContent = hhmm(h);
   const moonTxt = M.alt > 0 ? `luna ${Math.round(M.lit * 100)}% alta ${Math.round(M.alt * 57.3)}°` : 'luna sotto l\'orizzonte';
   $('sunInfo').textContent = `sole ${Math.round(S.alt * 57.3)}° · ${moonTxt}`;
-  saveSettings();
 }
+function setHour(h) { settings.hour = h; applyHour(h); saveSettings(); }
 $('optNames').checked = settings.names;
 $('optLights').checked = settings.lights;
 $('optNames').onchange = (e) => { settings.names = e.target.checked; saveSettings(); };
@@ -243,6 +244,17 @@ $('optTime').oninput = (e) => setHour(+e.target.value);
 $('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
 setHour(settings.hour);
+
+// ---------- intro: panoramiche e titolo (intro.js), poi il paese libero dalla vista di partenza
+const intro = createIntro({
+  camera, controls, heightAt, setTime: applyHour,
+  onEnd() {
+    applyHour(settings.hour);
+    controls.target.set(-60, g0, -20); camera.position.set(-10, g0 + 90, 190); controls.update();
+  },
+});
+$('bIntro').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); if (walker.on) setMode(false); intro.start(); };
+intro.start();
 
 const clock = new THREE.Clock();
 function stepWalk(dt) {
@@ -266,7 +278,7 @@ function stepWalk(dt) {
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
-  if (walker.on) stepWalk(dt); else controls.update();
+  if (intro.active) intro.update(dt); else if (walker.on) stepWalk(dt); else controls.update();
   // l'ombra segue ciò che si guarda
   const focus = walker.on ? walker.pos : controls.target;
   const sd = dayCtx.sunDir.y > 0.02 ? dayCtx.sunDir : new THREE.Vector3(0.4, 0.6, 0.45).normalize();
@@ -287,4 +299,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings };
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro };

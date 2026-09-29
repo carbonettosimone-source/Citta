@@ -1,4 +1,17 @@
-# Acquedolci Reale
+# The Lord of the Sweetwater (Acquedolci)
+
+Gioco satirico sulla politica di paese in vista delle comunali 2027: si vincono le elezioni come le vince il politico di paese, a colpi di favori e di alleanze fra famiglie. Il paese è Acquedolci ricostruito dai dati reali (sotto).
+
+**Intro** (`src/intro.js`): quattro inquadrature in movimento, ognuna con la sua ora del giorno, bande nere, dissolvenze e didascalie:
+
+1. dal mare verso la costa;
+2. attorno al castello Larcan-Gravina;
+3. giù sopra i tetti fino al Municipio e alla fontana;
+4. gru davanti alla Chiesa Madre.
+
+Poi la panoramica finale al tramonto, con le Eolie e il titolo. Si salta con "Salta", Esc o Invio; si rivede dalle impostazioni.
+
+## Acquedolci Reale
 
 Acquedolci ricostruita in 3D solo da dati reali e aperti: dove esiste un dato misurato, si usa quello.
 

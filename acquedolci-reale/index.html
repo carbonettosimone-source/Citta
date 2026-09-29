@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Acquedolci Reale</title>
+  <title>The Lord of the Sweetwater</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;600&display=swap" />
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
@@ -24,6 +27,7 @@
     <input type="range" id="optTime" min="0" max="24" step="0.25" value="11" aria-label="Ora del giorno" />
     <div class="row"><button id="bNow" type="button">Adesso</button><small id="sunInfo"></small></div>
     <label class="row"><span>Luci notturne</span><input type="checkbox" id="optLights" checked /></label>
+    <button id="bIntro" type="button">Rivedi l'intro</button>
   </section>
   <div id="joy"><i></i></div>
   <p id="hint"></p>
@@ -31,6 +35,19 @@
     Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
     Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)
   </footer>
+  <div id="intro" hidden>
+    <div id="introFade"></div>
+    <div class="bar top"></div><div class="bar bottom"></div>
+    <p id="introCap"></p>
+    <div id="introTitle">
+      <h2>The Lord of the<br />Sweetwater</h2>
+      <p class="sub">( Acquedolci )</p>
+      <p class="tag">Un anello per comandarli tutti. E un assessorato per ogni cugino.</p>
+      <p class="tag small">Elezioni comunali 2027</p>
+      <button id="introPlay" type="button">Entra ad Acquedolci</button>
+    </div>
+    <button id="introSkip" type="button">Salta ›</button>
+  </div>
   <div id="loader"><div><b>Costruisco Acquedolci…</b><span id="lmsg">dati</span></div></div>
   <script type="module" src="./src/main.js"></script>
 </body>
