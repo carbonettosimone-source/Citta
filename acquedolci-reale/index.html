@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>The Lord of the Sweetwater</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;600&display=swap" />
+  <script type="module" crossorigin src="./assets/index-D07Vukq8.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Caltg9At.css">
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="labels"></div>
+  <header id="hud">
+    <h1>Acquedolci</h1>
+    <p id="sub">ricostruita da dati reali</p>
+  </header>
+  <div id="modes">
+    <button id="bDrone" class="on" type="button">Drone</button>
+    <button id="bWalk" type="button">A piedi</button>
+    <button id="bSet" type="button" aria-label="Impostazioni" aria-expanded="false" aria-controls="settings">⚙︎</button>
+  </div>
+  <section id="settings" hidden aria-label="Impostazioni">
+    <label class="row"><span>Nomi dei luoghi</span><input type="checkbox" id="optNames" /></label>
+    <div class="row"><span>Ora del giorno</span><output id="timeOut" for="optTime">11:00</output></div>
+    <input type="range" id="optTime" min="0" max="24" step="0.25" value="11" aria-label="Ora del giorno" />
+    <div class="row"><button id="bNow" type="button">Adesso</button><small id="sunInfo"></small></div>
+    <label class="row"><span>Luci notturne</span><input type="checkbox" id="optLights" checked /></label>
+    <label class="row"><span>Nitidezza</span><input type="checkbox" id="optSharp" checked /></label>
+    <button id="bIntro" type="button">Rivedi l'intro</button>
+  </section>
+  <div id="joy"><i></i></div>
+  <p id="hint"></p>
+  <footer id="credits">
+    Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
+    Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)
+  </footer>
+  <div id="intro" hidden>
+    <div id="introFade"></div>
+    <div class="bar top"></div><div class="bar bottom"></div>
+    <p id="introCap"></p>
+    <div id="introTitle">
+      <h2>The Lord of the<br />Sweetwater</h2>
+      <p class="tag">Un voto per ogni favore. Un assessorato per ogni cugino.</p>
+      <p class="tag small">Elezioni comunali 2027</p>
+      <button id="introPlay" type="button">Entra ad Acquedolci</button>
+    </div>
+    <button id="introSkip" type="button">Salta ›</button>
+  </div>
+  <div id="loader"><div><b>Costruisco Acquedolci…</b><span id="lmsg">dati</span></div></div>
+</body>
+</html>
