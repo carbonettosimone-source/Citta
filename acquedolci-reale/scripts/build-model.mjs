@@ -308,9 +308,53 @@ if (existsSync(canopyPath)) {
 const spCount = [0, 0, 0, 0, 0]; for (let i = 5; i < trees.length; i += 6) spCount[trees[i]]++;
 console.log('alberi', trees.length / 6, 'per specie [latifoglia, pino, ulivo, agrume, palma]:', spCount);
 
+// ---- luoghi d'interesse modellati a mano (src/landmarks.js) da foto di riferimento (Wikimedia
+// Commons): qui solo dove sono e quanto misurano, dai dati. Il renderer generico li salta.
+const LANDMARK_IDS = { 1302565: 'municipio', 1300978: 'chiesa' }; // DBTR: Municipio, Chiesa Madre S. Benedetto il Moro
+for (const bb of out) if (LANDMARK_IDS[bb.id]) bb.lm = LANDMARK_IDS[bb.id];
+const landmarks = {};
+{
+  const osmL = JSON.parse(readFileSync(new URL('../acquedolci-lowpoly/public/data/acquedolci.json', root)));
+  // Fontana dei Delfini (1924): il poligono OSM dell'acqua in Piazza Vittorio Emanuele III
+  const f = osmL.features.find((ft) => ft.properties.amenity === 'fountain' && ft.geometry.type === 'Polygon');
+  if (f) {
+    const pts = f.geometry.coordinates[0].map(([lon, lat]) => toUtm33(lon, lat));
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    const r = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
+    landmarks.fountain = { x: +(cx - OX).toFixed(2), z: +(-(cy - OY)).toFixed(2), y: +terrainAt(cx, cy).toFixed(2), r: +r.toFixed(2) };
+  }
+  // ruderi DBTR (B005): muri in pietra; quello più vicino alla Chiesa di San Giuseppe alla Torre è il
+  // Castello Larcan-Gravina — le torri tonde sono gli archi di segmenti corti nel suo tracciato
+  const extraL = read('data/dbtr-extra.json');
+  const ruins = [];
+  for (const ft of extraL.otherStructures || []) if (ft.code === 'B005') for (const part of ft.parts) {
+    const P = part.map(([x, y]) => [+(x - OX).toFixed(2), +(-(y - OY)).toFixed(2)]);
+    let gy = Infinity; for (const [x, y] of part) gy = Math.min(gy, terrainAt(x, y));
+    ruins.push({ p: P.flat(), g: +gy.toFixed(2) });
+  }
+  const sg = pois.find((p) => /San Giuseppe/.test(p.name));
+  if (sg) {
+    const near = ruins.filter((r) => { for (let i = 0; i < r.p.length; i += 2) if (Math.hypot(r.p[i] - sg.x, r.p[i + 1] - sg.z) < 60) return true; return false; });
+    const main = near.sort((a, b) => b.p.length - a.p.length)[0];
+    if (main) {
+      main.castle = 1;
+      // torri: sequenze di ≥4 lati corti (<2,5 m) = arco di cerchio → centro medio e raggio
+      const P = []; for (let i = 0; i < main.p.length; i += 2) P.push([main.p[i], main.p[i + 1]]);
+      const towers = []; let run = [];
+      const flush = () => { if (run.length >= 4) { const cx = run.reduce((a, p) => a + p[0], 0) / run.length, cz = run.reduce((a, p) => a + p[1], 0) / run.length; const r = run.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cz), 0) / run.length; towers.push([+cx.toFixed(2), +cz.toFixed(2), +Math.max(1.8, r + 0.6).toFixed(2)]); } run = []; };
+      for (let i = 1; i < P.length; i++) { const L = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); if (L < 2.5) { if (!run.length) run.push(P[i - 1]); run.push(P[i]); } else flush(); }
+      flush();
+      landmarks.castle = { towers, chapel: sg ? [sg.x, sg.z] : null };
+      for (const r of near) r.castleArea = 1;
+    }
+  }
+  landmarks.ruins = ruins;
+  console.log('luoghi:', Object.values(LANDMARK_IDS).join(', '), '· fontana', !!landmarks.fountain, '· ruderi', ruins.length, '· torri castello', landmarks.castle?.towers.length);
+}
+
 mkdirSync(new URL('public/data', root), { recursive: true });
 writeFileSync(new URL('public/data/model.json', root), JSON.stringify({
-  origin: [OX, OY], epsg: 25833, buildings: out, pois, trees,
+  origin: [OX, OY], epsg: 25833, buildings: out, pois, trees, landmarks,
   sources: ['Edifici: DBTR 2013 CTR 1:10.000 — SITR Regione Siciliana (CC BY 4.0)', 'Altezze: LiDAR PST — MASE Geoportale Nazionale', 'Terreno: MDT 2013 — SITR (CC BY 4.0)', 'Ortofoto 2022 — SITR (CC BY 4.0)', 'Nomi: © OpenStreetMap contributors', 'Alberi: Meta/WRI High Resolution Canopy Height (CC BY 4.0)'],
 }));
 console.log(`modello: ${out.length} edifici, ${pois.length} POI`, stats);

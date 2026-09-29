@@ -3,6 +3,7 @@
  * Strati DBTR 2013 oltre agli edifici (SITR, CC BY 4.0), in EPSG:25833:
  *  - 11 Strade (bordi carreggiata dove la via confina con aree aperte)
  *  - 12 Altre strutture viarie (scalinate, ponti, accessi)
+ *  - 16 Altre strutture dell'edificato (ruderi — il Castello Larcan-Gravina —, gradinate)
  *  - 24 Elementi divisori (muri divisori, muri di sostegno, muri a secco, recinzioni/cancelli)
  *  - 25 Limiti vegetazione (aiuole)
  *  - 26 Aree vegetazione (oliveti, frutteti, vigneti, macchia/bosco)
@@ -35,7 +36,7 @@ async function layer(id) {
 }
 
 const res = {};
-for (const [name, id] of [['roadEdges', 11], ['roadStructures', 12], ['dividers', 24], ['vegLines', 25], ['vegAreas', 26]]) {
+for (const [name, id] of [['roadEdges', 11], ['roadStructures', 12], ['otherStructures', 16], ['dividers', 24], ['vegLines', 25], ['vegAreas', 26]]) {
   res[name] = await layer(id);
   const c = {}; for (const f of res[name]) c[`${f.code} ${f.desc}`] = (c[`${f.code} ${f.desc}`] || 0) + 1;
   console.log(name, res[name].length, c);

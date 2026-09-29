@@ -59,6 +59,11 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
     for (let i = 0; i < b.r.length; i += 2) pts.push([b.r[i], b.r[i + 1]]);
     if (pts.length < 3) continue;
     const top = b.g + b.h;
+    if (b.lm) {
+      // modellato a parte in landmarks.js: qui resta solo l'ingombro per le collisioni
+      footprints.push({ pts, top, minX: Math.min(...pts.map((p) => p[0])), maxX: Math.max(...pts.map((p) => p[0])), minZ: Math.min(...pts.map((p) => p[1])), maxZ: Math.max(...pts.map((p) => p[1])), canopy: false });
+      continue;
+    }
     const foot = Math.min(b.b, b.g) - 0.4; // interrato di poco: niente fessure sui lotti in pendenza
     col.setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace);
     const windows = !NO_WINDOWS.has(b.t) && b.h >= 2.6;

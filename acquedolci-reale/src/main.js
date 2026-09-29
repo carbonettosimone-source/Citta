@@ -5,6 +5,7 @@ import { buildBuildings, makeCollider } from './buildings.js';
 import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
+import { buildLandmarks } from './landmarks.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -66,6 +67,8 @@ async function load() {
   say('edifici');
   const { group, footprints } = buildBuildings({ model, orthoMeta, textures, facadeMats: facadeMaterials() });
   scene.add(group);
+  say('luoghi d\'interesse');
+  scene.add(buildLandmarks(model, heightAt));
   say('alberi');
   const trees = buildTrees(model.trees || []);
   scene.add(trees.group);

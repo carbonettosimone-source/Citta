@@ -16,6 +16,15 @@ Acquedolci ricostruita in 3D solo da dati reali e aperti: dove esiste un dato mi
 | Tetti a falde (866) | LiDAR + colore dei coppi nell'ortofoto, padiglione con straight skeleton | |
 | Casotti scala sulle terrazze (121) | volumi misurati dal LiDAR sopra il tetto | |
 | Nomi dei luoghi | OpenStreetMap | ODbL |
+| Castello Larcan-Gravina: perimetro dei ruderi | DBTR 2013, strato Altre strutture (rudere) | CC BY 4.0 |
+
+## Luoghi d'interesse modellati a mano (`src/landmarks.js`)
+
+Pianta, altezze e orientamento vengono dai dati (DBTR, LiDAR, ortofoto). Forme e dettagli sono ricostruiti guardando foto di Wikimedia Commons, usate solo come riferimento visivo e non come texture:
+
+- **Palazzo del Municipio e Fontana dei Delfini**: [foto di Episcopello](https://commons.wikimedia.org/wiki/File:Municipio_Acquedolci.jpg), CC BY-SA 4.0
+- **Chiesa Madre di San Benedetto il Moro**: foto di Subbass1 ([02](https://commons.wikimedia.org/wiki/File:Acquedolci,_Chiesa_Madre_della_Beata_Vergine_Assunta_(02).jpg), [12](https://commons.wikimedia.org/wiki/File:Acquedolci,_Chiesa_San_Benedetto_il_Moro_(12).jpg)), CC BY-SA 4.0; Azotoliquido, CC BY-SA 3.0
+- **Castello Larcan-Gravina, torri e cappella di San Giuseppe**: [foto di Azotoliquido](https://commons.wikimedia.org/wiki/File:Acquedolci_castello.JPG), CC BY-SA 3.0
 
 ## Pipeline
 
