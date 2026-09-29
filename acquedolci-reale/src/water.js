@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 import { GROUND, LC_GLSL } from './ground.js';
-import { CURVE_GLSL } from './background.js';
+import { CURVE_GLSL, forceHighpVertex } from './background.js';
 
 /** far: il mare dello sfondo (fino all'orizzonte, con curvatura terrestre), altrimenti quello del paese */
 export function buildWater(sunDir, { far = false } = {}) {
@@ -88,6 +88,8 @@ export function buildWater(sunDir, { far = false } = {}) {
         #include <fog_fragment>
       }`,
   });
+  // il disco arriva a 200 km: in mediump quelle coordinate sono +inf e il mare aperto non si disegna
+  if (far) mat.onBeforeCompile = (sh) => forceHighpVertex(sh);
   let geo;
   if (far) {
     // disco centrato su chi guarda: anelli sempre più radi fino a 200 km, così la curvatura si piega bene
