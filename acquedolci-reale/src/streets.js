@@ -58,6 +58,85 @@ const pavingTex = () => canvasTex(512, 512, (g, w, h) => {
   }
 });
 
+/**
+ * Spina di mattoni 2:1 a 45° (corso sfalsato, ruotato). La tela è multipla del modulo, così la
+ * ripetizione non taglia i mattoni. `beige` è il sagrato della fontana; `red` le fasce pedonali.
+ * Disegno, non una foto di Street View.
+ */
+function bondTex(tone) {
+  return canvasTex(512, 512, (g, w, h) => {
+    const img = g.createImageData(w, h), d = img.data;
+    const P = 64, Q = 32;
+    const hsh = (i) => { const s = Math.sin(i * 127.1) * 43758.5453; return s - Math.floor(s); };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = x + y, v = -x + y;
+      const row = Math.floor(v / Q);
+      const u2 = u - (row & 1) * (P / 2);
+      const fu = ((u2 % P) + P) % P;
+      const fv = ((v % Q) + Q) % Q;
+      const joint = fu < 3.5 || fv < 3.5;
+      const n = hsh(Math.floor(u2 / P) * 13 + row * 7);
+      let r, gg, b;
+      if (tone === 'red') { r = 158 + n * 46; gg = 86 + n * 30; b = 68 + n * 18; }
+      else { r = 208 + n * 34; gg = 190 + n * 28; b = 162 + n * 20; }
+      if (joint) { r *= 0.62; gg *= 0.6; b *= 0.58; }
+      else if (hsh(x * 17 + y * 3) > 0.9) { r *= 0.9; gg *= 0.9; b *= 0.88; }
+      const i4 = (y * w + x) * 4;
+      d[i4] = r; d[i4 + 1] = gg; d[i4 + 2] = b; d[i4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+}
+/** prato del giardino: fili, non l'ortofoto ingrandita */
+function grassTex() {
+  return canvasTex(256, 256, (g, w, h) => {
+    const r = rnd(9);
+    g.fillStyle = '#5d7a3e'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 5000; i++) {
+      const x = r() * w, y = r() * h, l = 3 + r() * 6, a = -Math.PI / 2 + (r() - 0.5) * 1.1, v = r();
+      g.strokeStyle = `rgb(${70 + v * 60},${110 + v * 70},${40 + v * 30})`; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+  });
+}
+
+function ringCentroid(ring) {
+  let a = 0, cx = 0, cz = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const x0 = ring[i], z0 = ring[i + 1], x1 = ring[(i + 2) % ring.length], z1 = ring[(i + 3) % ring.length];
+    const cr = x0 * z1 - x1 * z0;
+    a += cr; cx += (x0 + x1) * cr; cz += (z0 + z1) * cr;
+  }
+  a *= 0.5;
+  if (Math.abs(a) < 1e-3) return { x: ring[0], z: ring[1], a: 0 };
+  return { x: cx / (6 * a), z: cz / (6 * a), a: Math.abs(a) };
+}
+
+/**
+ * Tipo di superficie dal baricentro del pezzo (metri locali, origine al Municipio).
+ * Non è una texture campionata da Street View: è la scelta che corrisponde a ciò che si vede.
+ *  - herring: corte della Fontana dei Delfini e sagrato della Chiesa Madre, mattoni chiari a spina
+ *  - drive: piazzale davanti alla facciata nord della chiesa (Piazza Libertà), asfalto non pietra
+ *  - garden: interno di Piazza Giovanni Paolo II, prato (la carreggiata resta la mesh delle vie)
+ *  - red: ritagli pedonali piccoli intorno a quel giardino
+ *  - other: basolato delle altre piazze (Federico II, slarghi)
+ */
+function plazaKind(x, z, area) {
+  if (z < -4 && z > -68 && x > -50 && x < 36 && Math.hypot(x + 8, z + 32) < 46) return 'herring';
+  if (z < -8 && z > -62 && x > -198 && x < -120 && Math.hypot(x + 156, z + 32) < 42) return area > 400 ? 'garden' : 'red';
+  if (z > 16 && z < 93 && x > -262 && x < -168 && Math.hypot(x + 224, z - 58) < 78) return 'drive';
+  if (Math.hypot(x + 212, z - 112) < 28) return 'herring';
+  return 'other';
+}
+function splitPlazas(polys) {
+  const out = { herring: [], drive: [], garden: [], red: [], other: [] };
+  for (const rings of polys || []) {
+    const c = ringCentroid(rings[0]);
+    out[plazaKind(c.x, c.z, c.a)].push(rings);
+  }
+  return out;
+}
+
 class Strip {
   constructor() { this.p = []; this.u = []; }
   quad(a, b, c, d, ua, ub, uc, ud) { this.p.push(...a, ...b, ...c, ...a, ...c, ...d); this.u.push(...ua, ...ub, ...uc, ...ua, ...uc, ...ud); }
@@ -180,6 +259,50 @@ function addSkirts(polys, yInner, yOuter, uvScale, heightAt, inBuilding, blocker
   }
 }
 
+/** fascia interna di pietra sul bordo di un prato: il centro resta erba */
+function addBorder(polys, width, y, uvScale, heightAt, tile, out) {
+  if (!polys?.length) return;
+  const self = new PolyIndex(polys);
+  const onTileEdge = (x0, z0, x1, z1) => (Math.abs(x0 - x1) < 0.01 && Math.abs(x0 / tile - Math.round(x0 / tile)) < 1e-4) || (Math.abs(z0 - z1) < 0.01 && Math.abs(z0 / tile - Math.round(z0 / tile)) < 1e-4);
+  const put = (x, z) => [x, heightAt(x, z) + y, z];
+  const uv = (x, z) => [x / uvScale, z / uvScale];
+  for (const rings of polys) for (const r of rings) {
+    const n = r.length >> 1;
+    if (n < 3) continue;
+    const edges = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const x0 = r[i * 2], z0 = r[i * 2 + 1], x1 = r[j * 2], z1 = r[j * 2 + 1];
+      const e = { x0, z0, x1, z1, ix: 0, iz: 0, on: false };
+      edges.push(e);
+      const L = Math.hypot(x1 - x0, z1 - z0);
+      if (L < 0.15 || onTileEdge(x0, z0, x1, z1)) continue;
+      const nx = -(z1 - z0) / L, nz = (x1 - x0) / L, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      for (const s of [1, -1]) {
+        if (self.contains(mx + nx * s * 0.4, mz + nz * s * 0.4) && !self.contains(mx - nx * s * 0.4, mz - nz * s * 0.4)) {
+          e.ix = nx * s; e.iz = nz * s; e.on = true; break;
+        }
+      }
+      if (!e.on) continue;
+      const seg = Math.max(1, Math.ceil(L / MAXE));
+      for (let k = 0; k < seg; k++) {
+        const ax = x0 + (x1 - x0) * k / seg, az = z0 + (z1 - z0) * k / seg;
+        const bx = x0 + (x1 - x0) * (k + 1) / seg, bz = z0 + (z1 - z0) * (k + 1) / seg;
+        const ax2 = ax + e.ix * width, az2 = az + e.iz * width, bx2 = bx + e.ix * width, bz2 = bz + e.iz * width;
+        out.quad(put(ax, az), put(bx, bz), put(bx2, bz2), put(ax2, az2), uv(ax, az), uv(bx, bz), uv(bx2, bz2), uv(ax2, az2));
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const prev = edges[(i - 1 + n) % n], e = edges[i];
+      if (!prev.on || !e.on) continue;
+      const x = e.x0, z = e.z0;
+      const p1x = x + prev.ix * width, p1z = z + prev.iz * width, p2x = x + e.ix * width, p2z = z + e.iz * width;
+      if (Math.hypot(p1x - p2x, p1z - p2z) < 0.04) continue;
+      out.tri(put(x, z), put(p1x, p1z), put(p2x, p2z), uv(x, z), uv(p1x, p1z), uv(p2x, p2z));
+    }
+  }
+}
+
 function fadeMat(map) {
   const m = new THREE.MeshLambertMaterial({
     map, side: THREE.DoubleSide, alphaToCoverage: true,
@@ -256,29 +379,41 @@ function fillPolys(polys, heightAt, yOff, uvScale, out) {
 
 export function buildStreets(data, heightAt, inBuilding = () => false) {
   const group = new THREE.Group(); group.name = 'streets';
-  const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip(), plaza = new Strip();
-  const skirtA = new FadeStrip(), skirtP = new FadeStrip(), skirtZ = new FadeStrip();
-  const Y = 0.2, CURB = 0.12, PLAZA = 0.08; // 20 cm sul modello del terreno: tra i vertici della maglia il terreno sporge di qualche cm. La piazza è 8 cm sopra l'asfalto: cordolo basso, non un marciapiede.
+  const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip();
+  const herring = new Strip(), cobble = new Strip(), drive = new Strip(), garden = new Strip(), red = new Strip(), rim = new Strip();
+  const skirtA = new FadeStrip(), skirtP = new FadeStrip(), skirtH = new FadeStrip(), skirtO = new FadeStrip(), skirtD = new FadeStrip(), skirtR = new FadeStrip();
+  const Y = 0.2, CURB = 0.12, PLAZA = 0.08; // 20 cm sul modello del terreno: tra i vertici della maglia il terreno sporge di qualche cm. La piazza in pietra è 8 cm sopra l'asfalto.
   const junc = data.junctions;
   const nearJunction = (x, z, pad) => junc.some(([jx, jz, r]) => Math.abs(jx - x) < r + pad && Math.abs(jz - z) < r + pad && Math.hypot(jx - x, jz - z) < r + pad);
 
   // superfici vere (build-streets.mjs): carreggiata = unione delle vie, marciapiede = fascia fino alle
-  // facciate, vialetti in basolato, PIAZZE come poligoni (place=square, aree pedonali, vuoti urbani).
+  // facciate, vialetti in basolato. I poligoni di piazza si dividono per tipo (splitPlazas): spina,
+  // asfalto del piazzale, prato, fascia rossa, basolato. La carreggiata sotto non si ridisegna.
   const S = data.surf;
   S.plaza = S.plaza || [];
+  const kinds = splitPlazas(S.plaza);
   fillPolys(S.asphalt, heightAt, Y, 4, asphalt);
   fillPolys(S.walk, heightAt, Y + CURB, 1.6, walk);
   fillPolys(S.paving, heightAt, Y + 0.04, 2.2, paving);
-  fillPolys(S.plaza, heightAt, Y + PLAZA, 2.8, plaza);
+  fillPolys(kinds.herring, heightAt, Y + PLAZA, 2.4, herring);
+  fillPolys(kinds.other, heightAt, Y + PLAZA, 2.8, cobble);
+  fillPolys(kinds.drive, heightAt, Y + 0.012, 4, drive);
+  fillPolys(kinds.garden, heightAt, Y - 0.02, 3.2, garden);
+  fillPolys(kinds.red, heightAt, Y + 0.06, 2.2, red);
+  addBorder(kinds.garden, 2.6, Y + 0.08, 2.2, heightAt, S.tile, rim);
   const idx = {
     asphalt: new PolyIndex(S.asphalt), walk: new PolyIndex(S.walk),
     paving: new PolyIndex(S.paving), plaza: new PolyIndex(S.plaza),
   };
-  const block = (...kinds) => kinds.map((kind) => ({ kind, index: idx[kind] }));
-  // ~0,85 m di sfumatura verso il suolo nudo; il cordolo solo dove la piazza incontra asfalto o marciapiede
+  const block = (...names) => names.map((kind) => ({ kind, index: idx[kind] }));
+  const hard = block('asphalt', 'walk', 'paving', 'plaza');
+  // ~0,85 m di sfumatura verso il suolo nudo; il cordolo solo dove la pietra incontra l'asfalto
   addSkirts(S.asphalt, Y, Y, 4, heightAt, inBuilding, block('walk', 'paving', 'plaza'), skirtA, curb, S.tile, false);
   addSkirts(S.paving, Y + 0.04, Y + 0.04, 2.2, heightAt, inBuilding, block('asphalt', 'walk', 'plaza'), skirtP, curb, S.tile, false);
-  addSkirts(S.plaza, Y + PLAZA, Y, 2.8, heightAt, inBuilding, block('asphalt', 'walk', 'paving'), skirtZ, curb, S.tile, true);
+  addSkirts(kinds.herring, Y + PLAZA, Y, 2.4, heightAt, inBuilding, hard, skirtH, curb, S.tile, true);
+  addSkirts(kinds.other, Y + PLAZA, Y, 2.8, heightAt, inBuilding, hard, skirtO, curb, S.tile, true);
+  addSkirts(kinds.drive, Y + 0.012, Y, 4, heightAt, inBuilding, hard, skirtD, curb, S.tile, false);
+  addSkirts(kinds.red, Y + 0.06, Y, 2.2, heightAt, inBuilding, hard, skirtR, curb, S.tile, true);
   // cordolo: un gradino lungo tutto il contorno dei marciapiedi, tranne i tagli fra tessere
   const onTileEdge = (x0, z0, x1, z1) => (Math.abs(x0 - x1) < 0.01 && Math.abs(x0 / S.tile - Math.round(x0 / S.tile)) < 1e-4) || (Math.abs(z0 - z1) < 0.01 && Math.abs(z0 / S.tile - Math.round(z0 / S.tile)) < 1e-4);
   for (const rings of S.walk) for (const r of rings) {
@@ -322,17 +457,27 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
   const polyOff = (m) => { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; };
   const add = (m) => m && group.add(m);
-  const pav = pavingTex(), asph = asphaltTex();
-  add(asphalt.mesh(polyOff(new THREE.MeshLambertMaterial({ map: asph })), 1));
+  const pav = pavingTex(), asph = asphaltTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex();
+  const asphMat = polyOff(new THREE.MeshLambertMaterial({ map: asph }));
+  add(asphalt.mesh(asphMat, 1));
+  add(drive.mesh(asphMat, 1));
   add(walk.mesh(new THREE.MeshLambertMaterial({ map: sidewalkTex(), side: THREE.DoubleSide }), 2));
   add(curb.mesh(new THREE.MeshLambertMaterial({ color: 0xe4dcd0, side: THREE.DoubleSide }), 2));
   const markMat = polyOff(new THREE.MeshLambertMaterial({ color: 0xf2f2ee })); markMat.polygonOffsetFactor = -6; markMat.polygonOffsetUnits = -6;
   add(mark.mesh(markMat, 3));
   add(paving.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
-  add(plaza.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
+  add(herring.mesh(polyOff(new THREE.MeshLambertMaterial({ map: spine })), 1));
+  add(cobble.mesh(polyOff(new THREE.MeshLambertMaterial({ map: pav })), 1));
+  add(garden.mesh(polyOff(new THREE.MeshLambertMaterial({ map: lawn })), 1));
+  const roseMat = polyOff(new THREE.MeshLambertMaterial({ map: rose }));
+  add(red.mesh(roseMat, 1));
+  add(rim.mesh(roseMat, 2));
   add(skirtA.mesh(fadeMat(asph), 3));
   add(skirtP.mesh(fadeMat(pav), 3));
-  add(skirtZ.mesh(fadeMat(pav), 3));
+  add(skirtH.mesh(fadeMat(spine), 3));
+  add(skirtO.mesh(fadeMat(pav), 3));
+  add(skirtD.mesh(fadeMat(asph), 3));
+  add(skirtR.mesh(fadeMat(rose), 3));
   group.add(buildBenches(data.benches, heightAt));
   group.add(buildWalls(data.walls || [], heightAt));
   group.add(buildLamps(data.lamps || [], heightAt));

@@ -226,6 +226,7 @@ const saveSettings = () => { try { localStorage.setItem('acq-settings', JSON.str
 const basics = new Set();
 for (const sc of [scene, bgScene]) sc.traverse((o) => { const m = o.material; if (o.isMesh && m?.isMeshBasicMaterial && m.blending === THREE.NormalBlending) basics.add(m); });
 const lamps = scene.getObjectByName('lamps');
+const plazaProps = scene.getObjectByName('plaza-props');
 const dayCtx = { sky, sun, hemi, moonLight, fog: scene.fog, bgScene, basics: [...basics], waters: [water.uniforms, farSea.uniforms], lights: true, sunDir: new THREE.Vector3(0, 1, 0) };
 const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 /** applica un'ora senza salvarla (l'intro ha le sue ore) */
@@ -233,6 +234,7 @@ function applyHour(h) {
   dayCtx.lights = settings.lights;
   const { sun: S, moon: M } = applyTime(h, dayCtx);
   lamps?.userData.night?.(NIGHT.value);
+  plazaProps?.userData.night?.(NIGHT.value);
   $('optTime').value = h; $('timeOut').textContent = hhmm(h);
   const moonTxt = M.alt > 0 ? `luna ${Math.round(M.lit * 100)}% alta ${Math.round(M.alt * 57.3)}°` : 'luna sotto l\'orizzonte';
   $('sunInfo').textContent = `sole ${Math.round(S.alt * 57.3)}° · ${moonTxt}`;

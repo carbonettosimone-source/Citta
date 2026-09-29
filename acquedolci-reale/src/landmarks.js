@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NIGHT } from './daylight.js';
+import { buildPlazaDressing } from './plaza-props.js';
 
 /** Raccoglie pezzi colorati nel riferimento di una facciata e li fonde in una sola mesh. */
 class Kit {
@@ -67,6 +68,14 @@ class Kit {
   }
   dome(uc, wc, y0, r, hy, hex) {
     const g = new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(1, hy / r, 1); g.translate(uc, y0, wc);
+    return this.add(g, hex);
+  }
+  /** barra da (u, y0, w0) a (u, y1, w1): corrimano lungo la scalinata */
+  rail(u, y0, w0, y1, w1, thick, hex) {
+    const dw = w1 - w0, dy = y1 - y0, L = Math.hypot(dw, dy) || 0.01;
+    const g = new THREE.BoxGeometry(thick, thick, L);
+    g.rotateX(-Math.atan2(dy, dw));
+    g.translate(u, (y0 + y1) / 2, (w0 + w1) / 2);
     return this.add(g, hex);
   }
   mesh(name) {
@@ -172,6 +181,38 @@ function municipio(b, fountain) {
   sideRows(W, (t, y0, y1) => k.box(-h + t - 0.6, -h + t + 0.6, y0, y1, -D - 0.1, -D + 0.1, DARK));
   // scalinata sul basolato della piazza (strade.js: Y 0,20 + 0,08), non sotto la mesh
   for (let i = 0; i < 6; i++) k.box(-c2 - 3 + i * 0.25, c2 + 3 - i * 0.25, g + 0.28, g + 0.28 + 0.15 * (i + 1), 0.7, 0.7 + (6 - i) * 0.4, STONE);
+  // corrimano in ferro ai due lati e in mezzo: la scala è larga, nella foto c'è il passamano
+  const IRON = 0x2a2e32;
+  const wBot = 0.7 + 6 * 0.4, wTop = 0.7 + 0.4;
+  const yBot = g + 0.28 + 0.15 + 0.92, yTop = g + 0.28 + 0.9 + 0.92;
+  for (const u of [-c2 - 3.2, 0, c2 + 3.2]) {
+    k.rail(u, yBot, wBot, yTop, wTop, 0.045, IRON);
+    k.rail(u, yBot - 0.38, wBot, yTop - 0.38, wTop, 0.03, IRON);
+    for (let t = 0; t <= 1.001; t += 0.16) {
+      const w = wBot + (wTop - wBot) * t, y = yBot + (yTop - yBot) * t;
+      k.box(u - 0.02, u + 0.02, y - 0.92, y + 0.02, w - 0.025, w + 0.025, IRON);
+    }
+  }
+  // vasi di cotto con cicadi piccole, sul pianerottolo ai lati della scala
+  const pot = (u, w, s) => {
+    const y = g + 0.28;
+    k.cyl(u, w, y, 0.38 * s, 0.22 * s, 0.32 * s, 0xc4623a, 12);
+    k.cyl(u, w, y + 0.38 * s, 0.06 * s, 0.36 * s, 0.34 * s, 0xd48455, 12);
+    k.cyl(u, w, y + 0.42 * s, 0.28 * s, 0.045 * s, 0.04 * s, 0x6d7a45, 6);
+    const leaf = new THREE.SphereGeometry(0.26 * s, 8, 6); leaf.scale(1, 0.42, 1); leaf.translate(u, y + 0.78 * s, w); k.add(leaf, 0x3d6a34);
+    const leaf2 = new THREE.SphereGeometry(0.16 * s, 6, 5); leaf2.scale(1.5, 0.28, 0.55); leaf2.translate(u + 0.04 * s, y + 0.7 * s, w); k.add(leaf2, 0x4e7c3e);
+  };
+  pot(-c2 - 4.1, 3.55, 1.2);
+  pot(c2 + 3.9, 3.7, 1.0);
+  pot(-c2 - 2.4, 4.55, 0.72);
+  // sedie di plastica bianca, a volte accostate di lato (non sono arredo fisso censito)
+  const chair = (u, w) => {
+    const y = g + 0.28, WHITE = 0xf4f4f1;
+    k.box(u - 0.22, u + 0.22, y + 0.42, y + 0.48, w - 0.2, w + 0.2, WHITE);
+    k.box(u - 0.21, u + 0.21, y + 0.48, y + 0.9, w - 0.2, w - 0.14, WHITE);
+    for (const du of [-0.16, 0.16]) for (const dw of [-0.16, 0.16]) k.box(u + du - 0.018, u + du + 0.018, y, y + 0.42, w + dw - 0.018, w + dw + 0.018, WHITE);
+  };
+  for (let i = 0; i < 4; i++) chair(c2 + 4.5, 1.15 + i * 0.52);
   return k.mesh('municipio');
 }
 
@@ -247,6 +288,23 @@ function chiesa(b) {
   for (const s of [-1, 1]) { k.arch(s * 5.2, 1.5, g + 0.4, g + 3.6, FT + 0.05, WOOD); k.arch(s * 5.2, 1.7, g + 3.9, g + 5.3, FT + 0.05, TRIM, 0.05); }
   k.arch(0, 1.4, g + 10.5, g + 13.9, FT + 0.05, DARK);                        // finestrone dell'ordine superiore
   for (let i = 0; i < 4; i++) k.box(-3 + i * 0.1, 3 - i * 0.1, g + 0.28, g + 0.28 + 0.15 * (i + 1), FT, FT + 0.5 + (4 - i) * 0.35, 0xc9c0ae); // gradini sul basolato
+  // chiosco di vetro e metallo a lato della facciata, sul piazzale. Nessuna insegna copiata.
+  {
+    const u0 = -h - 0.2, u1 = -4.8, w0 = FT + 0.15, w1 = FT + 3.5;
+    const y0 = g + 0.28, y1 = y0 + 2.7;
+    const METAL = 0x8d9396, GLASS = 0xd7e2e6, PANEL = 0xf3f1ec, BAND = 0x3a3632;
+    k.box(u0, u1, y0, y0 + 0.1, w0, w1, PANEL);
+    k.box(u0 + 0.08, u1 - 0.08, y0 + 0.1, y0 + 0.72, w1 - 0.12, w1 - 0.02, PANEL);
+    k.box(u0 + 0.02, u0 + 0.1, y0 + 0.1, y0 + 0.72, w0 + 0.1, w1 - 0.1, PANEL);
+    k.box(u1 - 0.1, u1 - 0.02, y0 + 0.1, y0 + 0.72, w0 + 0.1, w1 - 0.1, PANEL);
+    k.box(u0 + 0.12, u1 - 0.5, y0 + 0.72, y1 - 0.42, w1 - 0.1, w1 - 0.02, GLASS);
+    k.box(u1 - 1.15, u1 - 0.12, y0 + 0.72, y1 - 0.42, w1 - 0.1, w1 - 0.02, GLASS);
+    k.box(u0 + 0.02, u0 + 0.08, y0 + 0.72, y1 - 0.42, w0 + 0.15, w1 - 0.15, GLASS);
+    k.box(u1 - 0.08, u1 - 0.02, y0 + 0.72, y1 - 0.42, w0 + 0.15, w1 - 0.15, GLASS);
+    for (const u of [u0 + 0.06, (u0 + u1) / 2, u1 - 0.06]) for (const w of [w0 + 0.06, w1 - 0.06]) k.box(u - 0.045, u + 0.045, y0 + 0.1, y1 - 0.28, w - 0.045, w + 0.045, METAL);
+    k.box(u0 - 0.12, u1 + 0.12, y1 - 0.32, y1 + 0.06, w0 - 0.08, w1 + 0.22, BAND);
+    k.box(u0 + 0.35, u1 - 0.7, y0 + 0.95, y0 + 1.08, w0 + 0.45, w0 + 1.35, 0x6b5644);
+  }
   // corpo posteriore a tre piani (canonica) e campanile sull'angolo posteriore a +u (sud-ovest):
   // nella foto del fianco (Subbass1) facciata a sinistra, campanile a destra sul lato vicino
   k.box(-h, h, g - 0.5, g + 11, -L, -L + rear, YEL);
@@ -346,5 +404,6 @@ export function buildLandmarks(model, heightAt) {
   }
   if (lm.fountain) group.add(fountain(lm.fountain));
   if (lm.ruins?.length) group.add(ruinsAndCastle(lm, heightAt));
+  group.add(buildPlazaDressing(heightAt));
   return group;
 }
