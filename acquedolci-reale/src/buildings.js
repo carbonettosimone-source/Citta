@@ -75,7 +75,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
     const isCanopy = b.t === 'B007';
     // stile dei balconi per edificio: 0 nessuno, 1 ogni campata, 2 a campate alterne
     const hb = hash(b.id * 3 + 1);
-    const balconyStyle = hb < 0.3 ? 0 : hb < 0.65 ? 1 : 2;
+    const balconyStyle = hb < 0.15 ? 0 : hb < 0.65 ? 1 : 2; // nelle foto quasi ogni palazzina ha balconi
 
     // --- muri: una parete per lato, uv in campate e piani a partire dal suolo al centro
     let s = 0;
@@ -184,7 +184,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   for (const [file, buf] of roofs) {
     const g = buf.geometry(); if (!g) continue;
     // la foto porta già la luce del giorno del volo: materiale non illuminato, colori veri
-    const m = new THREE.Mesh(g, orthoMaterial(textures.get(file)));
+    const m = new THREE.Mesh(g, orthoMaterial(textures.get(file), { roof: true }));
     m.receiveShadow = true;
     group.add(m);
   }
@@ -266,7 +266,13 @@ function buildBalconies(list) {
   const sideL = new THREE.BoxGeometry(0.04, 0.95, 0.9); sideL.translate(-0.83, 0.6, 0);
   const sideR = sideL.clone(); sideR.translate(1.66, 0, 0);
   const concrete = new THREE.MeshLambertMaterial({ color: 0xd6d2c8 });
-  const iron = new THREE.MeshLambertMaterial({ color: 0x2e3230, transparent: true, opacity: 0.85 });
+  // ringhiera a bacchette come nelle foto: corrimano, traverso basso e montanti ogni ~11 cm, il resto vuoto
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+  const c2 = cv.getContext('2d'); c2.fillStyle = '#fff';
+  c2.fillRect(0, 0, 128, 6); c2.fillRect(0, 56, 128, 4);
+  for (let x = 1; x < 128; x += 8) c2.fillRect(x, 0, 2, 60);
+  const bars = new THREE.CanvasTexture(cv); bars.colorSpace = THREE.SRGBColorSpace;
+  const iron = new THREE.MeshLambertMaterial({ color: 0x3a3e3c, map: bars, alphaTest: 0.5, side: THREE.DoubleSide });
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   for (const [geo, mat] of [[slab, concrete], [rail, iron], [sideL, iron], [sideR, iron]]) {
     const im = new THREE.InstancedMesh(geo, mat, list.length);

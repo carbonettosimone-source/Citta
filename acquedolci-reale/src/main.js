@@ -6,6 +6,7 @@ import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
 import { buildLandmarks } from './landmarks.js';
+import { createOrthoHR } from './ortho-hr.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -40,6 +41,7 @@ async function load() {
     fetch('data/ortho.json').then((r) => r.json()),
     fetch('data/streets.json').then((r) => r.json()),
   ]);
+  const hrMeta = await fetch('data/ortho-hr.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   // quote in decimetri, Uint16 in base64 (vedi build-model.mjs)
   const raw = atob(dtmMeta.data);
   const bytes = new Uint8Array(raw.length);
@@ -75,10 +77,11 @@ async function load() {
 
   const nLidar = model.buildings.filter((b) => b.src === 'lidar').length;
   $('sub').textContent = `${model.buildings.length} edifici reali · ${nLidar} con altezza LiDAR`;
-  return { model, heightAt, collider: makeCollider(footprints), trees, streets };
+  const hr = hrMeta ? createOrthoHR(hrMeta, model.origin, renderer) : { update() {} };
+  return { model, heightAt, collider: makeCollider(footprints), trees, streets, hr };
 }
 
-const { model, heightAt, collider, trees, streets } = await load();
+const { model, heightAt, collider, trees, streets, hr } = await load();
 $('loader').classList.add('hide');
 
 // ---------- etichette dei luoghi (nomi OSM)
@@ -199,6 +202,7 @@ function frame() {
   sun.position.set(focus.x + 300, focus.y + 500, focus.z + 350);
   sun.target.position.copy(focus);
   trees.update(camera);
+  hr.update(focus);
   updateLabels();
   renderer.render(scene, camera);
 }

@@ -1,7 +1,8 @@
 /**
  * Texture di facciata disegnate a canvas: un modulo = una campata (3,5 m) × un piano (3,1 m), in
- * bianco — il colore vero dell'intonaco arriva dal vertex color dell'edificio (moltiplica). Tre
- * varianti tipiche del paese: persiane verdi, persiane marroni, balcone con ringhiera.
+ * bianco — il colore vero dell'intonaco arriva dal vertex color dell'edificio (moltiplica). Quattro
+ * varianti tipiche del paese: persiane verdi, persiane marroni, balcone con ringhiera, tapparella
+ * (le palazzine del dopoguerra che dominano le foto panoramiche).
  */
 import * as THREE from 'three';
 
@@ -37,6 +38,17 @@ function draw(kind) {
   // fascia marcapiano
   g.fillStyle = 'rgba(0,0,0,0.10)'; g.fillRect(0, H - 5, W, 5);
   const ww = 40, wh = 58, wx = (W - ww) / 2, wy = 24;
+  if (kind === 3) {
+    // palazzina anni '60-'80: finestra con tapparella abbassata a metà e cassonetto, davanzale in marmo
+    g.fillStyle = '#2b3136'; g.fillRect(wx, wy, ww, wh);
+    g.fillStyle = 'rgba(160,190,210,0.35)'; g.fillRect(wx + 3, wy + wh * 0.5, ww - 6, wh * 0.45);
+    const th = wh * (0.35 + Math.random() * 0.25);
+    g.fillStyle = '#c9c4b8'; g.fillRect(wx, wy, ww, th);
+    g.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = wy + 2; y < wy + th; y += 3) g.fillRect(wx, y, ww, 1);
+    g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(wx - 3, wy - 6, ww + 6, 6);
+    g.fillStyle = '#eceae4'; g.fillRect(wx - 5, wy + wh, ww + 10, 4);
+    return tex(cv);
+  }
   const shutter = kind === 0 ? '#3f5f45' : kind === 1 ? '#6a4a32' : '#8a8a86';
   // vano finestra
   g.fillStyle = '#2b3136'; g.fillRect(wx, wy, ww, wh);
@@ -55,6 +67,10 @@ function draw(kind) {
   } else {
     g.fillStyle = '#e8e6e0'; g.fillRect(wx - 4, wy + wh, ww + 8, 4);
   }
+  return tex(cv);
+}
+
+function tex(cv) {
   const t = new THREE.CanvasTexture(cv);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
@@ -63,7 +79,7 @@ function draw(kind) {
 }
 
 export function facadeMaterials() {
-  const mats = [0, 1, 2].map((k) => new THREE.MeshLambertMaterial({ map: draw(k), vertexColors: true, side: THREE.DoubleSide }));
+  const mats = [0, 1, 2, 3].map((k) => new THREE.MeshLambertMaterial({ map: draw(k), vertexColors: true, side: THREE.DoubleSide }));
   mats.push(new THREE.MeshLambertMaterial({ map: drawGround(), vertexColors: true, side: THREE.DoubleSide }));
   return mats;
 }

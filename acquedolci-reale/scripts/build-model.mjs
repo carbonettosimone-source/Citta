@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { toUtm33 } from './geo.mjs';
+import { toLab, fromLab, quantiles, rankIn, atRank } from './lib/lab.mjs';
 
 // straight skeleton (CGAL compilato in Wasm, solo per il web): ambiente minimo per caricarlo in Node
 globalThis.self = globalThis; globalThis.window = globalThis; globalThis.document = { currentScript: { src: 'http://localhost/' } };
@@ -73,6 +74,20 @@ function fallbackHeight(code, A, id) {
 
 const DEFAULT_PALETTE = [[228, 214, 190], [236, 226, 206], [214, 196, 168], [226, 206, 170], [200, 188, 170], [232, 220, 196], [218, 180, 150], [206, 204, 196], [188, 170, 150], [240, 232, 214]];
 const pal = palette?.length ? palette : DEFAULT_PALETTE;
+
+/**
+ * Calibrazione sulle foto dal vero (photo-palette.mjs): l'ortofoto vede le facciate di sbieco e le
+ * tinge di rosa-malva (a* mediano 6 contro 1 nelle foto). La luminosità misurata resta; la tinta
+ * (a*, b*) passa per quantili sulla distribuzione dell'intonaco fotografato: l'edificio più giallo
+ * resta il più giallo, ma i colori tornano quelli che si vedono per strada.
+ */
+const photoPal = existsSync(new URL('data/photo-palette.json', root)) ? read('data/photo-palette.json') : null;
+const srcQ = photoPal && pal.length > 50 ? [1, 2].map((k) => quantiles(pal.map((c) => toLab(c)[k]))) : null;
+function calibrate(c) {
+  if (!srcQ) return c;
+  const [l, a, b] = toLab(c);
+  return fromLab([l, atRank(photoPal.a, rankIn(srcQ[0], a)), atRank(photoPal.b, rankIn(srcQ[1], b))]);
+}
 
 function hsv([r, g, b]) {
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
@@ -163,7 +178,7 @@ for (const b of buildings) {
   const ground = Math.max(base, terrainAt(gx, gy));
   const floors = Math.max(1, Math.round(h / 3.1));
   const measuredColor = facade[b.id]?.c;
-  const color = measuredColor || pal[Math.floor(hash(b.id + 7) * pal.length) % pal.length];
+  const color = calibrate(measuredColor || pal[Math.floor(hash(b.id + 7) * pal.length) % pal.length]);
   const r = [];
   for (const [x, y] of ring.slice(0, -1)) r.push(+(x - OX).toFixed(2), +(-(y - OY)).toFixed(2));
   const loc = ([x, y]) => [+(x - OX).toFixed(2), +(-(y - OY)).toFixed(2)];
@@ -321,7 +336,8 @@ const landmarks = {};
     const pts = f.geometry.coordinates[0].map(([lon, lat]) => toUtm33(lon, lat));
     const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
     const r = pts.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / pts.length;
-    landmarks.fountain = { x: +(cx - OX).toFixed(2), z: +(-(cy - OY)).toFixed(2), y: +terrainAt(cx, cy).toFixed(2), r: +r.toFixed(2) };
+    landmarks.fountain = { x: +(cx - OX).toFixed(2), z: +(-(cy - OY)).toFixed(2), y: +terrainAt(cx, cy).toFixed(2), r: +Math.max(r, 3.4).toFixed(2) };
+    // il poligono OSM è la vasca d'acqua: sull'ortofoto a 25 cm il bordo in pietra arriva a 3,4 m di raggio
   }
   // ruderi DBTR (B005): muri in pietra; quello più vicino alla Chiesa di San Giuseppe alla Torre è il
   // Castello Larcan-Gravina — le torri tonde sono gli archi di segmenti corti nel suo tracciato
@@ -371,4 +387,9 @@ import { cpSync, rmSync } from 'node:fs';
 }
 cpSync(new URL('data/ortho.json', root), new URL('public/data/ortho.json', root));
 cpSync(new URL('data/ortho/', root), new URL('public/data/ortho/', root), { recursive: true });
+// ortofoto a 25 cm a tessere (fetch-ortho-hr.mjs), caricata a pezzi intorno a chi guarda
+if (existsSync(new URL('data/ortho-hr25.json', root))) {
+  cpSync(new URL('data/ortho-hr25.json', root), new URL('public/data/ortho-hr.json', root));
+  cpSync(new URL('data/ortho-hr25/', root), new URL('public/data/ortho-hr/', root), { recursive: true });
+}
 console.log('→ public/data (model.json, dtm, ortofoto)');
