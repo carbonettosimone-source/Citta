@@ -42,8 +42,10 @@ bgScene.fog = scene.fog;
 const bgCamera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 50, 250000);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 12000);
 // camera ortografica per la vista miniatura (drone, toggle impostazioni)
-const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.5, 15000);
-const bgOrthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 50, 250000);
+// near fortemente negativo: evita il piano di taglio anteriore che "affetta" gli edifici
+// alle angolazioni basse (l'ortografica può avere near < 0 senza problemi di depth buffer)
+const orthoCamera   = new THREE.OrthographicCamera(-1, 1, 1, -1, -8000, 15000);
+const bgOrthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -8000, 250000);
 
 // luci: sole (con ombre), cielo/terreno, luna. Le governa l'ora del giorno (daylight.js)
 const hemi = new THREE.HemisphereLight(0xdfeeff, 0x8a7a66, 1.25);
