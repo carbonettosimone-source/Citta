@@ -9,9 +9,10 @@
  * Origine planimetrica = Municipio (city.json, arrotondata all'UTM come in model.json).
  * Y = 0 è il livello del mare, non il suolo: il suolo sta a circa 30 m.
  *
- * Non tocca il renderer. Legge public/data (model.json, streets.json, dtm.json).
+ * Copre tutto il modello del paese (MDT del riquadro urbano, non il litorale di sfondo).
+ * Niente mare e niente skybox. Non tocca il renderer.
  */
-import { mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import earcut from 'earcut';
 
@@ -93,18 +94,40 @@ function extrudeBuilding(b) {
   try { tri = earcut(flat, null, 2); } catch { return null; }
   if (!tri?.length) return null;
   const y0 = Math.min(b.b, b.g), y1 = b.g + b.h;
-  const pos = new Float32Array(n * 2 * 3);
-  for (let i = 0; i < n; i++) {
-    pos[i * 3] = flat[i * 2]; pos[i * 3 + 1] = y1; pos[i * 3 + 2] = flat[i * 2 + 1];
-    pos[(n + i) * 3] = flat[i * 2]; pos[(n + i) * 3 + 1] = y0; pos[(n + i) * 3 + 2] = flat[i * 2 + 1];
-  }
+  const pos = [];
   const idx = [];
-  for (let k = 0; k < tri.length; k++) idx.push(tri[k]);
+  for (let i = 0; i < n; i++) pos.push(flat[i * 2], y1, flat[i * 2 + 1]);
+  for (let i = 0; i < n; i++) pos.push(flat[i * 2], y0, flat[i * 2 + 1]);
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     idx.push(i, n + i, j, j, n + i, n + j);
   }
-  return { pos, idx: Uint32Array.from(idx), y0, y1 };
+  let yTop = y1;
+  if (b.roof) {
+    // scheletro del tetto a falde (build-model.mjs): v = x, z, distanza dal bordo; quota = gronda + t·tan
+    const V = b.roof.v, tan = b.roof.tan, base = pos.length / 3, nv = V.length / 3;
+    for (let k = 0; k < nv; k++) {
+      const y = y1 + V[k * 3 + 2] * tan;
+      if (y > yTop) yTop = y;
+      pos.push(V[k * 3], y, V[k * 3 + 1]);
+    }
+    for (const face of b.roof.f) {
+      if (face.length < 3) continue;
+      for (let i = 1; i + 1 < face.length; i++) idx.push(base + face[0], base + face[i], base + face[i + 1]);
+    }
+  } else {
+    for (let k = 0; k < tri.length; k++) idx.push(tri[k]);
+    if (b.pp) {
+      const base = pos.length / 3;
+      for (let i = 0; i < n; i++) pos.push(flat[i * 2], y1 + 1, flat[i * 2 + 1]);
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        idx.push(i, j, base + j, i, base + j, base + i);
+      }
+      yTop = y1 + 1;
+    }
+  }
+  return { pos: Float32Array.from(pos), idx: Uint32Array.from(idx), y0, y1: yTop };
 }
 
 function centroid(flat) {
@@ -225,11 +248,28 @@ function terrainMesh(stride, box) {
     pos[o] = x; pos[o + 1] = dm[r * W + c] / 10 + OFF; pos[o + 2] = z;
   }
   const idx = [];
+  const yAt = (k) => pos[k * 3 + 1];
   for (let j = 0; j < nr - 1; j++) for (let i = 0; i < nc - 1; i++) {
     const a = j * nc + i, b = a + 1, c = a + nc, d = c + 1;
+    // fondale sotto zero: è il mare, non si esporta (niente superficie d'acqua, niente skybox)
+    if (yAt(a) < 0 && yAt(b) < 0 && yAt(c) < 0 && yAt(d) < 0) continue;
     idx.push(a, c, b, b, c, d);
   }
-  return { pos, idx: Uint32Array.from(idx) };
+  // solo i vertici usati: il fondale non resta nel file come punti sciolti
+  const map = new Map();
+  const npos = [];
+  const nidx = new Uint32Array(idx.length);
+  for (let k = 0; k < idx.length; k++) {
+    const i = idx[k];
+    let m = map.get(i);
+    if (m === undefined) {
+      m = npos.length / 3;
+      map.set(i, m);
+      npos.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+    }
+    nidx[k] = m;
+  }
+  return { pos: Float32Array.from(npos), idx: nidx };
 }
 
 function concat(parts) {
@@ -250,6 +290,11 @@ class Glb {
   mesh(name, pos, idx, color, extras, lines = false) {
     if (!idx.length) return;
     this.nodes.push({ name, pos, idx, color, extras, lines });
+  }
+  /** EXT_mesh_gpu_instancing: un prototipo e N copie (alberi). translation/rotation/scale Float32Array */
+  instances(name, pos, idx, color, translation, rotation, scale, extras) {
+    if (!idx.length || !translation.length) return;
+    this.nodes.push({ name, pos, idx, color, extras, instances: { translation, rotation, scale } });
   }
   empty(name, x, y, z, extras) { this.empties.push({ name, x, y, z, extras }); }
   axes(y) {
@@ -297,6 +342,18 @@ class Glb {
       accs.push({ bufferView: views.length - 1, componentType: comp, count: idx.length, type: 'SCALAR' });
       return { pAcc, iAcc, mode: asLines ? 1 : 4 };
     };
+    const floatAcc = (arr, type) => {
+      const buf = Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
+      const o = push(buf);
+      views.push({ buffer: 0, byteOffset: o, byteLength: buf.length });
+      const dim = type === 'VEC4' ? 4 : 3;
+      const min = Array(dim).fill(Infinity), max = Array(dim).fill(-Infinity);
+      for (let i = 0; i < arr.length; i++) { const v = arr[i], k = i % dim; if (v < min[k]) min[k] = v; if (v > max[k]) max[k] = v; }
+      const i = accs.length;
+      accs.push({ bufferView: views.length - 1, componentType: 5126, count: arr.length / dim, type, min, max });
+      return i;
+    };
+    let usesInstances = false;
     const nodeIds = [];
     for (const n of this.nodes) {
       const g = addGeom(n.pos, n.idx, n.lines);
@@ -305,6 +362,15 @@ class Glb {
       const id = nodes.length;
       const node = { name: n.name, mesh: mi };
       if (n.extras) node.extras = n.extras;
+      if (n.instances) {
+        usesInstances = true;
+        const { translation, rotation, scale } = n.instances;
+        node.extensions = { EXT_mesh_gpu_instancing: { attributes: {
+          TRANSLATION: floatAcc(translation, 'VEC3'),
+          ROTATION: floatAcc(rotation, 'VEC4'),
+          SCALE: floatAcc(scale, 'VEC3'),
+        } } };
+      }
       nodes.push(node);
       nodeIds.push(id);
     }
@@ -317,6 +383,7 @@ class Glb {
     }
     const json = {
       asset: { version: '2.0', generator: 'acquedolci-reale scripts/export-blender.mjs' },
+      ...(usesInstances ? { extensionsUsed: ['EXT_mesh_gpu_instancing'], extensionsRequired: ['EXT_mesh_gpu_instancing'] } : {}),
       extras: {
         unita: 'metri',
         asseX: 'est', asseY: 'su, metri sul livello del mare', asseZ: 'sud',
@@ -375,100 +442,129 @@ function collectPlazas(box) {
   return out;
 }
 
+function ve3TreeClash(x, z) {
+  const [u, w] = uwOf(x, z);
+  if (u > -24 && u < 28 && w > 2 && w < 32) return true;
+  const du = u - LAWN_U, dw = w - LAWN_W;
+  return dw > -1 && du * du + dw * dw < LAWN_R * LAWN_R;
+}
+
+/** prototipo unitario (altezza 1, raggio chioma 1): tronco + chioma, come le specie del gioco */
+function treeUnit() {
+  const pos = [], idx = [];
+  const seg = 6;
+  const pushCyl = (y0, y1, r0, r1) => {
+    const b = pos.length / 3;
+    for (let i = 0; i < seg; i++) {
+      const a = (i / seg) * Math.PI * 2, s = Math.sin(a), c = Math.cos(a);
+      pos.push(s * r0, y0, c * r0, s * r1, y1, c * r1);
+    }
+    for (let i = 0; i < seg; i++) {
+      const i0 = b + i * 2, i1 = b + ((i + 1) % seg) * 2;
+      idx.push(i0, i0 + 1, i1, i1, i0 + 1, i1 + 1);
+    }
+  };
+  pushCyl(0, 0.45, 0.06, 0.04);
+  pushCyl(0.42, 0.95, 0.85, 0.15);
+  return { pos: Float32Array.from(pos), idx: Uint32Array.from(idx) };
+}
+
+function stamp(glb) {
+  glb.empty('origine', 0, 0, 0, { nota: 'X=0 Z=0 Y=0 livello del mare' });
+  glb.empty('suolo-origine', 0, round(y0), 0, { nota: 'origine planimetrica sul MDT' });
+  glb.empty('facciata-municipio', FAX, VE3_Y, FAZ, { nota: 'facciata nord, non l’origine' });
+  glb.axes(y0);
+}
+
 const y0 = heightAt(0, 0);
 console.log(`origine UTM ${OX} ${OY} · suolo a (0,0) = ${y0.toFixed(2)} m s.l.m.`);
+
+const terreno = new Glb();
+const tMesh = terrainMesh(1, null);
+terreno.mesh('terreno', tMesh.pos, tMesh.idx, [0.62, 0.56, 0.42, 1], {
+  tipo: 'mdt-paese', passoM: dtmMeta.step, nota: 'MDT del riquadro urbano. Triangoli tutti sotto zero (mare) esclusi. Niente superficie d’acqua, niente litorale di sfondo.',
+});
+stamp(terreno);
+const townBounds = boundsOf(tMesh.pos);
+
+const edifici = new Glb();
+const indice = [];
+let nFalda = 0;
+for (const b of model.buildings) {
+  const g = extrudeBuilding(b);
+  if (!g) continue;
+  if (b.roof) nFalda++;
+  edifici.mesh(`edificio-${b.id}`, g.pos, g.idx, [lin(b.c[0]), lin(b.c[1]), lin(b.c[2]), 1], {
+    id: b.id, tipo: b.t, src: b.src, piede: round(g.y0), tetto: round(g.y1), falda: b.roof ? 1 : 0,
+  });
+  const bb = boundsOf(g.pos);
+  indice.push({ id: b.id, tipo: b.t, src: b.src, x: round((bb.x0 + bb.x1) / 2), z: round((bb.z0 + bb.z1) / 2), piede: round(g.y0), tetto: round(g.y1), falda: b.roof ? 1 : 0 });
+}
+stamp(edifici);
+
+const surfColor = { asphalt: [0.16, 0.16, 0.17, 1], walk: [0.55, 0.52, 0.46, 1], paving: [0.45, 0.28, 0.22, 1] };
+const strade = new Glb();
+for (const k of ['asphalt', 'walk', 'paving']) {
+  const g = collectSurf(k, null);
+  if (g) strade.mesh(k === 'asphalt' ? 'strade-asfalto' : k === 'walk' ? 'strade-marciapiede' : 'strade-basolato', g.pos, g.idx, surfColor[k], { tipo: k });
+}
+stamp(strade);
 
 const plazaGeoms = collectPlazas(null);
 const plazaBounds = {};
 for (const item of plazaGeoms) if (item.p) plazaBounds[item.p.id] = boundsOf(item.geom.pos);
 const terrace = ve3Terrace();
 const terraceBounds = boundsOf(terrace.pos);
-const around = { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity, y0: 0, y1: 0 };
-for (const p of PLAZZE) {
-  around.x0 = Math.min(around.x0, p.x - 160); around.x1 = Math.max(around.x1, p.x + 160);
-  around.z0 = Math.min(around.z0, p.z - 160); around.z1 = Math.max(around.z1, p.z + 160);
-}
-const union = mergeBounds([...PLAZZE.map((p) => plazaBounds[p.id]).filter(Boolean), terraceBounds, around]);
-const MARGIN = 40;
-const clip = { x0: union.x0 - MARGIN, x1: union.x1 + MARGIN, z0: union.z0 - MARGIN, z1: union.z1 + MARGIN, y0: 0, y1: 0 };
-
-const clipGlb = new Glb();
-clipGlb.mesh('terreno', ...(() => { const t = terrainMesh(1, clip); return [t.pos, t.idx]; })(), [0.62, 0.56, 0.42, 1], { tipo: 'mdt', passoM: dtmMeta.step });
-for (const b of model.buildings) {
-  const [cx, cz] = centroid(b.r);
-  if (!inBox(cx, cz, clip)) continue;
-  const g = extrudeBuilding(b);
-  if (!g) continue;
-  clipGlb.mesh(`edificio-${b.id}`, g.pos, g.idx, [lin(b.c[0]), lin(b.c[1]), lin(b.c[2]), 1], { id: b.id, tipo: b.t, src: b.src, piede: round(g.y0), tetto: round(g.y1) });
-}
-const surfColor = { asphalt: [0.16, 0.16, 0.17, 1], walk: [0.55, 0.52, 0.46, 1], paving: [0.45, 0.28, 0.22, 1] };
-for (const k of ['asphalt', 'walk', 'paving']) {
-  const g = collectSurf(k, clip);
-  if (g) clipGlb.mesh(k === 'asphalt' ? 'strade-asfalto' : k === 'walk' ? 'strade-marciapiede' : 'strade-basolato', g.pos, g.idx, surfColor[k], { tipo: k });
-}
-for (const item of collectPlazas(clip)) {
-  const col = item.p?.id === 've3' ? [0.72, 0.32, 0.24, 1] : item.p?.id === 'liberta' ? [0.78, 0.62, 0.32, 1] : item.p?.id === 'gpii' ? [0.28, 0.52, 0.34, 1] : [0.5, 0.48, 0.42, 1];
-  clipGlb.mesh(item.name, item.geom.pos, item.geom.idx, col, { tipo: 'piazza-osm', nome: item.p?.nome || 'altre' });
-}
-clipGlb.mesh('pianta-ve3', terrace.pos, terrace.idx, [0.86, 0.48, 0.34, 1], { tipo: 'pianta misurata nel gioco', quota: VE3_Y });
-clipGlb.mesh('fontana-ve3', ...(() => { const d = disc(FX, FZ, VE3_Y + 0.05, 3.35); return [d.pos, d.idx]; })(), [0.15, 0.35, 0.55, 1], { tipo: 'ingombro vasca', raggio: 3.35 });
-const MOTIFS = [[-21.3, 17.3], [-10.6, 17.3], [16.1, 17.3], [26.4, 17.3]];
-MOTIFS.forEach(([u, w], i) => {
-  const [x, z] = xzOf(u, w);
-  clipGlb.empty(`ve3-croce-${i + 1}`, x, VE3_Y, z, { u, w });
-});
-clipGlb.empty('facciata-municipio', FAX, VE3_Y, FAZ, { nota: 'punto sulla facciata nord, non l’origine' });
-clipGlb.empty('origine', 0, 0, 0, { nota: 'X=0 Z=0 Y=0 livello del mare' });
-clipGlb.empty('suolo-origine', 0, round(y0), 0, { nota: 'intersezione dell’origine planimetrica col MDT' });
-clipGlb.axes(y0);
-
-const full = new Glb();
-{
-  const t = terrainMesh(4, null);
-  full.mesh('terreno', t.pos, t.idx, [0.62, 0.56, 0.42, 1], { tipo: 'mdt', passoM: dtmMeta.step * 4 });
-}
-const indice = [];
-for (const b of model.buildings) {
-  const g = extrudeBuilding(b);
-  if (!g) continue;
-  full.mesh(`edificio-${b.id}`, g.pos, g.idx, [lin(b.c[0]), lin(b.c[1]), lin(b.c[2]), 1], { id: b.id, tipo: b.t, src: b.src, piede: round(g.y0), tetto: round(g.y1) });
-  const bb = boundsOf(g.pos);
-  indice.push({ id: b.id, tipo: b.t, src: b.src, x: round((bb.x0 + bb.x1) / 2), z: round((bb.z0 + bb.z1) / 2), piede: round(g.y0), tetto: round(g.y1) });
-}
-for (const k of ['asphalt', 'walk', 'paving']) {
-  const g = collectSurf(k, null);
-  if (g) full.mesh(k === 'asphalt' ? 'strade-asfalto' : k === 'walk' ? 'strade-marciapiede' : 'strade-basolato', g.pos, g.idx, surfColor[k], { tipo: k });
-}
+const piazze = new Glb();
 for (const item of plazaGeoms) {
   const col = item.p?.id === 've3' ? [0.72, 0.32, 0.24, 1] : item.p?.id === 'liberta' ? [0.78, 0.62, 0.32, 1] : item.p?.id === 'gpii' ? [0.28, 0.52, 0.34, 1] : [0.5, 0.48, 0.42, 1];
-  full.mesh(item.name, item.geom.pos, item.geom.idx, col, { tipo: 'piazza-osm', nome: item.p?.nome || 'altre' });
+  piazze.mesh(item.name, item.geom.pos, item.geom.idx, col, { tipo: 'piazza', nome: item.p?.nome || 'altre' });
 }
-full.mesh('pianta-ve3', terrace.pos, terrace.idx, [0.86, 0.48, 0.34, 1], { tipo: 'pianta misurata nel gioco', quota: VE3_Y });
-full.empty('origine', 0, 0, 0, { nota: 'livello del mare' });
-full.empty('suolo-origine', 0, round(y0), 0, {});
-full.axes(y0);
+piazze.mesh('pianta-ve3', terrace.pos, terrace.idx, [0.86, 0.48, 0.34, 1], { tipo: 'pianta misurata nel gioco', quota: VE3_Y });
+piazze.mesh('fontana-ve3', ...(() => { const d = disc(FX, FZ, VE3_Y + 0.05, 3.35); return [d.pos, d.idx]; })(), [0.15, 0.35, 0.55, 1], { tipo: 'ingombro vasca', raggio: 3.35 });
+[[-21.3, 17.3], [-10.6, 17.3], [16.1, 17.3], [26.4, 17.3]].forEach(([u, w], i) => {
+  const [x, z] = xzOf(u, w);
+  piazze.empty(`ve3-croce-${i + 1}`, x, VE3_Y, z, { u, w });
+});
+stamp(piazze);
 
-function writeObj(glb, objPath, mtlName) {
-  const lines = [`mtllib ${mtlName}`];
-  const mtl = ['# colori lineari approssimati come Kd'];
-  const used = new Set();
-  let vbase = 1;
-  for (const n of glb.nodes) {
-    const key = n.color.map((v) => v.toFixed(4)).join('_');
-    const mat = `m_${key}`;
-    if (!used.has(mat)) {
-      used.add(mat);
-      mtl.push(`newmtl ${mat}`, `Kd ${n.color[0].toFixed(4)} ${n.color[1].toFixed(4)} ${n.color[2].toFixed(4)}`, 'd 1', 'illum 1');
-    }
-    lines.push(`g ${n.name}`, `usemtl ${mat}`);
-    for (let i = 0; i < n.pos.length; i += 3) lines.push(`v ${n.pos[i]} ${n.pos[i + 1]} ${n.pos[i + 2]}`);
-    if (n.lines) for (let i = 0; i < n.idx.length; i += 2) lines.push(`l ${n.idx[i] + vbase} ${n.idx[i + 1] + vbase}`);
-    else for (let i = 0; i < n.idx.length; i += 3) lines.push(`f ${n.idx[i] + vbase} ${n.idx[i + 1] + vbase} ${n.idx[i + 2] + vbase}`);
-    vbase += n.pos.length / 3;
+const SPECIE = [
+  { nome: 'latifoglia', color: [0.22, 0.35, 0.16, 1] },
+  { nome: 'pino', color: [0.16, 0.30, 0.14, 1] },
+  { nome: 'ulivo', color: [0.40, 0.45, 0.28, 1] },
+  { nome: 'agrume', color: [0.16, 0.32, 0.12, 1] },
+  { nome: 'palma', color: [0.24, 0.38, 0.16, 1] },
+  { nome: 'cespuglio', color: [0.28, 0.40, 0.18, 1] },
+];
+const unit = treeUnit();
+const buckets = SPECIE.map(() => ({ t: [], r: [], s: [] }));
+const flatTrees = model.trees || [];
+let nAlberi = 0;
+for (let i = 0; i + 5 < flatTrees.length; i += 6) {
+  const x = flatTrees[i], z = flatTrees[i + 1], y = flatTrees[i + 2];
+  let h = flatTrees[i + 3], rad = flatTrees[i + 4], sp = flatTrees[i + 5] | 0;
+  if (ve3TreeClash(x, z)) continue;
+  if (sp < 0 || sp > 5) sp = 0;
+  if (sp !== 5) {
+    h = Math.max(sp === 3 ? 2.5 : 3, h);
+    rad = Math.max(1, rad);
+    if (Math.hypot(x + 8.54, z + 31.15) < 48) { if (rad > 3.3) rad = 3.3; if (h > 5.5) h = 5.5; }
   }
-  writeFileSync(objPath, lines.join('\n'));
-  writeFileSync(objPath.replace(/\.obj$/, '.mtl'), mtl.join('\n'));
+  const ang = (i * 2.39996) % (Math.PI * 2);
+  const b = buckets[sp];
+  b.t.push(x, y, z);
+  b.r.push(0, Math.sin(ang / 2), 0, Math.cos(ang / 2));
+  b.s.push(rad, h, rad);
+  nAlberi++;
 }
+const alberi = new Glb();
+buckets.forEach((b, sp) => {
+  if (!b.t.length) return;
+  alberi.instances(`alberi-${SPECIE[sp].nome}`, unit.pos, unit.idx, SPECIE[sp].color,
+    Float32Array.from(b.t), Float32Array.from(b.r), Float32Array.from(b.s),
+    { tipo: 'istanze', specie: SPECIE[sp].nome, n: b.t.length / 3 });
+});
+stamp(alberi);
 
 mkdirSync(outDir, { recursive: true });
 const files = {};
@@ -480,16 +576,19 @@ function save(name, buf) {
   console.log(`${name}  ${(files[name] / 1048576).toFixed(2)} MB`);
 }
 
-save('piazze.glb', clipGlb.toBuffer());
-save('paese-lite.glb', full.toBuffer());
-writeObj(clipGlb, join(outDir, 'piazze.obj'), 'piazze.mtl');
-files['piazze.obj'] = statSync(join(outDir, 'piazze.obj')).size;
-files['piazze.mtl'] = statSync(join(outDir, 'piazze.mtl')).size;
-console.log(`piazze.obj  ${(files['piazze.obj'] / 1048576).toFixed(2)} MB`);
+for (const stale of ['paese-lite.glb', 'piazze.obj', 'piazze.mtl']) {
+  try { unlinkSync(join(outDir, stale)); } catch { /* export precedente */ }
+}
+save('terreno.glb', terreno.toBuffer());
+save('edifici.glb', edifici.toBuffer());
+save('strade.glb', strade.toBuffer());
+save('piazze.glb', piazze.toBuffer());
+save('alberi.glb', alberi.toBuffer());
 
 const mb = (n) => `${(n / 1048576).toFixed(2)} MB`;
 const b3 = (id) => boxJson(plazaBounds[id]);
 const rif = {
+  copertura: 'tutto il modello del paese (MDT urbano). Niente mare, niente litorale di sfondo, niente skybox.',
   unita: '1 unità = 1 metro',
   assiGlb: { x: 'est', y: 'su, metri sul livello del mare (MDT 2013)', z: 'sud' },
   assiDopoImportBlender: { x: 'est', y: 'nord (cioè −Z del glTF)', z: 'su' },
@@ -500,15 +599,17 @@ const rif = {
     suoloMsl: round(y0),
     nota: 'X=0, Z=0 è il punto. Y=0 è il livello del mare: il suolo lì è suoloMsl. L’empty origine è a (0,0,0); suolo-origine è sul terreno.',
   },
+  paese: boxJson(townBounds),
   facciataMunicipio: { x: FAX, z: FAZ, y: VE3_Y, nota: 'facciata nord DBTR, qualche metro a nord dell’origine' },
   fontanaVe3: { x: FX, z: FZ, y: VE3_Y, raggioAcqua: 3.35 },
-  clip: { margineM: MARGIN, ...boxJson({ ...clip, y0: 0, y1: 0 }) },
   piazze: {
     ve3: { nome: PLAZZE[0].nome, osm: b3('ve3'), piantaGioco: boxJson(terraceBounds) },
     liberta: { nome: PLAZZE[1].nome, osm: b3('liberta') },
     gpii: { nome: PLAZZE[2].nome, osm: b3('gpii') },
   },
   edifici: indice.length,
+  edificiConFalda: nFalda,
+  alberi: nAlberi,
 };
 writeFileSync(join(outDir, 'riferimento.json'), JSON.stringify(rif, null, 2));
 writeFileSync(join(outDir, 'edifici.json'), JSON.stringify(indice));
@@ -517,7 +618,9 @@ files['edifici.json'] = statSync(join(outDir, 'edifici.json')).size;
 const fmt = (b) => `X ${b.xMin}…${b.xMax} m (est ${b.larghezzaEst} m), Z ${b.zMin}…${b.zMax} m (sud ${b.profonditaSud} m), Y ${b.yMin}…${b.yMax} m s.l.m.`;
 const readme = `# Acquedolci — export per Blender
 
-Pacchetto di riferimento del gioco \`acquedolci-reale\`. Stesse coordinate del renderer: ci si modella sopra e i GLB di rientro si posano senza trasformazioni.
+Tutto il modello del paese in \`acquedolci-reale\`, spezzato perché pesa. Stessa origine in ogni file: si importano insieme e coincidono.
+
+Non c’è il mare (né la superficie dell’acqua né il fondale sotto zero) e non c’è lo sfondo (niente ortofoto del litorale fino a Cefalù e alle Eolie, niente cielo).
 
 ## Unità e assi
 
@@ -525,43 +628,43 @@ Pacchetto di riferimento del gioco \`acquedolci-reale\`. Stesse coordinate del r
 - Nel **GLB** (glTF, Y-up), come nel gioco: **X = est**, **Y = su**, **Z = sud**.
 - Y è la quota del MDT 2013 in **metri sul livello del mare**. Y = 0 è il mare, non il marciapiede. All’origine il suolo è a **${round(y0)} m**.
 - Blender all’import converte Y-up in Z-up (rotazione standard del glTF). Dopo l’import: **X = est**, **Y = nord** (il −Z del file), **Z = su**. Non ruotare a mano.
-- I segmenti \`asse-X-est\` (rosso), \`asse-Y-su\` (verde) e \`asse-Z-sud\` (blu) sono lunghi 40 m e partono dal suolo sull’origine. Si nascondono: non fanno parte del paese.
-- Due empty: \`origine\` a (0, 0, 0) sul livello del mare, \`suolo-origine\` sul terreno.
+- In ogni file: empty \`origine\` a (0, 0, 0), \`suolo-origine\` sul terreno, \`facciata-municipio\`, e tre assi da 40 m (\`asse-X-est\` rosso, \`asse-Y-su\` verde, \`asse-Z-sud\` blu). Non fanno parte del paese.
 
 ## Origine
 
-Punto del **Municipio** (\`city.json\`): longitudine ${city.originLonLat.lon}, latitudine ${city.originLonLat.lat}. Nel gioco è arrotondata a UTM 33N (EPSG:25833) **${OX} E, ${OY} N**. È l’origine di \`model.json\`.
+Punto del **Municipio** (\`city.json\`): longitudine ${city.originLonLat.lon}, latitudine ${city.originLonLat.lat}. Nel gioco è arrotondata a UTM 33N (EPSG:25833) **${OX} E, ${OY} N**.
 
-La facciata nord del palazzo, sulla pianta DBTR, non è l’origine: sta a X = ${FAX}, Z = ${FAZ} (empty \`facciata-municipio\`). La fontana di VE3 è a X = ${FX}, Z = ${FZ}, raggio dell’acqua 3,35 m.
+La facciata nord del palazzo sta a X = ${FAX}, Z = ${FAZ}. La fontana di VE3 è a X = ${FX}, Z = ${FZ}, raggio dell’acqua 3,35 m.
 
 ## File
 
+Tutti coprono **l’intero paese**, non un ritaglio. Si importano nello stesso blend.
+
 | File | Contenuto | Peso |
 | --- | --- | --- |
-| \`piazze.glb\` | Ritaglio: almeno 160 m intorno al centro di ogni piazza. Terreno MDT a ${dtmMeta.step} m, volumi DBTR, asfalto, marciapiedi, basolato, poligoni piazza, pianta misurata di VE3, ingombro fontana, empty delle quattro croci | ${mb(files['piazze.glb'])} |
-| \`paese-lite.glb\` | Paese intero: terreno a ${dtmMeta.step * 4} m, tutti i volumi edificio, strade e piazze | ${mb(files['paese-lite.glb'])} |
-| \`piazze.obj\` + \`piazze.mtl\` | Lo stesso ritaglio, per chi preferisce OBJ | ${mb(files['piazze.obj'])} |
-| \`edifici.json\` | Indice id DBTR, tipo, baricentro, piede e tetto | ${mb(files['edifici.json'])} |
-| \`riferimento.json\` | Questi numeri, in forma macchina | |
+| \`terreno.glb\` | MDT del riquadro urbano, passo ${dtmMeta.step} m. I triangoli tutti sotto il livello del mare sono tolti | ${mb(files['terreno.glb'])} |
+| \`edifici.glb\` | ${indice.length} volumi DBTR, di cui ${nFalda} con tetto a falde (scheletro del modello). Oggetto \`edificio-<id>\` | ${mb(files['edifici.glb'])} |
+| \`strade.glb\` | Asfalto, marciapiedi e basolato di tutto il paese, appoggiati sul MDT | ${mb(files['strade.glb'])} |
+| \`piazze.glb\` | Tutte le superfici di piazza, più la pianta misurata di VE3, la fontana e le quattro croci | ${mb(files['piazze.glb'])} |
+| \`alberi.glb\` | ${nAlberi} alberi misurati, istanze leggere (un prototipo per specie). In Blender: import glTF con le istanze | ${mb(files['alberi.glb'])} |
+| \`edifici.json\` | Indice id, tipo, baricentro, piede, tetto | ${mb(files['edifici.json'])} |
 
-I volumi edificio sono l’estrusione della pianta DBTR: piede = minimo fra \`b\` e \`g\`, tetto = \`g + h\`. Il nome dell’oggetto è \`edificio-<id>\`. Le mesh \`piazza-ve3\`, \`piazza-liberta\` e \`piazza-gpii\` sono i poligoni OSM (e i vuoti urbani il cui baricentro cade entro 85 m dal centro della piazza), appoggiati sul MDT. \`pianta-ve3\` è il lastricato com’è oggi nel gioco, piano a ${VE3_Y} m, con le quattro croci (\`ve3-croce-1\` … \`4\`).
+Il volume di un edificio parte da \`min(b, g)\` e arriva a \`g + h\` (gronda). Se c’è la falda, i vertici del tetto salgono di \`t · tan\`. Sulle terrazze con parapetto, il muretto è alto 1 m.
 
-Fonti: DBTR 2013 e MDT 2013 SITR (CC BY 4.0), assi e anelli piazza © OpenStreetMap (ODbL).
+Estensione del terreno esportato: ${fmt(boxJson(townBounds))}.
 
-## Bounding box (metri locali)
+Fonti: DBTR 2013 e MDT 2013 SITR (CC BY 4.0), strade e piazze © OpenStreetMap (ODbL), alberi Meta/WRI (CC BY 4.0).
 
-- **Piazza Vittorio Emanuele III**, poligono OSM: ${fmt(b3('ve3'))}
+## Bounding box delle tre piazze (metri locali)
+
+- **Piazza Vittorio Emanuele III**, poligono: ${fmt(b3('ve3'))}
 - **VE3, pianta del gioco** (\`pianta-ve3\`): ${fmt(boxJson(terraceBounds))}
 - **Piazza Libertà**: ${fmt(b3('liberta'))}
 - **Piazza Giovanni Paolo II**: ${fmt(b3('gpii'))}
 
-Il ritaglio \`piazze.glb\` copre X ${round(clip.x0)}…${round(clip.x1)}, Z ${round(clip.z0)}…${round(clip.z1)}.
-
 ## Rientro dei modelli
 
-Stesso origine, stessi assi, stessa scala di questo export. In Blender: importare il GLB, modellare, esportare **glTF Binary (.glb)** con le opzioni di default (Y-up lo fa l’esportatore). Non applicare scala né rotazione extra. Gli empty di riferimento e gli assi non vanno riesportati.
-
-Nome e posto, quando li si sostituisce nel gioco:
+Stesso origine, stessi assi, stessa scala. In Blender: importare questi GLB, modellare, esportare **glTF Binary** con le opzioni di default (Y-up lo fa l’esportatore). Non applicare scala né rotazione. Gli assi e gli empty non vanno riesportati.
 
 | File | Dove | Cosa sostituisce |
 | --- | --- | --- |
@@ -569,7 +672,7 @@ Nome e posto, quando li si sostituisce nel gioco:
 | \`plaza-liberta.glb\` | \`acquedolci-reale/public/models/plaza-liberta.glb\` | la superficie di Piazza Libertà in \`buildStreets\` (\`src/streets.js\`) |
 | \`plaza-gpii.glb\` | \`acquedolci-reale/public/models/plaza-gpii.glb\` | la superficie di Piazza Giovanni Paolo II, stesso punto |
 
-Il caricatore non c’è ancora: i file vanno posati in \`public/models/\` con questa convenzione, così il passo successivo li legge a identità (niente traslazione, niente scala).
+Il caricatore non c’è ancora: i file vanno posati in \`public/models/\` a identità (niente traslazione, niente scala).
 
 ## Rigenerare
 
