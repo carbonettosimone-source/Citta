@@ -19,7 +19,7 @@ import { createPost } from './post.js';
 import { createTraffic } from './traffic.js';
 import { createNPCs } from './npcs.js';
 import { createGame } from './game/index.js';
-import { createCharacter, SKIN_OPTS, HAIR_OPTS, SHIRT_OPTS, PANT_OPTS, HAT_OPTS, GLASS_OPTS, loadChar } from './character.js';
+import { createCharacter, buildPlayerMesh, animatePlayer, SKIN_OPTS, HAIR_OPTS, HSTYLE_OPTS, SHIRT_OPTS, PANT_OPTS, HAT_OPTS, GLASS_OPTS } from './character.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -143,7 +143,7 @@ $('loader').classList.add('hide');
 
 // ---------- traffico + pedoni
 const traffic = createTraffic(streets.roads, heightAt);
-const npcs    = createNPCs(streets.roads, heightAt);
+const npcs    = createNPCs(streets.roads, (x, z) => heightAt(x, z) + 0.32); // sul marciapiede, non dentro
 scene.add(traffic.group, npcs.group);
 
 // ---------- personaggio giocatore + schermata creazione
@@ -163,7 +163,7 @@ camera.position.set(-10, g0 + 90, 190);
 controls.update();
 
 // ---------- vista sempre dall'alto: niente prima persona, la camera drone segue il personaggio
-controls.minDistance = 22; controls.maxDistance = 1400;
+controls.minDistance = 7; controls.maxDistance = 1400;
 controls.maxPolarAngle = 1.12; // mai sotto i ~25° sull'orizzonte
 controls.screenSpacePanning = false;
 
@@ -200,7 +200,7 @@ try { localStorage.removeItem('acq-gkey'); } catch { /* niente da togliere */ }
 
 // ---------- schermata creazione personaggio
 function setupCharScreen(char) {
-  const toCSS = (h) => h != null ? '#' + h.toString(16).padStart(6, '0') : null;
+  const toCSS = (h) => (h != null ? '#' + h.toString(16).padStart(6, '0') : null);
 
   const buildSwatches = (containerId, opts, getIdx, setIdx, onPick) => {
     const el = $(containerId);
@@ -225,41 +225,58 @@ function setupCharScreen(char) {
 
   let draft = { ...char.data };
 
+  // anteprima 3D: lo stesso modello del gioco, che gira piano su se stesso
+  let pv = null;
+  const initPreview = () => {
+    if (pv) return pv;
+    const cv = $('charCanvas');
+    const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(cv.width, cv.height, false);
+    r.outputColorSpace = THREE.SRGBColorSpace;
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 1.6));
+    const key = new THREE.DirectionalLight(0xfff2dc, 2.2); key.position.set(2, 3, 4); sc.add(key);
+    const cam = new THREE.PerspectiveCamera(30, cv.width / cv.height, 0.1, 20);
+    cam.position.set(0, 1.35, 4.3); cam.lookAt(0, 1.05, 0);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 }));
+    disc.rotation.x = -Math.PI / 2; sc.add(disc);
+    pv = { r, sc, cam, mesh: null, t: 0, on: false };
+    const loop = () => {
+      if (!pv.on) return;
+      requestAnimationFrame(loop);
+      pv.t += 0.016;
+      if (pv.mesh) { pv.mesh.rotation.y = Math.sin(pv.t * 0.7) * 0.9; animatePlayer(pv.mesh, pv.t * 2.2); }
+      r.render(sc, cam);
+    };
+    pv.start = () => { if (!pv.on) { pv.on = true; loop(); } };
+    return pv;
+  };
   const updatePreview = () => {
-    const skinHex  = SKIN_OPTS[draft.skin]?.hex  ?? SKIN_OPTS[0].hex;
-    const hairHex  = HAIR_OPTS[draft.hair]?.hex  ?? HAIR_OPTS[0].hex;
-    const shirtHex = SHIRT_OPTS[draft.shirt]?.hex ?? SHIRT_OPTS[0].hex;
-    const pantHex  = PANT_OPTS[draft.pant]?.hex  ?? PANT_OPTS[0].hex;
-    const hatOpt   = HAT_OPTS[draft.hat   ?? 0];
-    const glassOpt = GLASS_OPTS[draft.glass ?? 0];
-    const fig = $('charFigure');
-    if (!fig) return;
-    fig.querySelector('.fig-hair').style.background  = toCSS(hairHex);
-    fig.querySelector('.fig-head').style.background  = toCSS(skinHex);
-    fig.querySelector('.fig-torso').style.background = toCSS(shirtHex);
-    fig.querySelectorAll('.fig-leg').forEach(l => l.style.background = toCSS(pantHex));
-    // cappello
-    const figHat = fig.querySelector('.fig-hat');
-    if (figHat) {
-      figHat.style.background = hatOpt?.hex != null ? toCSS(hatOpt.hex) : 'transparent';
-      figHat.style.visibility = hatOpt?.hex != null ? 'visible' : 'hidden';
-    }
-    // occhiali
-    const figGlass = fig.querySelector('.fig-glasses');
-    if (figGlass) {
-      figGlass.style.display    = glassOpt?.hex != null ? 'block' : 'none';
-      figGlass.style.background = glassOpt?.hex != null ? toCSS(glassOpt.hex) : 'transparent';
-    }
+    const p = initPreview();
+    if (p.mesh) p.sc.remove(p.mesh);
+    p.mesh = buildPlayerMesh(draft);
+    p.sc.add(p.mesh);
+    p.start();
+  };
+  const buildChips = (containerId, opts, getIdx, setIdx, onPick) => {
+    const el = $(containerId);
+    opts.forEach((opt, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip' + (getIdx() === i ? ' sel' : ''); b.textContent = opt.label;
+      b.addEventListener('click', () => { setIdx(i); el.querySelectorAll('.chip').forEach((c, j) => c.classList.toggle('sel', j === i)); onPick?.(); });
+      el.appendChild(b);
+    });
   };
 
   const openScreen = () => {
     draft = { ...char.data };
     $('charName').value    = draft.name || 'Giocatore';
     $('charSlim').checked  = !!draft.slim;
-    ['skinPicker','hairPicker','shirtPicker','pantPicker','hatPicker','glassPicker']
+    ['skinPicker','hairPicker','hstylePicker','shirtPicker','pantPicker','hatPicker','glassPicker']
       .forEach(id => $(id).innerHTML = '');
     buildSwatches('skinPicker',  SKIN_OPTS,  () => draft.skin,  (i) => { draft.skin  = i; }, updatePreview);
     buildSwatches('hairPicker',  HAIR_OPTS,  () => draft.hair,  (i) => { draft.hair  = i; }, updatePreview);
+    buildChips('hstylePicker', HSTYLE_OPTS, () => draft.hstyle ?? 0, (i) => { draft.hstyle = i; }, updatePreview);
     buildSwatches('shirtPicker', SHIRT_OPTS, () => draft.shirt, (i) => { draft.shirt = i; }, updatePreview);
     buildSwatches('pantPicker',  PANT_OPTS,  () => draft.pant,  (i) => { draft.pant  = i; }, updatePreview);
     buildSwatches('hatPicker',   HAT_OPTS,   () => draft.hat   ?? 0, (i) => { draft.hat   = i; }, updatePreview);
@@ -273,12 +290,13 @@ function setupCharScreen(char) {
     draft.slim  = $('charSlim').checked;
     char.applyData(draft);
     $('charScreen').hidden = true;
+    if (pv) pv.on = false;
     const cb = char.onConfirm; char.onConfirm = null; cb?.();
   };
 
   $('charConfirm').onclick = confirmScreen;
   $('charName').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmScreen(); });
-  $('charSlim').onchange = (e) => { draft.slim = e.target.checked; };
+  $('charSlim').onchange = (e) => { draft.slim = e.target.checked; updatePreview(); };
   $('bChar').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); openScreen(); };
   char.open = (onConfirm) => { char.onConfirm = onConfirm; openScreen(); };
 

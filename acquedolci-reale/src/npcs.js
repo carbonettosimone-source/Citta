@@ -1,16 +1,11 @@
 /**
- * Pedoni NPC low-poly — 260 figure, animazione walk con oscillazione delle
- * braccia (arm-swing). Usa 4 InstancedMesh: 2 per il corpo (slim / normal)
- * + 2 per le braccia (sinistra / destra), condivise tra tutti gli NPC.
- * 4 draw-call totali per 260 pedoni; le braccia si aggiornano ogni frame
- * con la posizione spalla calcolata in world-space dal heading dell'NPC.
- *
- * Proporzioni aggiornate: testa sferica, collo, torso credibile, belt, gambe
- * a 2 segmenti. Le braccia sono BoxGeometry(1,1,1) scalate per istanza → stesso
- * geo per slim e normal (differenziati via scala).
+ * Pedoni NPC: 260 persone con volto (occhi, bocca, naso), capelli in quattro stili, braccia e gambe
+ * che si muovono. Modello condiviso col giocatore (people.js), in versione leggera.
+ * Draw call: 4 corpi (uno per stile) + braccia + gambe = 6 per tutti i pedoni. La tavolozza di
+ * ognuno (pelle, capelli, maglia, pantaloni) sta negli attributi per istanza.
  */
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RIG, bodyGeometry, armGeometry, legGeometry, peopleMaterial, withPalette, setPalette } from './people.js';
 
 // ---- parametri ---------------------------------------------------------------
 const POOL      = 260;
@@ -37,82 +32,6 @@ const HAIR_HEX = [
   0x180c04, 0x3a1a08, 0x5a3010, 0xd4a050,
   0x888888, 0xe8e0d8, 0x8a2818,
 ];
-
-// ---- geometria corpo (senza braccia) ----------------------------------------
-function paintGeo(geo, r, g, b) {
-  if (g === undefined) {
-    const c = new THREE.Color(r);
-    r = c.r; g = c.g; b = c.b;
-  }
-  const n = geo.attributes.position.count;
-  const arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { arr[i*3] = r; arr[i*3+1] = g; arr[i*3+2] = b; }
-  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-  return geo;
-}
-
-function buildPedBodyGeo(slim) {
-  const tw = slim ? 0.17 : 0.23; // metà larghezza torso (coord normalizzate, h=1)
-  const parts = [];
-
-  // testa (sfera)
-  const head = new THREE.SphereGeometry(0.107, 7, 6);
-  head.translate(0, 0.880, 0);
-  paintGeo(head, 0xf5d0a0); parts.push(head);
-
-  // capelli (calotta)
-  const hair = new THREE.SphereGeometry(0.111, 7, 4, 0, Math.PI * 2, 0, Math.PI * 0.50);
-  hair.translate(0, 0.930, 0);
-  paintGeo(hair, 0x1e1008); parts.push(hair);
-
-  // collo
-  const neck = new THREE.CylinderGeometry(0.040, 0.046, 0.075, 5);
-  neck.translate(0, 0.795, 0);
-  paintGeo(neck, 0xf5d0a0); parts.push(neck);
-
-  // torso (bianco → modulato da instanceColor = colore maglia)
-  const torso = new THREE.BoxGeometry(tw * 2, 0.310, tw * 1.35);
-  torso.translate(0, 0.600, 0);
-  paintGeo(torso, 0xffffff); parts.push(torso);
-
-  // cintura / bordo pantalone
-  const belt = new THREE.BoxGeometry(tw * 2.10, 0.060, tw * 1.40);
-  belt.translate(0, 0.430, 0);
-  paintGeo(belt, 0.10, 0.10, 0.12); parts.push(belt);
-
-  // gambe — due segmenti (coscia + stinco) + scarpa
-  for (const sx of [-1, 1]) {
-    const lox = tw * 0.53;
-
-    // coscia
-    const ul = new THREE.BoxGeometry(tw * 0.86, 0.240, tw * 0.78);
-    ul.translate(sx * lox, 0.280, 0);
-    paintGeo(ul, 0.14, 0.14, 0.18); parts.push(ul);
-
-    // stinco
-    const ll = new THREE.BoxGeometry(tw * 0.76, 0.215, tw * 0.70);
-    ll.translate(sx * lox, 0.055, 0);
-    paintGeo(ll, 0.12, 0.12, 0.16); parts.push(ll);
-
-    // scarpa
-    const shoe = new THREE.BoxGeometry(tw * 0.77, 0.062, tw * 1.28);
-    shoe.translate(sx * lox, -0.030 + 0.062 * 0.5, tw * 0.20);
-    paintGeo(shoe, 0.07, 0.06, 0.05); parts.push(shoe);
-  }
-
-  return mergeGeometries(parts);
-}
-
-// ---- geometria braccio (cubo unità, pivot al top) ---------------------------
-// Il pivot è a (0,0,0) e il braccio si estende verso -Y.
-// Il matrix dell'istanza viene messo alla posizione spalla; la scala encode
-// le dimensioni reali del braccio (proporzionali all'altezza H dell'NPC).
-function buildArmGeo() {
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  geo.translate(0, -0.5, 0);   // pivot al top
-  paintGeo(geo, 0xffffff);     // bianco → tinto da instanceColor
-  return geo;
-}
 
 // ---- grafo strade per pedoni ------------------------------------------------
 function buildPedPaths(roads) {
@@ -161,176 +80,108 @@ function pedPosAtDist(path, dist) {
 }
 
 // ---- sistema NPC ------------------------------------------------------------
+const STYLES = [
+  { hair: 'short', female: false },
+  { hair: 'long', female: true },
+  { hair: 'bun', female: true },
+  { hair: 'bald', female: false },
+];
+const OLD_HAIR = [0x9a9a9a, 0xd8d2ca, 0xbdb7ae];
+
 export function createNPCs(roads, heightAt) {
   const paths = buildPedPaths(roads);
   if (!paths.length) return { group: new THREE.Group(), update() {} };
 
   // generatore deterministico
-  const rng = (() => { let s = 137; return () => ((s = (s*16807+1)%2147483647) / 2147483647); })();
+  const rng = (() => { let s = 137; return () => ((s = (s * 16807 + 1) % 2147483647) / 2147483647); })();
+  const pick = (a) => a[Math.floor(rng() * a.length)];
 
-  const geoSlim   = buildPedBodyGeo(true);
-  const geoNormal = buildPedBodyGeo(false);
-  const geoArm    = buildArmGeo();
-
-  const matBody = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-  const matArm  = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-
-  const halfPool = Math.ceil(POOL / 2);
-  const imBodySlim   = new THREE.InstancedMesh(geoSlim,   matBody, halfPool);
-  const imBodyNormal = new THREE.InstancedMesh(geoNormal, matBody, POOL - halfPool);
-  const imArmL       = new THREE.InstancedMesh(geoArm.clone(), matArm, POOL);
-  const imArmR       = new THREE.InstancedMesh(geoArm.clone(), matArm, POOL);
-
-  for (const im of [imBodySlim, imBodyNormal, imArmL, imArmR]) {
-    im.castShadow = false;
-    im.receiveShadow = true;
-  }
-  imBodySlim.name = 'ped_slim'; imBodyNormal.name = 'ped_normal';
-  imArmL.name = 'ped_armL';  imArmR.name = 'ped_armR';
-
-  // pre-alloca instanceColor per tutte le IM
-  const makeInstColor = (count) =>
-    new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
-  imBodySlim.instanceColor   = makeInstColor(halfPool);
-  imBodyNormal.instanceColor = makeInstColor(POOL - halfPool);
-  imArmL.instanceColor       = makeInstColor(POOL);
-  imArmR.instanceColor       = makeInstColor(POOL);
+  const mat = peopleMaterial();
+  const Q = 0.5; // dettaglio ridotto: da lontano non si vede, sul telefono pesa
+  // quanti per stile
+  const style = Array.from({ length: POOL }, () => { const r = rng(); return r < 0.42 ? 0 : r < 0.68 ? 1 : r < 0.84 ? 2 : 3; });
+  const count = [0, 0, 0, 0]; style.forEach((k) => count[k]++);
+  const bodies = STYLES.map((st, k) => {
+    const im = new THREE.InstancedMesh(withPalette(bodyGeometry({ ...st, q: Q }), Math.max(1, count[k])), mat, Math.max(1, count[k]));
+    im.count = count[k]; im.name = `ped_body_${st.hair}`;
+    return im;
+  });
+  const arms = new THREE.InstancedMesh(withPalette(armGeometry({ q: Q }), POOL * 2), mat, POOL * 2);
+  const legs = new THREE.InstancedMesh(withPalette(legGeometry({ q: Q }), POOL * 2), mat, POOL * 2);
+  arms.name = 'ped_arms'; legs.name = 'ped_legs';
+  const all = [...bodies, arms, legs];
+  for (const im of all) { im.castShadow = false; im.receiveShadow = true; im.frustumCulled = false; }
 
   const group = new THREE.Group();
   group.name = 'npcs';
-  group.add(imBodySlim, imBodyNormal, imArmL, imArmR);
+  group.add(...all);
 
-  // ---- stato pedone --------------------------------------------------------
   const peds = [];
-  // temp objects (riusati ogni frame, nessun alloc)
-  const m4     = new THREE.Matrix4();
-  const q      = new THREE.Quaternion();
-  const qArm   = new THREE.Quaternion();
-  const pv     = new THREE.Vector3();
-  const sv     = new THREE.Vector3();
-  const svArm  = new THREE.Vector3();
-  const axisR  = new THREE.Vector3();
-  const UP     = new THREE.Vector3(0, 1, 0);
-
+  const slot = [0, 0, 0, 0];
   for (let i = 0; i < POOL; i++) {
-    const slim     = i < halfPool;
-    const im       = slim ? imBodySlim : imBodyNormal;
-    const instIdx  = slim ? i : i - halfPool;
-    const pathIdx  = Math.floor(rng() * paths.length);
-    const dist     = rng() * paths[pathIdx].len;
-    const dir      = rng() > 0.5 ? 1 : -1;
-    const speed    = SPD_MIN + rng() * (SPD_MAX - SPD_MIN);
-    const height   = 1.55 + rng() * 0.22;
-    const shirt    = SHIRT_HEX[Math.floor(rng() * SHIRT_HEX.length)];
-    const skin     = SKIN_HEX[Math.floor(rng() * SKIN_HEX.length)];
-    const phase    = rng() * Math.PI * 2;
-
-    // colore corpo (maglia): applica anche alle braccia
-    const shirtC = new THREE.Color(shirt);
-    im.setColorAt(instIdx, shirtC);
-    imArmL.setColorAt(i, shirtC);
-    imArmR.setColorAt(i, shirtC);
-
-    peds.push({ slim, im, instIdx, globalIdx: i, pathIdx, dist, dir, speed, height, shirt, phase });
+    const k = style[i];
+    const old = k === 3 || rng() < 0.15;
+    const pal = {
+      skin: pick(SKIN_HEX), hair: old ? pick(OLD_HAIR) : pick(HAIR_HEX), shirt: pick(SHIRT_HEX), pants: pick(PANT_HEX),
+    };
+    const idx = slot[k]++;
+    setPalette(bodies[k].geometry, idx, pal);
+    for (const j of [i * 2, i * 2 + 1]) { setPalette(arms.geometry, j, pal); setPalette(legs.geometry, j, pal); }
+    const pathIdx = Math.floor(rng() * paths.length);
+    peds.push({
+      body: bodies[k], idx, i, pathIdx, dist: rng() * paths[pathIdx].len, dir: rng() > 0.5 ? 1 : -1,
+      speed: (SPD_MIN + rng() * (SPD_MAX - SPD_MIN)) * (old ? 0.75 : 1),
+      height: (STYLES[k].female ? 1.58 : 1.68) + rng() * 0.16, wide: 0.9 + rng() * 0.25, phase: rng() * Math.PI * 2,
+    });
   }
-  for (const im of [imBodySlim, imBodyNormal, imArmL, imArmR]) {
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-  }
+  for (const im of all) for (const k of ['iSkin', 'iHair', 'iShirt', 'iPants']) im.geometry.attributes[k].needsUpdate = true;
 
-  let clock  = 0;
+  const B = new THREE.Matrix4(), L = new THREE.Matrix4(), T = new THREE.Matrix4(), Rx = new THREE.Matrix4();
+  const q = new THREE.Quaternion(), pv = new THREE.Vector3(), sv = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+  const limb = (im, j, x, y, ang) => { T.makeTranslation(x, y, 0); Rx.makeRotationX(ang); L.multiplyMatrices(B, T).multiply(Rx); im.setMatrixAt(j, L); };
   let frameN = 0;
 
   function update(dt, camera) {
-    clock  += dt;
     frameN++;
     const cx = camera.position.x, cz = camera.position.z;
-
     for (const ped of peds) {
       const path = paths[ped.pathIdx];
-      const pos  = pedPosAtDist(path, ped.dist);
+      const pos = pedPosAtDist(path, ped.dist);
       const distCam = Math.hypot(pos.x - cx, pos.z - cz);
-
-      // ── cull / respawn ─────────────────────────────────────────────────
       if (distCam > CULL) {
         let tries = 0;
         do {
           ped.pathIdx = Math.floor(rng() * paths.length);
-          ped.dist    = rng() * paths[ped.pathIdx].len;
-          const rp    = pedPosAtDist(paths[ped.pathIdx], ped.dist);
-          const d     = Math.hypot(rp.x - cx, rp.z - cz);
+          ped.dist = rng() * paths[ped.pathIdx].len;
+          const rp = pedPosAtDist(paths[ped.pathIdx], ped.dist);
+          const d = Math.hypot(rp.x - cx, rp.z - cz);
           if (d > 25 && d < CULL * 0.85) break;
         } while (++tries < 30);
         ped.dir = rng() > 0.5 ? 1 : -1;
         continue;
       }
-
-      // ── frame-skip per pedoni lontani (ogni 3 frame) ──────────────────
-      const skipTransform = distCam > 180 && (frameN % 3) !== (ped.globalIdx % 3);
+      const skip = distCam > 180 && (frameN % 3) !== (ped.i % 3);
       ped.dist += ped.dir * ped.speed * dt;
-      if (ped.dist <= 0)         { ped.dir = 1;  ped.dist = 0; }
-      if (ped.dist >= path.len)  { ped.dir = -1; ped.dist = path.len; }
-      if (skipTransform) continue;
+      if (ped.dist <= 0) { ped.dir = 1; ped.dist = 0; }
+      if (ped.dist >= path.len) { ped.dir = -1; ped.dist = path.len; }
+      ped.phase += dt * ped.speed * 3.4;
+      if (skip) continue;
 
-      const npos = pedPosAtDist(paths[ped.pathIdx], ped.dist);
-      const y    = heightAt(npos.x, npos.z);
-      const H    = ped.height;
-
-      // heading angle
-      const dx = npos.x - pos.x, dz = npos.z - pos.z;
-      const ang = Math.atan2(dx, dz) + (ped.dir < 0 ? Math.PI : 0);
-
-      // bob verticale
-      ped.phase += dt * ped.speed * 2.8;
-      const bob = Math.abs(Math.sin(ped.phase)) * 0.032 * H;
-
-      // ── body matrix ──────────────────────────────────────────────────
+      const np = pedPosAtDist(paths[ped.pathIdx], ped.dist);
+      const y = heightAt(np.x, np.z);
+      const ang = Math.atan2(np.x - pos.x, np.z - pos.z) + (ped.dir < 0 ? Math.PI : 0);
+      const sc = ped.height / 1.75;
+      const bob = Math.abs(Math.sin(ped.phase)) * 0.03;
       q.setFromAxisAngle(UP, ang);
-      pv.set(npos.x, y + bob, npos.z);
-      sv.set(H, H, H);
-      m4.compose(pv, q, sv);
-      ped.im.setMatrixAt(ped.instIdx, m4);
-
-      // ── arm matrices ─────────────────────────────────────────────────
-      // posizione spalla in world-space (offset laterale = tw*1.28 * H in coord norm.)
-      const tw      = ped.slim ? 0.17 : 0.23;
-      const sxNorm  = tw * 1.28;      // offset laterale normalizzato
-      const syNorm  = 0.715;          // altezza spalla normalizzata
-
-      // asse RIGHT del personaggio (perp. all'heading nel piano XZ)
-      const rx = Math.cos(ang), rz = -Math.sin(ang);
-      axisR.set(rx, 0, rz);
-
-      const shoulderY = y + bob + syNorm * H;
-      const sLx = npos.x + rx * sxNorm * H;
-      const sLz = npos.z + rz * sxNorm * H;
-      const sRx = npos.x - rx * sxNorm * H;
-      const sRz = npos.z - rz * sxNorm * H;
-
-      // oscillazione braccio (controfase alle gambe)
-      const swing = Math.sin(ped.phase) * 0.44;
-
-      // dimensioni braccio (scalate con H)
-      const armW = (ped.slim ? 0.17 * 0.55 : 0.23 * 0.55) * H;
-      const armH = 0.28 * H;
-      svArm.set(armW, armH, armW * 1.15);
-
-      // braccio sinistro
-      qArm.setFromAxisAngle(axisR, swing);
-      pv.set(sLx, shoulderY, sLz);
-      m4.compose(pv, qArm, svArm);
-      imArmL.setMatrixAt(ped.globalIdx, m4);
-
-      // braccio destro (controfase)
-      qArm.setFromAxisAngle(axisR, -swing);
-      pv.set(sRx, shoulderY, sRz);
-      m4.compose(pv, qArm, svArm);
-      imArmR.setMatrixAt(ped.globalIdx, m4);
+      B.compose(pv.set(np.x, y + bob, np.z), q, sv.set(sc * ped.wide, sc, sc * ped.wide));
+      ped.body.setMatrixAt(ped.idx, B);
+      const sw = Math.sin(ped.phase) * 0.5;
+      limb(arms, ped.i * 2, RIG.shoulderX, RIG.shoulderY, -sw * 0.8);
+      limb(arms, ped.i * 2 + 1, -RIG.shoulderX, RIG.shoulderY, sw * 0.8);
+      limb(legs, ped.i * 2, RIG.hipX, RIG.hipY, sw);
+      limb(legs, ped.i * 2 + 1, -RIG.hipX, RIG.hipY, -sw);
     }
-
-    imBodySlim.instanceMatrix.needsUpdate   = true;
-    imBodyNormal.instanceMatrix.needsUpdate = true;
-    imArmL.instanceMatrix.needsUpdate       = true;
-    imArmR.instanceMatrix.needsUpdate       = true;
+    for (const im of all) im.instanceMatrix.needsUpdate = true;
   }
 
   return { group, update, pedCount: POOL };

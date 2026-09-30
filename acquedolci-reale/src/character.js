@@ -10,6 +10,7 @@
  *     → { group, update(dt, walker), rebuild(), applyData(d), data }
  */
 import * as THREE from 'three';
+import { RIG, bodyGeometry, armGeometry, thighGeometry, shinGeometry, paint } from './people.js';
 
 // ---- palette disponibili nell'UI ------------------------------------------
 export const SKIN_OPTS = [
@@ -58,12 +59,20 @@ export const GLASS_OPTS = [
   { label: 'chiari',  hex: 0x1a4a8a, lens: 'clear' },
 ];
 
+export const HSTYLE_OPTS = [
+  { label: 'corti', style: 'short' },
+  { label: 'lunghi', style: 'long' },
+  { label: 'chignon', style: 'bun' },
+  { label: 'stempiato', style: 'bald' },
+];
+
 const LS_KEY = 'acq-char';
 
 export const DEFAULT_CHAR = {
   name:  'Giocatore',
   skin:  0,
   hair:  0,
+  hstyle: 0,
   shirt: 0,
   pant:  0,
   slim:  false,
@@ -79,166 +88,102 @@ export function saveChar(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch { /* niente */ }
 }
 
-// ---- helper mesh -----------------------------------------------------------
+// ---- modello: people.js (volto con occhi, bocca, naso; capelli; arti tondi) ---------------
 function part(geo, hex) {
-  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: hex, flatShading: true }));
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: hex }));
   m.castShadow = true;
   return m;
 }
+const R = RIG.headR, HY = RIG.headY;
 
 // ---- cappello ---------------------------------------------------------------
 function buildHat(group, style, hex) {
   switch (style) {
     case 'beanie': {
-      const geo = new THREE.SphereGeometry(0.120, 8, 6);
-      geo.scale(1, 0.62, 1);
-      const h = part(geo, hex);
-      h.position.y = 1.690;
-      group.add(h);
+      const geo = new THREE.SphereGeometry(R * 1.12, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
+      const h = part(geo, hex); h.position.y = HY + 0.03; group.add(h);
+      const rim = part(new THREE.TorusGeometry(R * 1.02, 0.022, 8, 20), hex); rim.rotation.x = Math.PI / 2; rim.position.y = HY + 0.045; group.add(rim);
       break;
     }
     case 'fedora': {
       const hatG = new THREE.Group();
-      hatG.add(part(new THREE.CylinderGeometry(0.075, 0.096, 0.155, 8), hex));
-      const brim = part(new THREE.CylinderGeometry(0.210, 0.210, 0.018, 10), hex);
-      brim.position.y = -0.075;
-      hatG.add(brim);
-      hatG.position.y = 1.745;
-      group.add(hatG);
+      hatG.add(part(new THREE.CylinderGeometry(R * 0.78, R * 0.95, 0.15, 16), hex));
+      const band = part(new THREE.CylinderGeometry(R * 0.96, R * 0.97, 0.03, 16), 0x1a1210); band.position.y = -0.045; hatG.add(band);
+      const brim = part(new THREE.CylinderGeometry(R * 1.75, R * 1.75, 0.016, 20), hex); brim.position.y = -0.07; hatG.add(brim);
+      hatG.position.y = HY + 0.13; group.add(hatG);
       break;
     }
-    case 'cap': {
+    case 'cap': { // coppola siciliana: piatta, visiera corta in avanti
       const hatG = new THREE.Group();
-      hatG.add(part(new THREE.CylinderGeometry(0.100, 0.100, 0.072, 8), hex));
-      const brim = part(new THREE.BoxGeometry(0.095, 0.018, 0.185), hex);
-      brim.position.set(0, -0.027, 0.148);
-      hatG.add(brim);
-      hatG.position.y = 1.740;
-      group.add(hatG);
+      const top = new THREE.SphereGeometry(R * 1.1, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.4); top.scale(1, 0.55, 1.12);
+      hatG.add(part(top, hex));
+      const brim = part(new THREE.CylinderGeometry(R * 0.75, R * 0.75, 0.014, 16, 1, false, -Math.PI / 2, Math.PI), hex); brim.position.set(0, 0.005, R * 0.72); hatG.add(brim);
+      hatG.position.y = HY + 0.06; hatG.rotation.x = 0.12; group.add(hatG);
       break;
     }
     case 'beret': {
-      const geo = new THREE.SphereGeometry(0.136, 8, 6);
-      geo.scale(1, 0.36, 1);
-      const h = part(geo, hex);
-      h.position.set(0.036, 1.730, 0);
-      group.add(h);
+      const geo = new THREE.SphereGeometry(R * 1.2, 16, 8); geo.scale(1, 0.32, 1);
+      const h = part(geo, hex); h.position.set(0.03, HY + 0.1, -0.01); h.rotation.z = -0.15; group.add(h);
       break;
     }
   }
 }
 
 // ---- occhiali ----------------------------------------------------------------
-function buildGlasses(group, hex) {
-  // montatura
-  const frame = part(new THREE.BoxGeometry(0.138, 0.007, 0.007), 0x151515);
-  frame.position.set(0, 1.607, 0.110);
-  group.add(frame);
-  // lenti
+function buildGlasses(group, hex, dark) {
+  const z = R * 0.86 + 0.03, y = HY + 0.018;
   for (const sx of [1, -1]) {
-    const lens = part(new THREE.BoxGeometry(0.052, 0.035, 0.007), hex);
-    lens.position.set(sx * 0.054, 1.607, 0.111);
-    group.add(lens);
+    const rimM = part(new THREE.TorusGeometry(0.034, 0.006, 6, 16), 0x151515); rimM.position.set(sx * 0.048, y, z); group.add(rimM);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.032, 16), new THREE.MeshLambertMaterial({ color: hex, transparent: !dark, opacity: dark ? 1 : 0.35 }));
+    lens.position.set(sx * 0.048, y, z + 0.001); group.add(lens);
+    const arm = part(new THREE.BoxGeometry(0.006, 0.006, 0.13), 0x151515); arm.position.set(sx * R * 0.9, y + 0.01, z - 0.07); group.add(arm);
   }
+  const bridge = part(new THREE.BoxGeometry(0.03, 0.006, 0.006), 0x151515); bridge.position.set(0, y + 0.01, z); group.add(bridge);
 }
 
 // ---- mesh del personaggio ---------------------------------------------------
 export function buildPlayerMesh(data) {
-  const slim = data.slim;
-  const ws = slim ? 0.80 : 1.0; // scala larghezze
-
-  const skinHex  = SKIN_OPTS[data.skin]?.hex  ?? SKIN_OPTS[0].hex;
-  const hairHex  = HAIR_OPTS[data.hair]?.hex  ?? HAIR_OPTS[0].hex;
-  const shirtHex = SHIRT_OPTS[data.shirt]?.hex ?? SHIRT_OPTS[0].hex;
-  const pantHex  = PANT_OPTS[data.pant]?.hex  ?? PANT_OPTS[0].hex;
+  const slim = !!data.slim;
+  const pal = {
+    skin: SKIN_OPTS[data.skin]?.hex ?? SKIN_OPTS[0].hex, hair: HAIR_OPTS[data.hair]?.hex ?? HAIR_OPTS[0].hex,
+    shirt: SHIRT_OPTS[data.shirt]?.hex ?? SHIRT_OPTS[0].hex, pants: PANT_OPTS[data.pant]?.hex ?? PANT_OPTS[0].hex,
+  };
+  const style = HSTYLE_OPTS[data.hstyle ?? 0]?.style || 'short';
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const mesh = (geo) => { const m = new THREE.Mesh(paint(geo, pal), mat); m.castShadow = true; return m; };
 
   const g = new THREE.Group();
   g.name = 'player';
-
-  // testa (sfera)
-  const head = part(new THREE.SphereGeometry(0.112, 8, 7), skinHex);
-  head.position.y = 1.605;
-  head.name = 'head';
-  g.add(head);
-
-  // capelli (calotta superiore)
-  const hairGeo = new THREE.SphereGeometry(0.116, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.52);
-  const hairMesh = part(hairGeo, hairHex);
-  hairMesh.position.set(0, 1.655, 0);
-  g.add(hairMesh);
-
-  // collo
-  const neck = part(new THREE.CylinderGeometry(0.048, 0.054, 0.090, 6), skinHex);
-  neck.position.y = 1.487;
-  g.add(neck);
-
-  // torso
-  const torso = part(new THREE.BoxGeometry(0.265 * ws, 0.440, 0.165 * ws), shirtHex);
-  torso.position.y = 1.285;
-  torso.name = 'torso';
-  g.add(torso);
-
-  // cintura
-  const belt = part(new THREE.BoxGeometry(0.272 * ws, 0.068, 0.172 * ws), pantHex);
-  belt.position.y = 1.057;
-  g.add(belt);
-
-  // ── braccia con pivot alla spalla ────────────────────────────────────────
-  const armH = 0.500;
-  const armW = 0.080 * ws;
-  const armGeoBase = new THREE.BoxGeometry(armW, armH, armW * 1.15);
-  armGeoBase.translate(0, -armH / 2, 0); // pivot al top (spalla)
-
+  const body = mesh(bodyGeometry({ hair: style, female: style === 'long' || style === 'bun', slim }));
+  body.name = 'torso';
+  g.add(body);
+  const ws = slim ? 0.86 : 1;
+  const armGeo = armGeometry({ slim });
   for (const [name, sx] of [['armLPivot', 1], ['armRPivot', -1]]) {
-    const pivot = new THREE.Group();
-    pivot.name = name;
-    pivot.position.set(sx * 0.168 * ws, 1.440, 0);
-    pivot.add(part(armGeoBase.clone(), shirtHex));
+    const pivot = new THREE.Group(); pivot.name = name;
+    pivot.position.set(sx * RIG.shoulderX * ws, RIG.shoulderY, 0);
+    pivot.rotation.z = sx * 0.06; // braccia appena staccate dai fianchi
+    pivot.add(mesh(armGeo.clone()));
     g.add(pivot);
   }
-
-  // ── cosce con pivot all'anca ──────────────────────────────────────────────
-  const thighH = 0.440;
-  const thighW = 0.100 * ws;
-  const thighGeoBase = new THREE.BoxGeometry(thighW * 1.30, thighH, thighW * 1.40);
-  thighGeoBase.translate(0, -thighH / 2, 0);
-
-  for (const [pivName, shinName, sx] of [
-    ['thighLPivot', 'shinLPivot', 1],
-    ['thighRPivot', 'shinRPivot', -1],
-  ]) {
-    const thighPivot = new THREE.Group();
-    thighPivot.name = pivName;
-    thighPivot.position.set(sx * 0.088 * ws, 1.025, 0);
-    thighPivot.add(part(thighGeoBase.clone(), pantHex));
-
-    // stinco con pivot al ginocchio (figlio della coscia)
-    const shinH = 0.370;
-    const shinW = 0.085 * ws;
-    const shinGeoBase = new THREE.BoxGeometry(shinW * 1.15, shinH, shinW * 1.20);
-    shinGeoBase.translate(0, -shinH / 2, 0);
-
-    const shinPivot = new THREE.Group();
-    shinPivot.name = shinName;
-    shinPivot.position.set(0, -thighH, 0); // al ginocchio
-    shinPivot.add(part(shinGeoBase.clone(), pantHex));
-
-    // scarpa attaccata allo stinco
-    const shoeGeo = new THREE.BoxGeometry(shinW * 1.25, 0.072, shinW * 2.30);
-    const shoe = part(shoeGeo, 0x181410);
-    shoe.position.set(0, -shinH - 0.036, shinW * 0.65);
-    shinPivot.add(shoe);
-
+  const thighGeo = thighGeometry(), shinGeo = shinGeometry();
+  for (const [pivName, shinName, sx] of [['thighLPivot', 'shinLPivot', 1], ['thighRPivot', 'shinRPivot', -1]]) {
+    const thighPivot = new THREE.Group(); thighPivot.name = pivName;
+    thighPivot.position.set(sx * RIG.hipX * ws, RIG.hipY, 0);
+    thighPivot.add(mesh(thighGeo.clone()));
+    const shinPivot = new THREE.Group(); shinPivot.name = shinName;
+    shinPivot.position.set(0, -0.42, 0);
+    shinPivot.add(mesh(shinGeo.clone()));
     thighPivot.add(shinPivot);
     g.add(thighPivot);
   }
 
-  // ── accessori ────────────────────────────────────────────────────────────
-  const hatOpt   = HAT_OPTS[data.hat   ?? 0];
+  const hatOpt = HAT_OPTS[data.hat ?? 0];
   const glassOpt = GLASS_OPTS[data.glass ?? 0];
-  if (hatOpt?.style)  buildHat(g, hatOpt.style, hatOpt.hex);
-  if (glassOpt?.lens) buildGlasses(g, glassOpt.hex);
-
+  if (hatOpt?.style) buildHat(g, hatOpt.style, hatOpt.hex);
+  if (glassOpt?.lens) buildGlasses(g, glassOpt.hex, glassOpt.lens === 'dark');
+  // il protagonista è un filo più grande dei passanti: dall'alto si riconosce
+  g.scale.setScalar(1.12);
   return g;
 }
 
