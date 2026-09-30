@@ -233,13 +233,16 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
     $('gDay').textContent = `Giorno ${Math.min(s.day, DAYS)}/${DAYS}`;
     $('gSpent').textContent = euro(s.spent);
     const bars = [['player', s.listName, '#f2b705'], ['sindaco', RIVALS[0].name, RIVALS[0].color], ['commendatore', RIVALS[1].name, RIVALS[1].color]];
-    $('gPoll').innerHTML = bars.map(([k, name, col]) => `<div class="pb ${k === 'player' ? 'me' : ''}"><span class="nm">${esc(name)}</span><span class="bar"><i style="width:${Math.min(100, V[k] * 1.6)}%;background:${col}"></i></span><span class="v">${pct(V[k])}</span></div>`).join('')
-      + `<div class="pb und"><span class="nm">Indecisi</span><span class="v">${pct(V.undecided)}</span></div>`;
+    const short = (k) => pct(V[k]).replace(',0%', '%');
+    $('gPoll').innerHTML = `<div class="strip">${bars.map(([k, , col]) => `<i style="width:${V[k]}%;background:${col}"></i>`).join('')}<i style="width:${V.undecided}%;background:rgba(255,255,255,.12)"></i></div>
+      <div class="nums">${bars.map(([k]) => `<span>${short(k)}</span>`).join('')}<span style="opacity:.55">?${short('undecided')}</span></div>
+      <div class="full">${bars.map(([k, name, col]) => `<div class="pb ${k === 'player' ? 'me' : ''}" style="--c:${col}"><span class="nm">${esc(name)}</span><span class="v">${pct(V[k])}</span></div>`).join('')}<div class="pb und" style="--c:#888"><span class="nm">Indecisi</span><span class="v">${pct(V.undecided)}</span></div></div>`;
     $('bCar').textContent = player.state.car ? '🚶' : '🚗';
     $('bCar').title = player.state.car ? 'Scendi dall\'auto' : 'Sali in auto';
   }
   function clockText() { const h = G.hourOf(s); return `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`; }
 
+  $('hud').onclick = () => $('hud').classList.toggle('open');
   $('bNotes').onclick = () => running && notebookUI();
   $('bAds').onclick = () => running && campaignUI();
   $('bList').onclick = () => running && listUI();
@@ -325,6 +328,7 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
     controls.update();
     follow = true; running = true; lastHour = -1;
     refresh();
+    $('hint').classList.add('show'); setTimeout(() => $('hint').classList.remove('show'), 7000);
   }
   function endOfDay() {
     running = false;
