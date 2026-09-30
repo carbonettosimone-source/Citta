@@ -237,7 +237,7 @@ function setupCharScreen(char) {
     sc.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 1.6));
     const key = new THREE.DirectionalLight(0xfff2dc, 2.2); key.position.set(2, 3, 4); sc.add(key);
     const cam = new THREE.PerspectiveCamera(30, cv.width / cv.height, 0.1, 20);
-    cam.position.set(0, 1.35, 4.3); cam.lookAt(0, 1.05, 0);
+    cam.position.set(0, 1.6, 3.4); cam.lookAt(0, 1.2, 0);
     const disc = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 }));
     disc.rotation.x = -Math.PI / 2; sc.add(disc);
     pv = { r, sc, cam, mesh: null, t: 0, on: false };
@@ -245,7 +245,7 @@ function setupCharScreen(char) {
       if (!pv.on) return;
       requestAnimationFrame(loop);
       pv.t += 0.016;
-      if (pv.mesh) { pv.mesh.rotation.y = Math.sin(pv.t * 0.7) * 0.9; animatePlayer(pv.mesh, pv.t * 2.2); }
+      if (pv.mesh) { pv.mesh.rotation.y = Math.sin(pv.t * 0.7) * 0.7; animatePlayer(pv.mesh, pv.t * 2.2); }
       r.render(sc, cam);
     };
     pv.start = () => { if (!pv.on) { pv.on = true; loop(); } };

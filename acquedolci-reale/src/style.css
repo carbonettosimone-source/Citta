@@ -54,7 +54,7 @@ body.intro #hud, body.intro #modes, body.intro #settings, body.intro #hint, body
 .swatch-none { background: #f0f0f0 !important; position: relative; }
 .swatch-none::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; }
 #charPreview { display: flex; justify-content: center; margin: -4px 0 -2px; background: radial-gradient(ellipse at 50% 60%, #f3ead6, #fff 70%); border-radius: 14px; }
-#charCanvas { width: 170px; height: 196px; }
+#charCanvas { width: 200px; height: 231px; }
 .chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
 .chip { border: 1.5px solid #ddd; background: #fff; border-radius: 999px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
 .chip.sel { border-color: var(--ink); background: var(--ink); color: #fff; }

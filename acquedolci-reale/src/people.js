@@ -58,7 +58,8 @@ function headParts(hair, female, q = 1) {
     const f = new THREE.BoxGeometry(0.2, 0.035, 0.05); f.rotateX(0.35); P.push(slotted(at(f, 0, y + 0.1, R * 0.62), SLOT.hair));
   } else if (hair === 'long') {
     const c = cap(1.09); c.rotateX(-0.22); P.push(slotted(at(c, 0, y + 0.02, -0.01), SLOT.hair));
-    const back = new THREE.CylinderGeometry(R * 0.95, R * 0.8, 0.26, n(16, 6), 1, false, Math.PI * 0.62, Math.PI * 1.76);
+    // theta 0 = davanti (+Z): la ciocca gira dietro e lascia libero il viso
+    const back = new THREE.CylinderGeometry(R * 0.97, R * 0.82, 0.28, n(16, 6), 1, true, Math.PI * 0.32, Math.PI * 1.36);
     P.push(slotted(at(back, 0, y - 0.07, -0.012), SLOT.hair));
   } else if (hair === 'bun') {
     const c = cap(); c.rotateX(-0.3); P.push(slotted(at(c, 0, y + 0.02, -0.008), SLOT.hair));
