@@ -26,6 +26,7 @@ Acquedolci ricostruita in 3D solo da dati reali e aperti: dove esiste un dato mi
 | Alberi (110 mila, per specie) | Meta/WRI High Resolution Canopy Height 1 m; specie da uliveti/frutteti/macchia DBTR | CC BY 4.0 |
 | Strade: assi | OpenStreetMap | ODbL |
 | Strade: larghezze, marciapiedi | misurate facciata-facciata sulle piante DBTR; superfici come poligoni (unione Clipper) | CC BY 4.0 |
+| Strade: sezione e quota | assi OSM ripuliti (niente onde, incroci chiusi, niente riccioli di marciapiede); sezione trasversale orizzontale alla quota del lato verso il mare, terreno spianato sotto e muro di sostegno a monte (`src/grade.js`) | |
 | Mare, spiaggia, verde | copertura del suolo classificata dall'ortofoto 2022 a 2 m | CC BY 4.0 |
 | Cespugli (37 mila) | dove l'ortofoto è verde e non c'è né un albero né un edificio | |
 | Muri, recinzioni, cancelli (2350) | DBTR 2013, strato Elementi divisori | CC BY 4.0 |
