@@ -65,22 +65,41 @@ export function buildWater(sunDir, { far = false } = {}) {
         wave(vW.xz, normalize(vec2(0.8, 0.6)), 6.3, 0.05 * fade, g);
         wave(vW.xz, normalize(vec2(-0.7, 0.7)), 3.1, 0.025 * fade, g);
         wave(vW.xz, normalize(vec2(0.1, -1.0)), 1.7, 0.012 * fade, g);
+        // onda lunga che increspa la superficie a chiazze larghe: da sopra il mare non è mai uniforme
+        vec2 sw2 = vec2(noise(vW.xz * 0.035 + vec2(uTime * 0.05, 0.0)), noise(vW.xz * 0.035 + 17.0 - vec2(0.0, uTime * 0.04))) - 0.5;
+        g += sw2 * 0.05 * smoothstep(px * 2.0, px * 14.0, 30.0);
         vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
-        vec3 V = normalize(cameraPosition - vW);
+        // in ortografica la direzione di vista è una sola (asse della camera), non verso la sua posizione
+        vec3 V = projectionMatrix[3][3] > 0.5 ? normalize(vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2])) : normalize(cameraPosition - vW);
         float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 R = reflect(-V, N);
         vec3 sky = mix(uSkyH, uSkyZ, clamp(R.y * 1.6, 0.0, 1.0));
-        float depth = smoothstep(0.0, 45.0, shore);
+        // la riva serpeggia: schiuma, colore e profondità non corrono mai parallele a una retta
+        float sm = (noise(vW.xz * 0.045) - 0.5) * 10.0 + (noise(vW.xz * 0.17 + vec2(0.0, uTime * 0.25)) - 0.5) * 4.0;
+        float shoreW = max(shore + sm * (1.0 - smoothstep(12.0, 45.0, shore)), 0.0);
+        float depth = smoothstep(0.0, 45.0, shoreW);
+        // banchi di sabbia e prati sommersi: il fondale chiaro affiora a strisce irregolari
+        float bars = noise(vW.xz * vec2(0.03, 0.06) + 5.0) * 0.6 + noise(vW.xz * 0.11 + 2.0) * 0.4;
+        depth = clamp(depth - (bars - 0.45) * 0.45 * (1.0 - smoothstep(35.0, 80.0, shore)), 0.0, 1.0);
         vec3 body = mix(uShallow, uDeep, depth) * uTint;
-        float sunDiff = max(dot(N, uSun), 0.0);
-        vec3 col = mix(body * (0.55 + 0.45 * sunDiff), sky, fres);
+        body *= 0.93 + 0.14 * noise(vW.xz * 0.02 + 40.0);
+        // le pendenze delle onde, amplificate, modellano la luce sull'acqua (da sopra il rilievo si legge)
+        vec3 Nd = normalize(vec3(-g.x * 5.0, 1.0, -g.y * 5.0));
+        float sunDiff = max(dot(Nd, uSun), 0.0);
+        vec3 col = mix(body * (0.52 + 0.48 * sunDiff), sky, fres);
         col += vec3(1.0, 0.95, 0.85) * pow(max(dot(R, uSun), 0.0), 350.0) * uSpec;
         // battigia: fasce di schiuma che corrono verso riva e si rompono col rumore
-        float band = sin(shore * 0.9 + uTime * 1.3) * 0.5 + 0.5;
-        float foam = (1.0 - smoothstep(0.5, 7.0, shore)) * smoothstep(0.55, 0.95, band * noise(vW.xz * 0.7 + uTime * 0.2) + 0.35 * (1.0 - smoothstep(0.0, 2.0, shore)));
+        float band = sin(shoreW * 0.9 + uTime * 1.3) * 0.5 + 0.5;
+        float foam = (1.0 - smoothstep(0.5, 7.0, shoreW)) * smoothstep(0.55, 0.95, band * noise(vW.xz * 0.7 + uTime * 0.2) + 0.35 * (1.0 - smoothstep(0.0, 2.0, shoreW)));
+        // frangente: la linea dove l'onda si rompe, discontinua, a 10-18 m da riva
+        float brk = 13.0 + (noise(vW.xz * 0.05) - 0.5) * 8.0;
+        float breaker = exp(-pow((shoreW - brk) / 2.2, 2.0)) * smoothstep(0.52, 0.8, noise(vW.xz * vec2(0.22, 0.4) + vec2(uTime * 0.12, 0.0))) * 0.75;
+        // creste al largo: poche, sparse
+        float caps = smoothstep(0.80, 0.93, noise(vW.xz * 0.16 + vec2(uTime * 0.35, uTime * 0.12))) * smoothstep(20.0, 60.0, shore) * 0.35;
+        foam = max(foam, max(breaker, caps));
         col = mix(col, vec3(0.93, 0.95, 0.95) * uTint, clamp(foam, 0.0, 1.0));
         // trasparenza: a riva si vede il fondale (ortofoto), al largo l'acqua è piena
-        float alpha = mix(0.35, 0.96, smoothstep(0.0, 25.0, shore));
+        float alpha = mix(0.35, 0.96, smoothstep(0.0, 25.0, shoreW));
         alpha = max(alpha, foam * 0.9);
         alpha = mix(alpha, 1.0, fres * 0.5);
         gl_FragColor = vec4(col, alpha);
