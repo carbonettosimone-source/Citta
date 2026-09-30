@@ -420,7 +420,9 @@ function addVe3LowSkirt(polys, yAbs, uvScale, heightAt, skirts) {
   }
 }
 
-export function buildStreets(data, heightAt, inBuilding = () => false) {
+export function buildStreets(data, heightAt, inBuilding = () => false, grade = null) {
+  // quota di progetto: sezione orizzontale, vince il lato verso il mare (grade.js)
+  const roadAt = grade ? grade.roadAt : heightAt;
   const group = new THREE.Group(); group.name = 'streets';
   const asphalt = new Strip(), walk = new Strip(), curb = new Strip(), mark = new Strip(), paving = new Strip();
   const herring = new Strip(), cobble = new Strip(), drive = new Strip(), garden = new Strip(), red = new Strip(), rim = new Strip();
@@ -436,8 +438,8 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   const S = data.surf;
   S.plaza = S.plaza || [];
   const kinds = splitPlazas(S.plaza);
-  fillPolys(S.asphalt, heightAt, Y, 4, asphalt);
-  fillPolys(S.walk, heightAt, Y + CURB, 1.6, walk);
+  fillPolys(S.asphalt, roadAt, Y, 4, asphalt);
+  fillPolys(S.walk, roadAt, Y + CURB, 1.6, walk);
   fillPolys(S.paving, heightAt, Y + 0.04, 2.2, paving);
   planVe3Stair(heightAt);
   fillPolys(kinds.ve3, heightAt, 0, 2.2, ve3, VE3_TERRACE, ve3StairHole);
@@ -456,7 +458,7 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   const block = (...names) => names.map((kind) => ({ kind, index: idx[kind] }));
   const hard = block('asphalt', 'walk', 'paving', 'plaza');
   // ~0,85 m di sfumatura verso il suolo nudo; il cordolo solo dove la pietra incontra l'asfalto
-  addSkirts(S.asphalt, Y, Y, 4, heightAt, inBuilding, block('walk', 'paving', 'plaza'), skirtA, curb, S.tile, false);
+  addSkirts(S.asphalt, Y, Y, 4, roadAt, inBuilding, block('walk', 'paving', 'plaza'), skirtA, curb, S.tile, false);
   addSkirts(S.paving, Y + 0.04, Y + 0.04, 2.2, heightAt, inBuilding, block('asphalt', 'walk', 'plaza'), skirtP, curb, S.tile, false);
   addSkirts(kinds.herring, Y + PLAZA, Y, 2.4, heightAt, inBuilding, hard, skirtH, curb, S.tile, true);
   addSkirts(kinds.other, Y + PLAZA, Y, 2.8, heightAt, inBuilding, hard, skirtO, curb, S.tile, true);
@@ -474,7 +476,7 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
       const n = Math.max(1, Math.ceil(L / MAXE));
       for (let k = 0; k < n; k++) {
         const ax = x0 + (x1 - x0) * k / n, az = z0 + (z1 - z0) * k / n, bx = x0 + (x1 - x0) * (k + 1) / n, bz = z0 + (z1 - z0) * (k + 1) / n;
-        const ya = heightAt(ax, az) + Y, yb = heightAt(bx, bz) + Y;
+        const ya = roadAt(ax, az) + Y, yb = roadAt(bx, bz) + Y;
         curb.quad([ax, ya, az], [bx, yb, bz], [bx, yb + CURB, bz], [ax, ya + CURB, az], [0, 0], [1, 0], [1, 1], [0, 1]);
       }
     }
@@ -487,7 +489,7 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
       const a = P[i - 1], b = P[i];
       if (Math.floor(a.s / 3) % 2 || nearJunction(a.x, a.z, 2) || nearJunction(b.x, b.z, 2)) continue;
       const w = 0.07;
-      const M = (p, o) => { const x = p.x + p.nx * o, z = p.z + p.nz * o; return [x, heightAt(x, z) + Y + 0.03, z]; };
+      const M = (p, o) => { const x = p.x + p.nx * o, z = p.z + p.nz * o; return [x, roadAt(x, z) + Y + 0.03, z]; };
       mark.quad(M(a, w), M(a, -w), M(b, -w), M(b, w), [0, 0], [1, 0], [1, 1], [0, 1]);
     }
   }
@@ -498,7 +500,7 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
     for (let k = 0; k < stripes; k++) {
       const o = -cw / 2 + 0.25 + k * (cw - 0.5) / Math.max(1, stripes - 1);
       const cx = x + nx * o, cz = z + nz * o;
-      const pt = (dl, dw) => { const px = cx + tx * dl + nx * dw, pz = cz + tz * dl + nz * dw; return [px, heightAt(px, pz) + Y + 0.03, pz]; };
+      const pt = (dl, dw) => { const px = cx + tx * dl + nx * dw, pz = cz + tz * dl + nz * dw; return [px, roadAt(px, pz) + Y + 0.03, pz]; };
       mark.quad(pt(-1.5, -0.25), pt(-1.5, 0.25), pt(1.5, 0.25), pt(1.5, -0.25), [0, 0], [1, 0], [1, 1], [0, 1]);
     }
   }
@@ -533,7 +535,57 @@ export function buildStreets(data, heightAt, inBuilding = () => false) {
   group.add(buildBenches(data.benches, heightAt));
   group.add(buildWalls(data.walls || [], heightAt));
   group.add(buildLamps(data.lamps || [], heightAt));
+  if (grade) group.add(buildRetaining(grade, inBuilding, Y));
   return group;
+}
+
+/**
+ * Muri di sostegno lungo il bordo della sede stradale: dove il terreno naturale sta sopra la quota di
+ * progetto (lato a monte) il muro lo trattiene; dove sta sotto (riporto) fa da parapetto basso.
+ * Contro una facciata non serve.
+ */
+function buildRetaining(grade, inBuilding, Y) {
+  const pos = [];
+  const q = (A, B, C, D) => pos.push(...A, ...B, ...C, ...A, ...C, ...D);
+  const T = 0.35, STEP = 2;
+  for (const r of grade.rings) {
+    const n = r.length >> 1;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, x0 = r[i * 2], z0 = r[i * 2 + 1], x1 = r[j * 2], z1 = r[j * 2 + 1];
+      const L = Math.hypot(x1 - x0, z1 - z0);
+      if (L < 0.05) continue;
+      let ox = -(z1 - z0) / L, oz = (x1 - x0) / L;
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      if (grade.inCorr(mx + ox * 0.6, mz + oz * 0.6)) { ox = -ox; oz = -oz; }
+      if (grade.inCorr(mx + ox * 0.6, mz + oz * 0.6) || !grade.inCorr(mx - ox * 0.6, mz - oz * 0.6)) continue;
+      const seg = Math.max(1, Math.ceil(L / STEP));
+      const P = [];
+      for (let k = 0; k <= seg; k++) {
+        const x = x0 + (x1 - x0) * k / seg, z = z0 + (z1 - z0) * k / seg;
+        const g = grade.roadAt(x - ox * 0.3, z - oz * 0.3), nat = grade.natural(x + ox * (T + 0.4), z + oz * (T + 0.4));
+        P.push({ x, z, g, nat, bld: inBuilding(x + ox * 0.6, z + oz * 0.6) });
+      }
+      for (let k = 0; k < seg; k++) {
+        const a = P[k], b = P[k + 1];
+        if (a.bld || b.bld) continue;
+        const up = Math.max(a.nat - a.g, b.nat - b.g), down = Math.min(a.nat - a.g, b.nat - b.g);
+        let top, bot;
+        if (up > 0.35) { top = (p) => Math.max(p.nat, p.g + Y) + 0.12; bot = (p) => p.g; }
+        else if (down < -0.8) { top = (p) => p.g + Y + 0.12 + 0.45; bot = (p) => Math.min(p.nat, p.g) - 0.3; }
+        else continue;
+        const A0 = [a.x, bot(a), a.z], B0 = [b.x, bot(b), b.z], A1 = [a.x, top(a), a.z], B1 = [b.x, top(b), b.z];
+        const A2 = [a.x + ox * T, top(a), a.z + oz * T], B2 = [b.x + ox * T, top(b), b.z + oz * T];
+        const A3 = [a.x + ox * T, bot(a) , a.z + oz * T], B3 = [b.x + ox * T, bot(b), b.z + oz * T];
+        q(A0, B0, B1, A1); q(A1, B1, B2, A2); q(A2, B2, B3, A3);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xb3a792, side: THREE.DoubleSide }));
+  m.castShadow = m.receiveShadow = true; m.name = 'retaining';
+  return m;
 }
 
 /** muri DBTR: divisorio intonacato, sostegno e a secco in pietra, recinzione/cancello in ferro */

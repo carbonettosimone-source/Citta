@@ -84,20 +84,60 @@ const nodeUse = new Map();
 const key = ([x, z]) => `${x.toFixed(1)},${z.toFixed(1)}`;
 const median = (a) => { const s = a.filter((v) => v != null).sort((x, y) => x - y); return s.length ? s[s.length >> 1] : null; };
 
+// ---- terreno naturale (lo stesso MDT del gioco: build-model.mjs lo scrive in public/data/dtm.json)
+const dtmMeta = read('data/dtm.json');
+const dtmBuf = readFileSync(new URL(existsSync(new URL('data/dtm-sea.bin', root)) ? 'data/dtm-sea.bin' : 'data/dtm.bin', root));
+const dtm = new Float32Array(dtmBuf.buffer, dtmBuf.byteOffset, dtmBuf.byteLength / 4);
+function natural(X, Z) {
+  const x = X + OX, y = OY - Z, W = dtmMeta.width, H = dtmMeta.height;
+  const c = (x - dtmMeta.xmin) / dtmMeta.step, r = (dtmMeta.ymax - y) / dtmMeta.step;
+  const c0 = Math.max(0, Math.min(W - 2, Math.floor(c))), r0 = Math.max(0, Math.min(H - 2, Math.floor(r)));
+  const fx = Math.min(1, Math.max(0, c - c0)), fy = Math.min(1, Math.max(0, r - r0)), i = r0 * W + c0;
+  return dtm[i] * (1 - fx) * (1 - fy) + dtm[i + 1] * fx * (1 - fy) + dtm[i + W] * (1 - fx) * fy + dtm[i + W + 1] * fx * fy;
+}
+
+/** Douglas-Peucker: toglie lo zig-zag del tracciato OSM, tiene estremi e nodi d'incrocio */
+function simplify(pts, keep, tol) {
+  if (pts.length < 3) return pts;
+  const out = [pts[0]];
+  let start = 0;
+  const dp = (a, b) => {
+    const [ax, az] = pts[a], [bx, bz] = pts[b], L = Math.hypot(bx - ax, bz - az) || 1e-9;
+    let best = -1, bi = -1;
+    for (let i = a + 1; i < b; i++) { const d = Math.abs((bx - ax) * (az - pts[i][1]) - (ax - pts[i][0]) * (bz - az)) / L; if (d > best) { best = d; bi = i; } }
+    if (best > tol) { dp(a, bi); out.push(pts[bi]); dp(bi, b); }
+  };
+  for (let i = 1; i < pts.length; i++) {
+    if (i < pts.length - 1 && !keep(pts[i])) continue;
+    dp(start, i); out.push(pts[i]); start = i;
+  }
+  return out;
+}
+
+const roadFeatures = [];
 for (const f of osm.features) {
   const p = f.properties;
   if (p.kind !== 'highway' || f.geometry.type !== 'LineString' || p.tunnel || p.bridge) continue;
   const pts = f.geometry.coordinates.map(([lon, lat]) => locLL(lon, lat));
   if (PATHS[p.highway]) { paths.push({ k: p.highway, p: pts.flat().map((v) => +v.toFixed(2)), w: PATHS[p.highway] }); continue; }
-  const T = TYPE[p.highway]; if (!T) continue; // autostrada (viadotti/gallerie) esclusa: la mostra l'ortofoto
-  // ricampionamento ogni 2,5 m: i raggi e la ricentratura lavorano su questi punti
+  if (!TYPE[p.highway]) continue; // autostrada (viadotti/gallerie) esclusa: la mostra l'ortofoto
+  for (const q of pts) nodeUse.set(key(q), (nodeUse.get(key(q)) || 0) + 1);
+  roadFeatures.push({ p, pts });
+}
+
+for (const { p, pts: raw } of roadFeatures) {
+  const T = TYPE[p.highway];
+  // asse OSM ripulito: i nodi d'incrocio restano dove sono, così le vie si toccano senza triangoli
+  const pts = simplify(raw, (q) => (nodeUse.get(key(q)) || 0) >= 2, 0.45);
+  // ricampionamento ogni 2,5 m su tratti dritti: i raggi e il profilo di quota lavorano su questi punti
   const rs = [pts[0]];
   for (let i = 1; i < pts.length; i++) {
     const [ax, az] = pts[i - 1], [bx, bz] = pts[i]; const L = Math.hypot(bx - ax, bz - az); const n = Math.max(1, Math.ceil(L / 2.5));
-    for (let k = 1; k <= n; k++) rs.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
+    for (let k = 1; k < n; k++) rs.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
+    rs.push(pts[i]); // il vertice OSM esatto: la chiave del nodo d'incrocio resta la stessa
   }
-  for (const q of [pts[0], pts.at(-1)]) nodeUse.set(key(q), (nodeUse.get(key(q)) || 0) + 1);
-  for (const q of pts.slice(1, -1)) nodeUse.set(key(q), (nodeUse.get(key(q)) || 0) + 1);
+  const jn = [];
+  rs.forEach((q, i) => { const k = key(q); if ((nodeUse.get(k) || 0) >= 2) jn.push([i, k]); });
   const L = [], R = [];
   for (let i = 0; i < rs.length; i++) {
     const a = rs[Math.max(0, i - 1)], b = rs[Math.min(rs.length - 1, i + 1)];
@@ -115,27 +155,58 @@ for (const f of osm.features) {
   let cw = typW;
   if (canyon != null) cw = Math.max(3, Math.min(typW + 1, canyon - 2.2));
   if (canyon != null && canyon < 5.2) cw = Math.max(2.6, canyon - 0.4); // vicolo: niente marciapiede
+  // Niente ricentratura punto per punto: spostava l'asse di qualche metro a ogni porta e la via
+  // veniva a onde, con gli incroci staccati. L'asse resta quello OSM (dritto), la larghezza è costante.
   const out = [], sl = [], sr = [];
+  const half = cw / 2;
+  const room = (d) => (d == null ? 0 : Math.max(0, Math.min(3, d - half - 0.05)));
   for (let i = 0; i < rs.length; i++) {
-    let [x, z] = rs[i];
-    const a = rs[Math.max(0, i - 1)], b = rs[Math.min(rs.length - 1, i + 1)];
-    let tx = b[0] - a[0], tz = b[1] - a[1]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-    const nx = -tz, nz = tx;
     const l = Ls[i], r = Rs[i];
-    // ricentratura nel canyon (OSM è spesso spostato di 1-2 m verso un lato), al massimo 3 m
-    if (l != null && r != null) { const sh = Math.max(-3, Math.min(3, (l - r) / 2)); x += nx * sh; z += nz * sh; }
-    const half = cw / 2;
-    const room = (d) => (d == null ? 0 : Math.max(0, Math.min(3, d - half - 0.05)));
-    const lw = l != null && r != null ? room((l + r) / 2) : room(l);
-    const rw = l != null && r != null ? room((l + r) / 2) : room(r);
-    out.push(+x.toFixed(2), +z.toFixed(2));
+    const lw = room(l), rw = room(r);
+    out.push(+rs[i][0].toFixed(2), +rs[i][1].toFixed(2));
     sl.push(lw >= 0.7 ? +lw.toFixed(2) : 0); sr.push(rw >= 0.7 ? +rw.toFixed(2) : 0);
   }
   // marciapiede costante sul tratto (mediana delle misure): i poligoni poi lo tagliano sulle facciate
   const sws = [...sl, ...sr];
   const swOn = sws.filter((v) => v > 0);
   const sw = swOn.length >= sws.length * 0.4 ? median(swOn) : 0;
-  roads.push({ k: p.highway, p: out, cw: +cw.toFixed(2), sl, sr, sw: +(sw || 0).toFixed(2), mk: marks && cw >= 5.5 ? 1 : 0, name: p.name || null });
+  roads.push({ k: p.highway, p: out, cw: +cw.toFixed(2), sl, sr, sw: +(sw || 0).toFixed(2), mk: marks && cw >= 5.5 ? 1 : 0, name: p.name || null, jn });
+}
+
+// ---- quota di progetto: la sezione trasversale è sempre ORIZZONTALE. A ogni campione la quota è la
+// più bassa del terreno fra i due bordi (vince il lato verso il mare, che qui è sempre il più basso):
+// dal lato a monte il terreno si taglia e resta un muro di sostegno. Poi la livelletta si liscia lungo
+// la via e agli incroci le vie si accordano sulla stessa quota.
+for (const rd of roads) {
+  const n = rd.p.length / 2, half = rd.cw / 2 + rd.sw, raw = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
+    let tx = rd.p[b * 2] - rd.p[a * 2], tz = rd.p[b * 2 + 1] - rd.p[a * 2 + 1]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+    let lo = Infinity;
+    for (let k = -4; k <= 4; k++) { const o = half * k / 4; lo = Math.min(lo, natural(rd.p[i * 2] - tz * o, rd.p[i * 2 + 1] + tx * o)); }
+    raw.push(lo);
+  }
+  // media mobile ±7,5 m: niente gobbe di un campione, la pendenza longitudinale resta quella vera
+  rd.h = raw.map((_, i) => { let s = 0, c = 0; for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k++) { s += raw[k]; c++; } return s / c; });
+}
+{
+  // incroci: tutte le vie che passano per lo stesso nodo arrivano alla stessa quota (media), il salto
+  // si distribuisce su ~15 m di via con una rampa lineare
+  const at = new Map(); // nodo → [{rd, i}]
+  for (const rd of roads) for (const [i, k] of rd.jn) { if (!at.has(k)) at.set(k, []); at.get(k).push({ rd, i }); }
+  for (let it = 0; it < 6; it++) {
+    for (const list of at.values()) {
+      if (list.length < 2) continue;
+      const target = list.reduce((s, q) => s + q.rd.h[q.i], 0) / list.length;
+      for (const { rd, i } of list) {
+        const d = target - rd.h[i]; if (Math.abs(d) < 1e-3) continue;
+        const n = rd.h.length, span = Math.max(1, Math.min(6, Math.floor(n / 2)));
+        for (let k = Math.max(0, i - span); k <= Math.min(n - 1, i + span); k++) rd.h[k] += d * (1 - Math.abs(k - i) / (span + 1));
+        rd.h[i] = target;
+      }
+    }
+  }
+  for (const rd of roads) rd.h = rd.h.map((v) => +v.toFixed(2));
 }
 
 // ---- incroci: nodi condivisi da ≥2 vie → disco d'asfalto che chiude i giunti
@@ -153,14 +224,29 @@ for (const j of junctions) {
 const SC = 100; // Clipper lavora in interi: centimetri
 const toC = (pts) => pts.map(([x, z]) => ({ X: Math.round(x * SC), Y: Math.round(z * SC) }));
 const pairs = (flat) => { const o = []; for (let i = 0; i < flat.length; i += 2) o.push([flat[i], flat[i + 1]]); return o; };
-function buffer(lines) { // lines: [{pts, r}] → poligoni unione dei buffer arrotondati
+// estremi di via: quante vie finiscono in un nodo. Due estremi e nient'altro = la stessa via spezzata in OSM
+const endUse = new Map();
+for (const { pts } of roadFeatures) for (const q of [pts[0], pts.at(-1)]) endUse.set(key(q), (endUse.get(key(q)) || 0) + 1);
+const isContinuation = (q) => endUse.get(key(q)) === 2 && nodeUse.get(key(q)) === 2;
+/**
+ * lines: [{pts, r}] → unione dei buffer. `butt`: estremi tagliati dritti (marciapiedi: un cappuccio
+ * tondo sconfinava nell'incrocio e faceva i riccioli), con un disco solo dove la via continua in un
+ * altro tratto OSM, così la curva resta chiusa.
+ */
+function buffer(lines, butt = false) {
   const all = [];
   for (const { pts, r } of lines) {
     if (r <= 0 || pts.length < 2) continue;
     const co = new ClipperLib.ClipperOffset(2, 0.25 * SC);
-    co.AddPath(toC(pts), ClipperLib.JoinType.jtRound, ClipperLib.EndType.etOpenRound);
+    co.AddPath(toC(pts), ClipperLib.JoinType.jtRound, butt ? ClipperLib.EndType.etOpenButt : ClipperLib.EndType.etOpenRound);
     const sol = new ClipperLib.Paths(); co.Execute(sol, r * SC);
     all.push(...sol);
+    if (butt) for (const q of [pts[0], pts.at(-1)]) {
+      if (!isContinuation(q)) continue;
+      const disk = [];
+      for (let k = 0; k < 24; k++) disk.push([q[0] + Math.cos(k * Math.PI / 12) * r, q[1] + Math.sin(k * Math.PI / 12) * r]);
+      all.push(toC(disk));
+    }
   }
   return op(all, [], ClipperLib.ClipType.ctUnion);
 }
@@ -173,15 +259,46 @@ function op(subj, clip, type) {
   return sol;
 }
 const bldC = op(buildingRings.map(toC), [], ClipperLib.ClipType.ctUnion);
+/** offset di poligoni chiusi (m), giunti tondi */
+function grow(P, d) {
+  if (!P.length || !d) return P;
+  const co = new ClipperLib.ClipperOffset(2, 0.1 * SC);
+  co.AddPaths(P, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+  const sol = new ClipperLib.Paths(); co.Execute(sol, d * SC);
+  return op(sol, [], ClipperLib.ClipType.ctUnion);
+}
+/**
+ * Superficie pulita: chiusura (riempie tacche e fessure fra due vie vicine), apertura (via le punte
+ * sottili dei raccordi a V), e i buchi piccoli dentro la carreggiata — il triangolo che resta fra tre
+ * assi OSM che quasi si toccano — si riempiono: la carreggiata larga resta una sola.
+ */
+const bldPts = buildingRings.map((r) => r[0]);
+function tidy(P, close, open, maxHole) {
+  let Q = grow(grow(P, close), -close);
+  if (open) Q = grow(grow(Q, -open), open);
+  return Q.filter((r) => {
+    const a = ClipperLib.Clipper.Area(r) / (SC * SC);
+    if (a >= 0 || -a >= maxHole) return true;
+    // un buco con dentro un edificio è un isolato vero: resta
+    return !bldPts.some(([x, z]) => ClipperLib.Clipper.PointInPolygon({ X: Math.round(x * SC), Y: Math.round(z * SC) }, r) === 1);
+  });
+}
 const carLines = roads.filter((r) => r.k !== 'pedestrian').map((r) => ({ pts: pairs(r.p), r: r.cw / 2 }));
-let asphaltC = op(buffer(carLines), bldC, ClipperLib.ClipType.ctDifference);
+const asphaltRaw = tidy(buffer(carLines, true), 1.6, 0.5, 400);
+let asphaltC = op(asphaltRaw, bldC, ClipperLib.ClipType.ctDifference);
 const pavLines = [
   ...roads.filter((r) => r.k === 'pedestrian').map((r) => ({ pts: pairs(r.p), r: r.cw / 2 + r.sw })),
   ...paths.filter((q) => q.k !== 'track').map((q) => ({ pts: pairs(q.p), r: q.w / 2 })),
 ];
 let pavingC = op(op(buffer(pavLines), asphaltC, ClipperLib.ClipType.ctDifference), bldC, ClipperLib.ClipType.ctDifference);
 const walkLines = roads.filter((r) => r.k !== 'pedestrian' && r.sw > 0).map((r) => ({ pts: pairs(r.p), r: r.cw / 2 + r.sw }));
-let walkC = op(op(buffer(walkLines), [...asphaltC, ...pavingC], ClipperLib.ClipType.ctDifference), bldC, ClipperLib.ClipType.ctDifference);
+// il marciapiede è la fascia fra la carreggiata e il bordo esterno ripulito, meno le facciate
+const outerC = tidy(op([...buffer(walkLines, true), ...asphaltRaw], [], ClipperLib.ClipType.ctUnion), 1.6, 0.4, 400);
+let walkC = op(op(outerC, [...asphaltC, ...pavingC], ClipperLib.ClipType.ctDifference), bldC, ClipperLib.ClipType.ctDifference);
+walkC = grow(grow(walkC, -0.2), 0.2); // niente schegge di marciapiede sotto i 40 cm
+walkC = op(walkC, bldC, ClipperLib.ClipType.ctDifference);
+// sede stradale (carreggiata + marciapiedi): qui il terreno si spiana alla quota di progetto
+const corrC = op(op([...asphaltC, ...walkC], [], ClipperLib.ClipType.ctUnion), bldC, ClipperLib.ClipType.ctDifference);
 
 // ---- piazze: anelli veri (non il nastro di un asse) + vuoti urbani non verdi
 const PLAZA_NAME = /(^|[\s,.'’])(piazza|largo|piazzale)([\s,.'’]|$)/i;
@@ -596,7 +713,8 @@ for (const rd of roads) {
 mkdirSync(new URL('public/data', root), { recursive: true });
 writeFileSync(new URL('public/data/streets.json', root), JSON.stringify({
   source: 'Assi e piazze: © OpenStreetMap contributors (ODbL); larghezze su DBTR 2013 SITR (CC BY 4.0); vuoti urbani dalla copertura del suolo 2022 (non verde, non spiaggia)',
-  roads: roads.map(({ sl, sr, ...r }) => r), junctions, crossings, benches, paths, walls, lamps, surf,
+  roads: roads.map(({ sl, sr, jn, ...r }) => r), junctions,
+  corr: ClipperLib.Clipper.CleanPolygons(corrC, 0.03 * SC).filter((r) => r.length >= 3 && Math.abs(ClipperLib.Clipper.Area(r)) > 0.5 * SC * SC).map((r) => r.flatMap((q) => [+(q.X / SC).toFixed(2), +(q.Y / SC).toFixed(2)])), crossings, benches, paths, walls, lamps, surf,
   plazas: plazaMeta,
 }));
 const withSw = roads.filter((r) => r.sl.some((v) => v) || r.sr.some((v) => v)).length;

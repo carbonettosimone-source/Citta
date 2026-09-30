@@ -5,6 +5,7 @@ import { buildBuildings, makeCollider } from './buildings.js';
 import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
+import { createGrade } from './grade.js';
 import { buildSigns } from './signs.js';
 import { buildLandmarks } from './landmarks.js';
 import { ve3Floor } from './piazza-ve3.js';
@@ -78,7 +79,17 @@ async function load() {
   const heights = new Float32Array(dm.length);
   const off = dtmMeta.offset || 0; // fondale marino sotto zero (build-landcover.mjs)
   for (let i = 0; i < dm.length; i++) heights[i] = dm[i] / 10 + off;
-  const heightAt = makeHeightSampler(dtmMeta, heights, model.origin);
+  const natural = makeHeightSampler(dtmMeta, heights, model.origin);
+  // strade a sezione orizzontale e terreno spianato sotto (grade.js): tutto il resto poggia su groundAt
+  const grade = createGrade(streets, natural);
+  const heightAt = grade.groundAt;
+  // gli edifici sul bordo di uno scavo stradale scendono fino alla quota della via
+  for (const b of model.buildings) {
+    for (let i = 0; i < b.r.length; i += 2) {
+      const x = b.r[i], z = b.r[i + 1];
+      if (grade.edgeDist(x, z) < 1.5) b.b = Math.min(b.b, grade.roadAt(x, z) - 0.2);
+    }
+  }
 
   say('ortofoto 2022');
   const loader = new THREE.TextureLoader();
@@ -99,7 +110,7 @@ async function load() {
   }
   say('terreno');
   const bounds = { xmin: dtmMeta.xmin, xmax: dtmMeta.xmin + (dtmMeta.width - 1) * dtmMeta.step, ymax: dtmMeta.ymax, ymin: dtmMeta.ymax - (dtmMeta.height - 1) * dtmMeta.step };
-  scene.add(buildTerrain({ orthoMeta, textures, heightAt, origin: model.origin, bounds }));
+  scene.add(buildTerrain({ orthoMeta, textures, heightAt: grade.terrainAt, refine: grade.refine, origin: model.origin, bounds }));
   const water = buildWater(sun.position.clone().sub(sun.target.position));
   scene.add(water.mesh);
   say('litorale ed Eolie');
@@ -113,7 +124,7 @@ async function load() {
   scene.add(group);
   const collider = makeCollider(footprints);
   say('strade');
-  scene.add(buildStreets(streets, heightAt, collider));
+  scene.add(buildStreets(streets, heightAt, collider, grade));
   say('cartelli stradali');
   if (signsData) scene.add(buildSigns(signsData, heightAt));
   say('luoghi d\'interesse');
