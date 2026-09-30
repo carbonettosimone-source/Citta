@@ -5,6 +5,7 @@ import { buildBuildings, makeCollider } from './buildings.js';
 import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
+import { buildSigns } from './signs.js';
 import { buildLandmarks } from './landmarks.js';
 import { ve3Floor } from './piazza-ve3.js';
 import { createOrthoHR } from './ortho-hr.js';
@@ -61,11 +62,12 @@ const sky = createSky(bgScene);
 
 async function load() {
   say('modello degli edifici');
-  const [model, dtmMeta, orthoMeta, streets] = await Promise.all([
+  const [model, dtmMeta, orthoMeta, streets, signsData] = await Promise.all([
     fetch('data/model.json').then((r) => r.json()),
     fetch('data/dtm.json').then((r) => r.json()),
     fetch('data/ortho.json').then((r) => r.json()),
     fetch('data/streets.json').then((r) => r.json()),
+    fetch('data/signs.json').then((r) => r.ok ? r.json() : null).catch(() => null),
   ]);
   const hrMeta = await fetch('data/ortho-hr.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   // quote in decimetri, Uint16 in base64 (vedi build-model.mjs)
@@ -112,6 +114,8 @@ async function load() {
   const collider = makeCollider(footprints);
   say('strade');
   scene.add(buildStreets(streets, heightAt, collider));
+  say('cartelli stradali');
+  if (signsData) scene.add(buildSigns(signsData, heightAt));
   say('luoghi d\'interesse');
   scene.add(buildLandmarks(model, heightAt));
   say('alberi');

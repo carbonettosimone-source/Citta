@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "fetch": "node scripts/fetch-buildings.mjs && node scripts/fetch-dtm.mjs && node scripts/fetch-ortho.mjs && NODE_USE_ENV_PROXY=1 node scripts/fetch-lidar.mjs",
+    "signs": "node scripts/build-signs.mjs",
     "model": "node scripts/build-model.mjs",
     "reference": "node scripts/reference-studio.mjs",
     "artifact": "node scripts/build-artifact.mjs",
