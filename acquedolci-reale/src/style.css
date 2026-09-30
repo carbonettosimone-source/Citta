@@ -50,3 +50,28 @@ body:not(.walk).touch:not(.intro) #droneJoy { display: block; }
 #introTitle h2 { position: relative; margin: 0; font: 400 clamp(28px, 5vw, 64px)/1.25 Cinzel, Georgia, serif; letter-spacing: .045em; text-transform: none; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.9); }
 body.intro #hud, body.intro #modes, body.intro #settings, body.intro #hint, body.intro #labels, body.intro #credits { visibility: hidden; }
 #bIntro { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }
+#bChar  { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }
+
+/* ---------- creazione personaggio */
+#charScreen { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.72); backdrop-filter: blur(4px); }
+#charScreen[hidden] { display: none; }
+#charBox { background: #fff; border-radius: 18px; padding: 22px 24px 20px; width: min(380px, calc(100vw - 24px)); max-height: 92vh; overflow-y: auto; display: grid; gap: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.35); }
+#charBox h2 { margin: 0 0 2px; font: 600 20px/1.2 Cinzel, Georgia, serif; color: var(--ink); letter-spacing: .03em; }
+.charRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.charRow span { font-size: 13px; font-weight: 600; flex-shrink: 0; }
+#charName { flex: 1; border: 1.5px solid #ddd; border-radius: 8px; padding: 7px 10px; font-size: 14px; outline: none; }
+#charName:focus { border-color: var(--accent); }
+.charRow input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; border: 2.5px solid transparent; cursor: pointer; transition: transform .12s; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.swatch:hover { transform: scale(1.18); }
+.swatch.sel { border-color: var(--ink); transform: scale(1.14); }
+#charPreview { display: flex; justify-content: center; padding: 8px 0 4px; }
+#charFigure { position: relative; width: 60px; height: 120px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+.fig-hair { width: 28px; height: 10px; border-radius: 50% 50% 0 0; background: #180c04; }
+.fig-head { width: 26px; height: 26px; border-radius: 50%; background: #f8d4a8; margin-top: -2px; }
+.fig-torso { width: 34px; height: 28px; border-radius: 5px 5px 3px 3px; background: #4a88cc; margin-top: 2px; }
+.fig-legs { display: flex; gap: 3px; margin-top: 2px; }
+.fig-leg { width: 14px; height: 32px; border-radius: 3px 3px 5px 5px; background: #2a3f6a; }
+#charConfirm { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; letter-spacing: .01em; transition: opacity .15s; }
+#charConfirm:hover { opacity: .88; }

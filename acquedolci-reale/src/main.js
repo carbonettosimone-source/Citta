@@ -14,6 +14,9 @@ import { buildBackground } from './background.js';
 import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
 import { createIntro } from './intro.js';
 import { createPost } from './post.js';
+import { createTraffic } from './traffic.js';
+import { createNPCs } from './npcs.js';
+import { createCharacter, SKIN_OPTS, HAIR_OPTS, SHIRT_OPTS, PANT_OPTS, loadChar } from './character.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -121,6 +124,15 @@ async function load() {
 
 const { model, heightAt, collider, trees, streets, hr, water, farSea, farLabels } = await load();
 $('loader').classList.add('hide');
+
+// ---------- traffico + pedoni
+const traffic = createTraffic(streets.roads, heightAt);
+const npcs    = createNPCs(streets.roads, heightAt);
+scene.add(traffic.group, npcs.group);
+
+// ---------- personaggio giocatore + schermata creazione
+const character = createCharacter(scene, heightAt);
+setupCharScreen(character);
 
 // ---------- etichette dei luoghi (nomi OSM)
 const labels = model.pois.map((p) => {
@@ -274,12 +286,85 @@ $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bS
 setHour(settings.hour);
 try { localStorage.removeItem('acq-gkey'); } catch { /* niente da togliere */ }
 
-// ---------- intro: panoramiche e titolo (intro.js), poi il paese libero dalla vista di partenza
+// ---------- schermata creazione personaggio
+function setupCharScreen(char) {
+  const buildSwatches = (containerId, opts, getIdx, setIdx, previewFn) => {
+    const el = $(containerId);
+    opts.forEach((opt, i) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'swatch' + (getIdx() === i ? ' sel' : '');
+      sw.style.background = '#' + opt.hex.toString(16).padStart(6, '0');
+      sw.title = opt.label;
+      sw.addEventListener('click', () => {
+        setIdx(i);
+        el.querySelectorAll('.swatch').forEach((s, j) => s.classList.toggle('sel', j === i));
+        previewFn();
+      });
+      el.appendChild(sw);
+    });
+  };
+
+  let draft = { ...char.data };
+
+  const updatePreview = () => {
+    const skinHex = SKIN_OPTS[draft.skin]?.hex ?? SKIN_OPTS[0].hex;
+    const hairHex = HAIR_OPTS[draft.hair]?.hex ?? HAIR_OPTS[0].hex;
+    const shirtHex = SHIRT_OPTS[draft.shirt]?.hex ?? SHIRT_OPTS[0].hex;
+    const pantHex = PANT_OPTS[draft.pant]?.hex ?? PANT_OPTS[0].hex;
+    const toCSS = (h) => '#' + h.toString(16).padStart(6,'0');
+    const fig = $('charFigure');
+    if (fig) {
+      fig.querySelector('.fig-hair').style.background = toCSS(hairHex);
+      fig.querySelector('.fig-head').style.background = toCSS(skinHex);
+      fig.querySelector('.fig-torso').style.background = toCSS(shirtHex);
+      fig.querySelectorAll('.fig-leg').forEach(l => l.style.background = toCSS(pantHex));
+    }
+  };
+
+  const openScreen = () => {
+    draft = { ...char.data };
+    $('charName').value = draft.name || 'Giocatore';
+    $('charSlim').checked = !!draft.slim;
+    // ricostruisce swatches
+    ['skinPicker','hairPicker','shirtPicker','pantPicker'].forEach(id => $(id).innerHTML = '');
+    buildSwatches('skinPicker',  SKIN_OPTS,  () => draft.skin,  (i) => { draft.skin  = i; }, updatePreview);
+    buildSwatches('hairPicker',  HAIR_OPTS,  () => draft.hair,  (i) => { draft.hair  = i; }, updatePreview);
+    buildSwatches('shirtPicker', SHIRT_OPTS, () => draft.shirt, (i) => { draft.shirt = i; }, updatePreview);
+    buildSwatches('pantPicker',  PANT_OPTS,  () => draft.pant,  (i) => { draft.pant  = i; }, updatePreview);
+    updatePreview();
+    $('charScreen').hidden = false;
+  };
+
+  const confirmScreen = () => {
+    draft.name  = $('charName').value.trim() || 'Giocatore';
+    draft.slim  = $('charSlim').checked;
+    char.applyData(draft);
+    $('charScreen').hidden = true;
+    if (!walker.on) setMode(true);
+  };
+
+  $('charConfirm').onclick = confirmScreen;
+  $('charName').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmScreen(); });
+  $('charSlim').onchange = (e) => { draft.slim = e.target.checked; };
+  $('bChar').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); openScreen(); };
+
+  // apri solo la prima volta (se il personaggio non è mai stato salvato)
+  if (!localStorage.getItem('acq-char')) {
+    // la apriamo dopo che l'intro finisce (onEnd)
+    char._pendingOpen = openScreen;
+  }
+
+  return { openScreen };
+}
+
+
 const intro = createIntro({
   camera, controls, heightAt, setTime: applyHour,
   onEnd() {
     applyHour(settings.hour);
     controls.target.set(-60, g0, -20); camera.position.set(-10, g0 + 90, 190); controls.update();
+    if (character._pendingOpen) { character._pendingOpen(); character._pendingOpen = null; }
   },
 });
 $('bIntro').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); if (walker.on) setMode(false); intro.start(); };
@@ -332,6 +417,9 @@ function frame() {
   hr.update(focus);
   water.update(clock.elapsedTime);
   farSea.update(clock.elapsedTime, camera);
+  traffic.update(dt, camera);
+  npcs.update(dt, camera);
+  character.update(dt, walker);
   bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
   if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
   updateLabels();
@@ -364,4 +452,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera };
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
