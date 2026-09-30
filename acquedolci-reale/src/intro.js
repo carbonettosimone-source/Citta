@@ -13,25 +13,16 @@ const settle = (k) => ease(Math.min(1, k / 0.7));
 const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 const SHOTS = [
-  { // nadir: dal paese intero si scende sulla piazza, e ci si ferma
-    hour: 10.5, dur: 15, fov: 36, nadir: true,
-    from: { cam: [-6, 880, -18], look: [-6, 0, -18] },
-    to: { cam: [-6, 108, -20], look: [-6, 0, -20] },
+  { // breve nadir: il paese dall'alto si avvicina dolcemente
+    hour: 10.5, dur: 5, fov: 38, nadir: true,
+    from: { cam: [-6, 520, -18], look: [-6, 0, -18] },
+    to: { cam: [-6, 130, -18], look: [-6, 0, -18] },
     ease: settle,
   },
-  { // dalla verticale, una discesa obliqua dal mare verso il Municipio
-    hour: 10.5, dur: 8.5, fov: 40,
-    from: { cam: [-10, 96, -42], look: [-6, 4, -18] },
-    to: { cam: [-16, 58, -128], look: [-2, 6, -8] },
-  },
-  { // arco lento sul castello, dal mare
-    hour: 16.75, dur: 8.5, fov: 42,
-    orbit: { c: [222, -248], r0: 240, r1: 155, a0: -2.35, a1: -0.85, h0: 78, h1: 36, look: 12 },
-  },
-  { // dolly che si apre sul paese; compare solo il titolo, poi si entra
-    hour: 18.15, dur: 9, fov: 46, final: true,
-    from: { cam: [-60, 70, -300], look: [-8, 14, -30] },
-    to: { cam: [-24, 118, -420], look: [-6, 22, -40] },
+  { // dolly serale lento: si apre il paese, compare il titolo, poi si entra
+    hour: 18.2, dur: 7, fov: 46, final: true,
+    from: { cam: [-55, 68, -270], look: [-8, 14, -28] },
+    to: { cam: [-22, 112, -370], look: [-6, 20, -36] },
   },
 ];
 

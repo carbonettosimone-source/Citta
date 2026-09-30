@@ -38,6 +38,9 @@ bgScene.background = new THREE.Color(HAZE);
 bgScene.fog = scene.fog;
 const bgCamera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 50, 250000);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 12000);
+// camera ortografica per la vista miniatura (drone, toggle impostazioni)
+const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.5, 15000);
+const bgOrthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 50, 250000);
 
 // luci: sole (con ombre), cielo/terreno, luna. Le governa l'ora del giorno (daylight.js)
 const hemi = new THREE.HemisphereLight(0xdfeeff, 0x8a7a66, 1.25);
@@ -187,6 +190,20 @@ function moveJoy(e) {
   knob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
 }
 
+// ---------- drone joystick (pan in piano, solo touch)
+const droneJoy = $('droneJoy'), droneKnob = droneJoy.querySelector('i');
+const droneMove = { x: 0, y: 0 };
+droneJoy.addEventListener('pointerdown', (e) => { droneJoy.setPointerCapture(e.pointerId); moveDroneJoy(e); e.stopPropagation(); });
+droneJoy.addEventListener('pointermove', (e) => { if (droneJoy.hasPointerCapture(e.pointerId)) moveDroneJoy(e); });
+droneJoy.addEventListener('pointerup', () => { droneMove.x = droneMove.y = 0; droneKnob.style.transform = ''; });
+function moveDroneJoy(e) {
+  const r = droneJoy.getBoundingClientRect();
+  let x = (e.clientX - r.left) / r.width * 2 - 1, y = (e.clientY - r.top) / r.height * 2 - 1;
+  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+  droneMove.x = x; droneMove.y = y;
+  droneKnob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
+}
+
 function setMode(walk) {
   walker.on = walk;
   document.body.classList.toggle('walk', walk);
@@ -213,14 +230,14 @@ function setMode(walk) {
   }
   $('hint').textContent = walk
     ? (touch ? 'joystick: cammina · trascina: guarda' : 'WASD / frecce: cammina · Shift: corri · trascina: guarda')
-    : (touch ? 'trascina: ruota · pizzica: zoom · due dita: sposta' : 'trascina: ruota · rotella: zoom · tasto destro: sposta');
+    : (touch ? 'joystick: sposta · trascina: ruota · pizzica: zoom' : 'trascina: ruota · rotella: zoom · tasto destro: sposta');
 }
 $('bWalk').onclick = () => setMode(true);
 $('bDrone').onclick = () => setMode(false);
 setMode(false);
 
 // ---------- impostazioni: nomi dei luoghi, ora del giorno, luci notturne (ricordate nel browser)
-const settings = { names: false, hour: 11, lights: true, sharp: true };
+const settings = { names: false, hour: 11, lights: true, sharp: true, ortho: false };
 const post = createPost(renderer);
 try { Object.assign(settings, JSON.parse(localStorage.getItem('acq-settings') || '{}')); } catch { /* niente memoria: valori di base */ }
 const saveSettings = () => { try { localStorage.setItem('acq-settings', JSON.stringify(settings)); } catch { /* pazienza */ } };
@@ -249,6 +266,8 @@ $('optNames').onchange = (e) => { settings.names = e.target.checked; saveSetting
 $('optLights').onchange = (e) => { settings.lights = e.target.checked; setHour(settings.hour); };
 $('optSharp').checked = settings.sharp;
 $('optSharp').onchange = (e) => { settings.sharp = e.target.checked; saveSettings(); };
+$('optOrtho').checked = settings.ortho;
+$('optOrtho').onchange = (e) => { settings.ortho = e.target.checked; saveSettings(); };
 $('optTime').oninput = (e) => setHour(+e.target.value);
 $('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
@@ -289,6 +308,20 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
   if (intro.active) intro.update(dt); else if (walker.on) stepWalk(dt); else controls.update();
+
+  // drone joystick: pan orizzontale proporzionale all'altezza sul target
+  if (!walker.on && !intro.active && (droneMove.x !== 0 || droneMove.y !== 0)) {
+    const dist = Math.max(10, camera.position.distanceTo(controls.target));
+    const speed = dist * 0.35 * dt;
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;
+    if (fwd.lengthSq() < 0.001) fwd.set(0, 0, -1); else fwd.normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    const dx = (right.x * droneMove.x - fwd.x * droneMove.y) * speed;
+    const dz = (right.z * droneMove.x - fwd.z * droneMove.y) * speed;
+    controls.target.x += dx; controls.target.z += dz;
+    camera.position.x += dx; camera.position.z += dz;
+  }
+
   // l'ombra segue ciò che si guarda
   const focus = walker.on ? walker.pos : controls.target;
   const sd = dayCtx.sunDir.y > 0.02 ? dayCtx.sunDir : new THREE.Vector3(0.4, 0.6, 0.45).normalize();
@@ -302,14 +335,33 @@ function frame() {
   bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
   if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
   updateLabels();
+
+  // camera attiva: ortografica (drone, se abilitato) o prospettica
+  const useOrtho = settings.ortho && !walker.on && !intro.active;
+  if (useOrtho) {
+    const dist = Math.max(1, camera.position.distanceTo(controls.target));
+    const halfH = dist * Math.tan(camera.fov * Math.PI / 360);
+    const halfW = halfH * (innerWidth / innerHeight);
+    orthoCamera.left = -halfW; orthoCamera.right = halfW;
+    orthoCamera.top = halfH; orthoCamera.bottom = -halfH;
+    orthoCamera.position.copy(camera.position); orthoCamera.quaternion.copy(camera.quaternion);
+    orthoCamera.updateProjectionMatrix();
+    bgOrthoCamera.left = -halfW; bgOrthoCamera.right = halfW;
+    bgOrthoCamera.top = halfH; bgOrthoCamera.bottom = -halfH;
+    bgOrthoCamera.position.copy(camera.position); bgOrthoCamera.quaternion.copy(camera.quaternion);
+    bgOrthoCamera.updateProjectionMatrix();
+  }
+  const activeCam = useOrtho ? orthoCamera : camera;
+  const activeBgCam = useOrtho ? bgOrthoCamera : bgCamera;
+
   // con la nitidezza la scena passa da un buffer con antialiasing (post.js), altrimenti dritta a schermo
   renderer.setRenderTarget(settings.sharp ? post.target : null);
   renderer.clear();
-  renderer.render(bgScene, bgCamera);
+  renderer.render(bgScene, activeBgCam);
   renderer.clearDepth();
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCam);
   if (settings.sharp) post.present();
 }
 frame();
-addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro };
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera };

@@ -30,6 +30,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #b9d3e6; fon
 #joy { position: fixed; left: 24px; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.25); border: 2px solid rgba(255,255,255,.6); display: none; touch-action: none; }
 #joy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,.85); }
 body.walk.touch #joy { display: block; }
+#droneJoy { position: fixed; left: 24px; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.20); border: 2px solid rgba(255,255,255,.5); display: none; touch-action: none; }
+#droneJoy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,.80); }
+body:not(.walk).touch:not(.intro) #droneJoy { display: block; }
 #loader { position: fixed; inset: 0; display: grid; place-items: center; background: #b9d3e6; transition: opacity .4s; }
 #loader div { background: #fff; border-radius: 14px; padding: 18px 26px; display: grid; gap: 4px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,.15); }
 #loader span { font-size: 12px; opacity: .7; }
