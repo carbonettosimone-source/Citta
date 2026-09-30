@@ -149,70 +149,60 @@ function hash(i) {
   return s - Math.floor(s);
 }
 
-/** lastricato variegato, bande grigio chiaro, quattro croci ornate. Non è la foto: è il tracciato. */
+/**
+ * Bande chiare della griglia e quattro motivi a rombo tessellati.
+ * Canvas trasparente: il fondo rosso mattoni viene dalla mesh ve3 di streets.js.
+ *
+ * Bande in u: pitch 5.35 m, offset -23.975 → i quattro motivi cadono al centro delle celle.
+ * Bande in w: pitch 4.6 m, partendo da 15.0 → fascia 15–19.6 è la riga dei motivi.
+ *
+ * I motivi sono "pareti di diamanti": rombi individuali (hs ≈ 0.50 m) tessellati in una
+ * regione ellissoidale (|Δu|/RU + |Δw|/RW ≤ 0.93) con alternanza chiaro/scuro su scacchiera.
+ */
 function paveTex() {
-  const ppm = 42;
-  const u0 = -32, u1 = 34, w0 = 12.05, w1 = 32.2;
+  const ppm = 36;
+  const u0 = -27, u1 = 29, w0 = 12.0, w1 = 27.5;
   const W = Math.ceil((u1 - u0) * ppm), H = Math.ceil((w1 - w0) * ppm);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
-  const Xu = (u) => (u - u0) * ppm, Yw = (w) => (w - w0) * ppm;
-  const tones = [[154, 78, 58], [122, 58, 44], [176, 96, 70], [108, 50, 40], [186, 112, 84], [138, 70, 54]];
-  const tw = 0.46, th = 0.24;
-  for (let w = w0; w < w1; w += th) {
-    const row = Math.round((w - w0) / th);
-    const off = (row & 1) ? tw * 0.5 : 0;
-    for (let u = u0 - tw; u < u1 + tw; u += tw) {
-      const n = hash(row * 13 + Math.round((u + off) * 8));
-      const t = tones[(row + Math.floor(n * 6)) % tones.length];
-      const k = 0.86 + n * 0.22;
-      g.fillStyle = `rgb(${t[0] * k},${t[1] * k},${t[2] * k})`;
-      g.fillRect(Xu(u + off) + 1, Yw(w) + 1, tw * ppm - 1.4, th * ppm - 1.2);
-    }
+  const Xu = (u) => (u - u0) * ppm;
+  const Yw = (w) => (w - w0) * ppm;
+  const bpx = Math.ceil(0.50 * ppm);
+
+  // bande crema — cornici dei pannelli visibili nel drone
+  g.fillStyle = '#d4cec1';
+  g.fillRect(0, Yw(12.2), W, bpx);                            // bordo nord vicino all'asfalto
+  for (let u = -23.975; u < u1; u += 5.35) {                  // bande verticali centrate nelle celle
+    g.fillRect(Math.round(Xu(u)) - Math.floor(bpx / 2), 0, bpx, H);
   }
-  // bande della griglia, cornici dei pannelli
-  g.fillStyle = '#d9d3c6';
-  const band = 0.34, pitchU = 5.35, pitchW = 4.6;
-  for (let u = -30.2; u <= 32; u += pitchU) g.fillRect(Xu(u), Yw(w0), band * ppm, (w1 - w0) * ppm);
-  for (let w = 12.5; w <= 31.4; w += pitchW) g.fillRect(Xu(u0), Yw(w), (u1 - u0) * ppm, band * ppm);
-  // quattro croci ornate di piastrelle chiare
-  const creams = ['#f4efe6', '#e6dccb', '#f7f3ec', '#ddd3c2'];
-  const tile = 0.3;
-  const stamp = (u, w, s, col) => {
-    const du = u - 1.97, dw = w - 24.28;
-    if (du * du + dw * dw < 5.05 * 5.05) return;
-    g.fillStyle = col;
-    g.fillRect(Xu(u - s * 0.46), Yw(w - s * 0.46), s * 0.92 * ppm, s * 0.92 * ppm);
-  };
+  for (let w = 15.0; w < w1; w += 4.6) {                      // bande orizzontali
+    g.fillRect(0, Math.round(Yw(w)) - Math.floor(bpx / 2), W, bpx);
+  }
+
+  // quattro motivi a rombo alle posizioni misurate sul drone
+  const FU = 1.97, FW = 24.28, FR2 = 5.15 * 5.15;
+  const step = 1.0, hs = 0.50;
+  const RU = 4.5, RW = 2.7;
   for (const [cu, cw] of MOTIFS) {
-    const arm = 3.45, thick = 1.05, darm = 2.35, dth = 0.62;
-    for (let t = -arm; t <= arm + 1e-6; t += tile) {
-      for (let s = -thick / 2; s <= thick / 2 + 1e-6; s += tile) {
-        const col = creams[(Math.round(t / tile) + Math.round(s / tile) * 3) & 3];
-        stamp(cu + t, cw + s, tile, col);
-        stamp(cu + s, cw + t, tile, col);
+    for (let dw = -RW; dw <= RW + 1e-9; dw += step) {
+      for (let du = -RU; du <= RU + 1e-9; du += step) {
+        if (Math.abs(du) / RU + Math.abs(dw) / RW > 0.93) continue;
+        const u = cu + du, w = cw + dw;
+        const dfx = u - FU, dfz = w - FW;
+        if (dfx * dfx + dfz * dfz < FR2) continue;
+        const k = (Math.round(du / step) + Math.round(dw / step)) & 1;
+        g.fillStyle = k ? '#e4dccf' : '#cec5b6';
+        g.beginPath();
+        g.moveTo(Xu(u),      Yw(w - hs));
+        g.lineTo(Xu(u + hs), Yw(w));
+        g.lineTo(Xu(u),      Yw(w + hs));
+        g.lineTo(Xu(u - hs), Yw(w));
+        g.closePath();
+        g.fill();
       }
     }
-    for (let t = -darm; t <= darm + 1e-6; t += tile) {
-      for (let s = -dth / 2; s <= dth / 2 + 1e-6; s += tile) {
-        const col = creams[(Math.round(t / tile) * 2 + Math.round(s / tile) + 1) & 3];
-        const a = (t + s) * 0.7071, b = (t - s) * 0.7071;
-        stamp(cu + a, cw + b, tile * 0.92, col);
-        stamp(cu + a, cw - b, tile * 0.92, col);
-      }
-    }
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      stamp(cu + Math.cos(a) * 0.55, cw + Math.sin(a) * 0.55, 0.42, '#f7f4ee');
-    }
-    stamp(cu, cw, 0.55, '#c9bba6');
   }
-  // buco della vasca: ci sta l'anello e l'acqua, non il lastricato
-  g.globalCompositeOperation = 'destination-out';
-  g.beginPath();
-  g.arc(Xu(1.97), Yw(24.28), 4.85 * ppm, 0, Math.PI * 2);
-  g.fill();
-  g.globalCompositeOperation = 'source-over';
+
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
@@ -282,14 +272,17 @@ export function buildVe3Plaza(heightAt, polys) {
     group.add(m);
   }
 
+  // base solida rossa: copre irregolarità del bordo del poligono OSM (bordi frastagliati)
+  quad(-29, -1, 31, 34, T + 0.015, lambert(0x8a4a3e));
+
   // asfalto fra la facciata e il lastricato: nelle foto è una strada grigia larga, non spina
   quad(-28, 0.35, 30, 12.15, yPave, lambert(0x86888c));
 
-  // lastricato tracciato: griglia, quattro croci, buco della vasca
+  // bande della griglia e quattro motivi a rombo (trasparente: fondo mattoni da streets.js)
   {
     const { tex, u0, u1, w0, w1 } = paveTex();
     const A = xzOf(u0, w0), B = xzOf(u1, w0), C = xzOf(u1, w1), D = xzOf(u0, w1);
-    const y = yPave + 0.03;
+    const y = yPave + 0.04;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute([
       A[0], y, A[1], B[0], y, B[1], C[0], y, C[1],
@@ -298,8 +291,8 @@ export function buildVe3Plaza(heightAt, polys) {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
-      map: tex, transparent: true, alphaTest: 0.15, side: THREE.DoubleSide,
-      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+      map: tex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
     }));
     m.receiveShadow = true;
     group.add(m);
