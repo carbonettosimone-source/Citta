@@ -10,11 +10,13 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #b9d3e6; fon
 #modes button { border: 0; border-radius: 10px; padding: 9px 14px; background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.15); cursor: pointer; }
 #modes button.on { background: var(--accent); color: #fff; }
 #bSet { font-size: 16px; padding: 9px 12px !important; }
-#settings { position: fixed; top: calc(60px + env(safe-area-inset-top, 0px)); right: 12px; width: min(290px, calc(100vw - 24px)); background: var(--paper); border-radius: 12px; padding: 12px 14px; box-shadow: 0 4px 18px rgba(0,0,0,.2); display: grid; gap: 10px; }
+#settings { position: fixed; top: calc(60px + env(safe-area-inset-top, 0px)); right: 12px; width: min(300px, calc(100vw - 24px)); max-height: calc(100vh - 80px); overflow: auto; background: var(--paper); border-radius: 12px; padding: 12px 14px; box-shadow: 0 4px 18px rgba(0,0,0,.2); display: grid; gap: 10px; }
 #settings[hidden] { display: none; }
 #settings .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #settings input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
 #settings input[type=range] { width: 100%; accent-color: var(--accent); }
+#settings .note { margin: 0; font-size: 11px; line-height: 1.35; opacity: .75; }
+#settings .note code { font-size: 10px; }
 #settings output { font-variant-numeric: tabular-nums; font-weight: 700; }
 #settings small { opacity: .7; font-size: 11px; text-align: right; }
 #bNow { border: 0; border-radius: 8px; padding: 6px 10px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
@@ -28,30 +30,52 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #b9d3e6; fon
 #joy { position: fixed; left: 24px; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.25); border: 2px solid rgba(255,255,255,.6); display: none; touch-action: none; }
 #joy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,.85); }
 body.walk.touch #joy { display: block; }
+#droneJoy { position: fixed; left: 24px; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.20); border: 2px solid rgba(255,255,255,.5); display: none; touch-action: none; }
+#droneJoy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,.80); }
+body:not(.walk).touch:not(.intro) #droneJoy { display: block; }
 #loader { position: fixed; inset: 0; display: grid; place-items: center; background: #b9d3e6; transition: opacity .4s; }
 #loader div { background: #fff; border-radius: 14px; padding: 18px 26px; display: grid; gap: 4px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,.15); }
 #loader span { font-size: 12px; opacity: .7; }
 #loader.hide { opacity: 0; pointer-events: none; }
 @media (max-width: 600px) { #credits { font-size: 8.5px; } #hud h1 { font-size: 15px; } }
 
-/* ---------- intro */
+/* ---------- intro: solo il nero delle stacchi e, alla fine, il titolo */
 #intro { position: fixed; inset: 0; z-index: 20; pointer-events: none; color: #fff; }
 #intro[hidden] { display: none; }
 #intro.out { opacity: 0; transition: opacity .7s; }
 #introFade { position: absolute; inset: 0; background: #000; opacity: 1; }
-#intro .bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; }
-#intro .bar.top { top: 0; } #intro .bar.bottom { bottom: 0; }
-#introCap { position: absolute; left: 0; right: 0; bottom: calc(11vh + 18px); margin: 0; text-align: center; padding: 0 20px; font: 400 clamp(15px, 2.2vw, 22px)/1.35 Cinzel, Georgia, serif; letter-spacing: .04em; text-shadow: 0 2px 10px rgba(0,0,0,.8); opacity: 0; transition: opacity .9s; }
-#introCap.show { opacity: 1; }
-#introTitle { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; gap: 6px; padding: 0 16px; opacity: 0; transition: opacity 2.2s; }
+#introTitle { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 0 8vw; opacity: 0; transition: opacity 2.4s ease; }
+#introTitle::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,.38), rgba(0,0,0,.08) 46%, rgba(0,0,0,0) 72%); }
 #intro.title #introTitle { opacity: 1; }
-#introTitle h2 { margin: 0 0 10px; font: 700 clamp(34px, 7.5vw, 92px)/1.02 "Cinzel Decorative", Cinzel, Georgia, serif; color: #fff; letter-spacing: .02em; text-shadow: 0 3px 3px rgba(0,0,0,.45), 0 0 28px rgba(0,0,0,.35); }
-#introTitle .tag { margin: 0; font: italic 400 clamp(13px, 1.7vw, 18px)/1.4 Georgia, serif; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.9); max-width: 34em; }
-#introTitle .tag.small { font: 400 clamp(11px, 1.3vw, 14px) Cinzel, Georgia, serif; letter-spacing: .3em; text-transform: uppercase; opacity: .85; margin-top: 4px; }
-#introPlay { margin-top: 18px; pointer-events: auto; border: 1px solid rgba(255,255,255,.85); background: rgba(0,0,0,.35); color: #fff; font: 600 clamp(13px, 1.6vw, 16px) Cinzel, Georgia, serif; letter-spacing: .15em; padding: 11px 22px; border-radius: 4px; cursor: pointer; opacity: 0; transform: translateY(8px); transition: opacity 1s, transform 1s, background .2s; }
-#intro.play #introPlay { opacity: 1; transform: none; }
-#introPlay:hover, #introPlay:focus-visible { background: rgba(255,255,255,.18); outline: none; }
-#introSkip { position: absolute; right: 16px; bottom: calc(11vh + 14px); pointer-events: auto; border: 0; background: rgba(0,0,0,.45); color: #fff; font: 600 13px system-ui, sans-serif; padding: 7px 12px; border-radius: 6px; cursor: pointer; }
-#intro.final #introSkip, #intro.final #introCap { display: none; }
+#introTitle h2 { position: relative; margin: 0; font: 400 clamp(28px, 5vw, 64px)/1.25 Cinzel, Georgia, serif; letter-spacing: .045em; text-transform: none; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.9); }
 body.intro #hud, body.intro #modes, body.intro #settings, body.intro #hint, body.intro #labels, body.intro #credits { visibility: hidden; }
 #bIntro { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }
+#bChar  { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }
+
+/* ---------- creazione personaggio */
+#charScreen { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.72); backdrop-filter: blur(4px); }
+#charScreen[hidden] { display: none; }
+#charBox { background: #fff; border-radius: 18px; padding: 22px 24px 20px; width: min(380px, calc(100vw - 24px)); max-height: 92vh; overflow-y: auto; display: grid; gap: 12px; box-shadow: 0 8px 40px rgba(0,0,0,.35); }
+#charBox h2 { margin: 0 0 2px; font: 600 20px/1.2 Cinzel, Georgia, serif; color: var(--ink); letter-spacing: .03em; }
+.charRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.charRow span { font-size: 13px; font-weight: 600; flex-shrink: 0; }
+#charName { flex: 1; border: 1.5px solid #ddd; border-radius: 8px; padding: 7px 10px; font-size: 14px; outline: none; }
+#charName:focus { border-color: var(--accent); }
+.charRow input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; border: 2.5px solid transparent; cursor: pointer; transition: transform .12s; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.swatch:hover { transform: scale(1.18); }
+.swatch.sel { border-color: var(--ink); transform: scale(1.14); }
+.swatch-none { background: #f0f0f0 !important; position: relative; }
+.swatch-none::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; }
+#charPreview { display: flex; justify-content: center; padding: 8px 0 4px; }
+#charFigure { position: relative; width: 60px; height: 132px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+.fig-hat  { width: 30px; height: 8px; border-radius: 4px 4px 0 0; background: transparent; }
+.fig-hair { width: 28px; height: 10px; border-radius: 50% 50% 0 0; background: #180c04; margin-top: -1px; }
+.fig-head { width: 26px; height: 26px; border-radius: 50%; background: #f8d4a8; margin-top: -2px; position: relative; display: flex; align-items: center; justify-content: center; }
+.fig-glasses { width: 20px; height: 6px; background: transparent; border-radius: 2px; display: none; }
+.fig-torso { width: 34px; height: 28px; border-radius: 5px 5px 3px 3px; background: #4a88cc; margin-top: 2px; }
+.fig-legs { display: flex; gap: 3px; margin-top: 2px; }
+.fig-leg { width: 14px; height: 32px; border-radius: 3px 3px 5px 5px; background: #2a3f6a; }
+#charConfirm { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; letter-spacing: .01em; transition: opacity .15s; }
+#charConfirm:hover { opacity: .88; }

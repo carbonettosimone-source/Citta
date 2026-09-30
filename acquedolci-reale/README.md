@@ -43,6 +43,34 @@ Pianta, altezze e orientamento vengono dai dati (DBTR, LiDAR, ortofoto). Forme e
 - **Chiesa Madre di San Benedetto il Moro**: foto di Subbass1 ([02](https://commons.wikimedia.org/wiki/File:Acquedolci,_Chiesa_Madre_della_Beata_Vergine_Assunta_(02).jpg), [12](https://commons.wikimedia.org/wiki/File:Acquedolci,_Chiesa_San_Benedetto_il_Moro_(12).jpg)), CC BY-SA 4.0; Azotoliquido, CC BY-SA 3.0
 - **Castello Larcan-Gravina, torri e cappella di San Giuseppe**: [foto di Azotoliquido](https://commons.wikimedia.org/wiki/File:Acquedolci_castello.JPG), CC BY-SA 3.0
 
+## Primo lotto sulle tre piazze (`src/plaza-buildings.js`)
+
+Municipio, fontana e Chiesa Madre restano i modelli a mano sopra. Intorno, sei palazzi con la pianta DBTR e l'altezza LiDAR del modello (il tetto a falde è lo scheletro già calcolato, color cotto, non la foto di Street View). Finestre, cornici, persiane e balconi sono geometria, un ritmo per edificio. I muri in comune restano ciechi.
+
+| DBTR | Piazza | Cosa |
+|---|---|---|
+| 1302565 + fontana OSM | Vittorio Emanuele III | Municipio in pietra chiara, scala più lunga, cancelli nei vani laterali, vasi di cicadi. Fontana bassa e larga, delfini sul pelo dell'acqua (`landmarks.js`) |
+| 1302566 | Vittorio Emanuele III | Palazzo a ovest: intonaco chiaro, persiane brune chiuse, balcone al piano sopra. Gli archi restano solo sul Municipio |
+| 1302564 | Vittorio Emanuele III | Palazzo a est: due piani, finestre rettangolari, persiane brune chiuse, coppi, senza balconi |
+| 1300978 | Libertà | Chiesa Madre in avorio, zoccolo di pietra grigia, portale in legno (`landmarks.js`) |
+| 1302693 | Libertà | Palazzo alto a ovest: cinque piani, tanti balconi, persiane brune chiuse, terrazza. Niente loggia ad archi |
+| 1302678 | Libertà | Palazzetto bianco a est: persiane verdi chiuse, portone al centro, senza balconi |
+| 1302669 | Giovanni Paolo II | Villa chiara fra gli alberi, persiane verdi, un balcone sul portone, tetto a falde |
+| 1302648 | Giovanni Paolo II | Schiera: piano terra in pietra con botteghe, sopra intonaco chiaro, persiane brune e balconi |
+
+## Studio di riferimento (solo in locale)
+
+Le foto di Street View servono a chi modella le mesh. Non sono texture, non stanno in `public/` e non partono dal gioco. La chiave non si incolla nelle Impostazioni e non va in git.
+
+```bash
+# nella shell, mai in un file del repository
+VITE_GOOGLE_MAPS_API_KEY=… node scripts/reference-studio.mjs
+```
+
+Lo script scrive `acquedolci-reale/reference/` (gitignored): un JPEG per piazza e per i quattro orientamenti, più `index.json` con id del panorama e data. Senza chiave esce subito e non chiama Google. Sulla chiave, in Google Cloud, abilita Street View Static API e non lasciarla libera: per lo script a riga di comando va bene un limite per IP; una chiave da pagina va ristretta al referrer `https://carbonettosimone-source.github.io/*` e a localhost, ma questo script non è una pagina. La build di GitHub Pages si fa **senza** `VITE_GOOGLE_MAPS_API_KEY`, altrimenti Vite la scriverebbe nel JavaScript.
+
+In Impostazioni c'è la stessa nota, in breve. Il paese in gioco resta intero: niente tile 3D, niente maschera, niente panorami dentro la scena.
+
 ## Pipeline
 
 ```bash
@@ -59,7 +87,7 @@ node scripts/facade-from-ortho.mjs                       # colori facciata e tet
 node scripts/build-landcover.mjs                         # mare, spiaggia, verde + MDT della costa → data/landcover.png, data/dtm-sea.bin
 node scripts/fetch-background.mjs                        # litorale ed Eolie a bassa risoluzione → data/bg/
 node scripts/build-model.mjs                             # edifici, tetti, alberi → public/data/
-node scripts/build-streets.mjs                           # strade, muri, lampioni → public/data/streets.json (~5 min)
+node scripts/build-streets.mjs                           # strade, piazze, muri, lampioni → public/data/streets.json (~5 min)
 npm run dev                                              # http://127.0.0.1:5190
 npm run build && node scripts/pack-artifact.mjs          # pagina + file per la pubblicazione
 ```
@@ -73,15 +101,17 @@ Un upscaler (Real-ESRGAN e simili) inventa dettaglio plausibile: coppi, auto e a
 Al posto dell'upscaler, per la vista da lontano del gioco:
 
 - **Coppi veri sui tetti a falde** (`ortho.js` → `COPPI`). Ogni falda ha il suo riferimento: lungo la gronda e su per la pendenza (`buildings.js` → `roofFrame`). Lì si disegnano colonne alterne di coppi e canali, l'ombra dove i coppi si sovrappongono e il tono che cambia da coppo a coppo. Il colore resta quello della foto di quel tetto, mediato su 3-4 m, così spariscono le sbavature di facciate e ombre. Il disegno sfuma quando il pixel è più grosso di un coppo (niente moiré). Le terrazze tengono la foto, con cisterne e pannelli veri.
-- **Dettaglio del suolo** fino a ~650 m invece di 260.
+- **Dettaglio del suolo** nel paese, anche in vista Drone: albedo del materiale e tinta lenta dell'ortofoto, non la foto ingrandita. La foto intera torna oltre qualche metro per pixel, così le colline non perdono il tono dell'ortofoto.
 - **Nitidezza adattiva al contrasto** (AMD CAS, `post.js`): la scena si disegna in un buffer con antialiasing 4×, poi un passaggio rinforza i dettagli fini senza aloni. Si spegne dalle impostazioni.
 
 ## Strade, mare e suolo
 
-- **Strade**: la carreggiata è l'unione (Clipper) delle strisce di tutte le vie, quindi gli incroci si chiudono da soli. Il marciapiede, a larghezza costante per via, è la fascia fino alle facciate; le piazze pedonali sono in basolato. Tutto meno le piante degli edifici, a tessere da 128 m. Nel browser ogni poligono è triangolato e diviso in lati ≤ 6 m per seguire il terreno: la divisione dipende solo dal lato, quindi non restano fessure.
+- **Strade**: la carreggiata è l'unione (Clipper) delle strisce di tutte le vie, quindi gli incroci si chiudono da soli. Il marciapiede, a larghezza costante per via, è la fascia fino alle facciate. Tutto meno le piante degli edifici, a tessere da 128 m. Nel browser ogni poligono è triangolato e diviso in lati ≤ 6 m per seguire il terreno: la divisione dipende solo dal lato, quindi non restano fessure.
+- **Piazze** (`surf.plaza`): non sono il buffer di `highway=pedestrian` (nel paese quasi non esiste, e un asse bufferizzato non copre una piazza). Sono poligoni. Prima gli anelli chiusi OSM: `place=square`, aree `highway=pedestrian` / `amenity=marketplace` / `landuse=pedestrian`, e poligoni nominati Piazza, Largo o Piazzale che non sono assi stradali. L'anello va portato in senso antiorario (tre piazze su quattro nell'estratto sono orarie: Clipper le butterebbe come buchi), allargato di 1,2 m, poi si tolgono edifici, carreggiata e marciapiedi. La via che attraversa la piazza resta asfalto. Dove l'anello OSM non arriva — il sagrato della Fontana dei Delfini è fuori dal disegno di Piazza Vittorio Emanuele III — si riempiono i vuoti compatti (circa 160–5600 m², non nastri) chiusi dalle strade, in tessuto edificato (almeno il 17% di piante di edifici nel raggio di 60 m), che la copertura del suolo non segna come mare, spiaggia o verde. I fondi grandi e la campagna restano suolo. Nel browser ogni pezzo prende il materiale del luogo (`streets.js`, dal baricentro, non una foto): la corte della Fontana dei Delfini e il sagrato della Chiesa Madre sono mattoni chiari a spina di pesce; il piazzale davanti alla facciata nord della chiesa (Piazza Libertà) resta asfalto, non un tappeto di pietra; Piazza Giovanni Paolo II è prato con una fascia pedonale di pietra rossiccia, e la carreggiata con le strisce non si copre. Le altre (Federico II, slarghi) tengono il basolato. La pietra sta 8 cm sopra l'asfalto, con cordolo basso solo contro la carreggiata. Circa 0,85 m di sfumatura verso il suolo nudo. Intorno ai monumenti, senza sostituirli: scala con corrimano, vasi di cotto e sedie bianche al Municipio, cancellata e lampioni a globo sui fianchi, chiosco di vetro senza insegna a lato della chiesa, aiuole rialzate, panchine e lampioni a due bracci nel giardino di Giovanni Paolo II. Gli alberi LiDAR restano.
+- **Suolo in vista Drone**: nel paese, dove non c'è una mesh di strada o piazza, il colore è l'albedo del materiale (erba, terra, ciottoli), non la foto ingrandita. L'ortofoto resta una tinta lenta. Sotto i ~20 cm per pixel si rivede un po' di foto nitida; oltre circa 1–2 m per pixel torna l'ortofoto intera, così le colline tengono il tono della foto e non il beige del materiale. Nessun upscaler.
 - **Mare**: c'è dove l'ortofoto vede acqua collegata al mare aperto (le piscine no). Le onde sono treni sinusoidali con normali analitiche, spenti quando diventano più corti di pochi pixel (niente moiré). Ci sono il riflesso del cielo con Fresnel, il sole, la trasparenza sul bassofondo e la schiuma della battigia.
 - **Costa**: il MDT 2013 ha il mare a 0 m e taglia la spiaggia sulla riva del 2013. Il fondale scende con la distanza da riva, e la spiaggia del 2022 resta asciutta.
-- **Suolo da vicino**: detail mapping. La tinta viene dalla foto, la grana dal materiale giusto: ciottoli sulla spiaggia, erba sul verde, terra ed erba secca altrove.
+- **Suolo**: detail mapping senza upscaler. Da vicino e dal drone, nel paese, l'albedo è il materiale (ciottoli sulla spiaggia, erba sul verde, terra ed erba secca altrove); la foto dà la tinta lenta. Sulle colline e da lontano resta l'ortofoto.
 
 ## Sfondo: litorale ed Eolie
 
@@ -98,6 +128,7 @@ Il pulsante ⚙︎ apre le impostazioni, che restano salvate nel browser:
 - **Nomi dei luoghi:** spenti di base.
 - **Ora del giorno:** 0–24, sulla data di oggi, ora di Roma. Il pulsante "Adesso" porta all'ora attuale.
 - **Luci notturne:** accese o spente.
+- **Nitidezza:** antialiasing in un passaggio in più.
 
 Come funziona l'ora del giorno (`src/daylight.js`):
 
@@ -143,4 +174,6 @@ L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 c
 - Niente alberi né cespugli sulla spiaggia né entro 12 m dal mare: lì le chiome Meta/WRI e il "verde" dell'ortofoto (l'acqua bassa della battigia) sono falsi positivi.
 - Nessuna palma: i dati non la distinguono con sicurezza da altre chiome strette. Gli alberi lungo Via Lungomare, controllati sull'ortofoto a 25 cm, sono pini domestici.
 - Il fondale non è misurato: la profondità cresce con la distanza da riva (5 cm per metro, al massimo 6 m). Anche le onde sono tipiche, non osservate.
-- La piazza davanti alla Chiesa Madre è come nell'ortofoto 2022 (pavimentata): le siepi della foto del 2006 non ci sono più.
+- La piazza davanti alla Chiesa Madre è quella dell'ortofoto 2022: le siepi della foto del 2006 non ci sono più. Le superfici sono geometria e materiali disegnati, non un ingrandimento della foto e non i pixel di Street View.
+- **Dati OSM delle piazze** (estratto già in `acquedolci-lowpoly/public/data/acquedolci.json`, non un nuovo scarico Overpass): tre `place=square` ad anello chiuso — Piazza Vittorio Emanuele III (intorno al Municipio), Piazza Libertà (Chiesa Madre), Piazza Giovanni Paolo II — più Piazza Federico II, che è un parcheggio nominato piazza (`amenity=parking`), non un asse. Non ci sono aree `highway=pedestrian` né `amenity=marketplace`. L'anello di Piazza Vittorio Emanuele III gira intorno al palazzo e non contiene il sagrato della Fontana dei Delfini: quel vuoto lo copre il riempimento (strada intorno, centro edificato, non verde). Lo stesso riempimento prende altri slarghi compatti del paese; un prato, la spiaggia, un fondo agricolo o un vuoto troppo grande restano suolo, con l'albedo del materiale in vista Drone. Il tipo di pavimento (spina, asfalto, prato) si sceglie nel renderer dal punto, quindi non serve rifare `streets.json` per cambiare solo il materiale. Per rifare i poligoni: `node scripts/build-landcover.mjs` se manca `data/landcover.png`, poi `node scripts/build-streets.mjs` → `public/data/streets.json`.
+- Mancano auto, persone e la grafica del chiosco (niente marchi copiati dalle foto). Vasi, sedie, cancellata, chiosco e aiuole sono modelli messi dove cadono pianta e foto, non un rilievo. I sei palazzi del primo lotto seguono pianta e altezza misurate; il ritmo di finestre e balconi è disegnato, non copiato da una foto. Le altre facciate del paese restano il modulo tipico.

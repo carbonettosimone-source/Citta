@@ -26,7 +26,9 @@ void main() {
 
 export function createPost(renderer) {
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { samples: 4 });
+  // niente MSAA: sul telefono un clear solo dello depth, fra lo sfondo e il paese, azzera anche il
+  // colore del buffer multisample e la mappa oltre il modello sparisce. La nitidezza CAS resta.
+  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { samples: 0 });
   rt.texture.colorSpace = THREE.SRGBColorSpace;
   const u = { tSrc: { value: rt.texture }, uTexel: { value: new THREE.Vector2(1 / size.x, 1 / size.y) }, uSharp: { value: 0.7 } };
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({

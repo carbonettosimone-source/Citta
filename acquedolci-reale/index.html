@@ -6,7 +6,7 @@
   <title>The Lord of the Sweetwater</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@400;600&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap" />
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
@@ -28,9 +28,45 @@
     <div class="row"><button id="bNow" type="button">Adesso</button><small id="sunInfo"></small></div>
     <label class="row"><span>Luci notturne</span><input type="checkbox" id="optLights" checked /></label>
     <label class="row"><span>Nitidezza</span><input type="checkbox" id="optSharp" checked /></label>
+    <label class="row"><span>Vista miniatura</span><input type="checkbox" id="optOrtho" /></label>
+    <p class="note">Lo studio di riferimento non è nel gioco. In locale, con <code>VITE_GOOGLE_MAPS_API_KEY</code> solo nella shell: <code>node scripts/reference-studio.mjs</code>. La chiave non va in git. Vedi il README.</p>
     <button id="bIntro" type="button">Rivedi l'intro</button>
+    <button id="bChar" type="button">Modifica personaggio</button>
   </section>
   <div id="joy"><i></i></div>
+  <div id="droneJoy"><i></i></div>
+  <!-- creazione personaggio -->
+  <div id="charScreen" hidden>
+    <div id="charBox">
+      <h2>Il tuo personaggio</h2>
+      <label class="charRow">
+        <span>Nome</span>
+        <input type="text" id="charName" maxlength="20" placeholder="Inserisci nome" autocomplete="off" />
+      </label>
+      <div class="charRow"><span>Carnagione</span><div id="skinPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Capelli</span><div id="hairPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Maglia</span><div id="shirtPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Pantaloni</span><div id="pantPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Cappello</span><div id="hatPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Occhiali</span><div id="glassPicker" class="swatches"></div></div>
+      <label class="charRow"><span>Corporatura snella</span><input type="checkbox" id="charSlim" /></label>
+      <div id="charPreview">
+        <div id="charFigure">
+          <div class="fig-hat"></div>
+          <div class="fig-hair"></div>
+          <div class="fig-head">
+            <div class="fig-glasses"></div>
+          </div>
+          <div class="fig-torso"></div>
+          <div class="fig-legs">
+            <div class="fig-leg"></div>
+            <div class="fig-leg"></div>
+          </div>
+        </div>
+      </div>
+      <button id="charConfirm" type="button">Entra in città →</button>
+    </div>
+  </div>
   <p id="hint"></p>
   <footer id="credits">
     Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
@@ -38,15 +74,7 @@
   </footer>
   <div id="intro" hidden>
     <div id="introFade"></div>
-    <div class="bar top"></div><div class="bar bottom"></div>
-    <p id="introCap"></p>
-    <div id="introTitle">
-      <h2>The Lord of the<br />Sweetwater</h2>
-      <p class="tag">Un voto per ogni favore. Un assessorato per ogni cugino.</p>
-      <p class="tag small">Elezioni comunali 2027</p>
-      <button id="introPlay" type="button">Entra ad Acquedolci</button>
-    </div>
-    <button id="introSkip" type="button">Salta ›</button>
+    <div id="introTitle"><h2>the lord of the sweetwater</h2></div>
   </div>
   <div id="loader"><div><b>Costruisco Acquedolci…</b><span id="lmsg">dati</span></div></div>
   <script type="module" src="./src/main.js"></script>

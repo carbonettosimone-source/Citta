@@ -3,9 +3,9 @@
  * "cotte" dentro: viste da vicino diventano macchie scure e bluastre sulla strada. Qui le ombre
  * profonde vengono schiarite e desaturate (niente dominante blu), la luce resta quella della foto.
  *
- * Per il suolo (`nearNeutral`): vicino a chi guarda la foto aerea è ingrandita decine di volte;
- * lì si aggiunge la grana del materiale vero secondo la copertura del suolo (ground.js).
- * Da lontano resta l'ortofoto pura.
+ * Per il suolo (`nearNeutral`): la foto aerea, ingrandita, è una macchia. Il colore lo dà il materiale
+ * (erba, terra, ciottoli — ground.js); l'ortofoto resta solo come tinta lenta (luce e un filo di
+ * crominanza), anche in vista Drone. Solo da molto lontano torna la foto intera. Non è un upscaler.
  */
 import * as THREE from 'three';
 import { GROUND, LC_GLSL } from './ground.js';
@@ -31,7 +31,6 @@ vec3 lab2rgb(vec3 l) {
 
 const DETAIL_UNI = `
 uniform sampler2D pebMap; uniform sampler2D grsMap; uniform sampler2D dryMap; uniform sampler2D pavMap;
-uniform vec3 pebMean; uniform vec3 grsMean; uniform vec3 dryMean; uniform vec3 pavMean;
 float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float gNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(gHash(i), gHash(i + vec2(1, 0)), f.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), f.x), f.y); }
@@ -121,7 +120,11 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         vec3 lifted = diffuseColor.rgb * 2.2 + 0.02;
         float g = dot(lifted, vec3(0.3333));
         lifted = mix(lifted, vec3(g) * vec3(1.03, 1.0, 0.95), 0.35 + 0.5 * blue);
-        diffuseColor.rgb = mix(diffuseColor.rgb, lifted, shade * 0.85);
+        // lo schiarimento delle ombre è per il paese da vicino. Sulle colline (pixel grandi) la foto
+        // tiene il suo tono: altrimenti il verde e la roccia diventano un beige slavato.
+        float pxsN = ${nearNeutral ? 'length(fwidth(vWPos.xz))' : '0.0'};
+        float shadeNear = ${nearNeutral ? '1.0 - smoothstep(0.45, 1.6, pxsN)' : '1.0'};
+        diffuseColor.rgb = mix(diffuseColor.rgb, lifted, shade * 0.85 * shadeNear);
         ${roof ? `
         if (vRuv.z > 0.5) diffuseColor.rgb = coppi(diffuseColor.rgb);
         else {
@@ -133,14 +136,17 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
           diffuseColor.rgb = lab2rgb(lab);
         }` : ''}
         ${nearNeutral ? `
-        // Suolo sostituito da vicino (ground.js): dove un pixel copre meno di ~1 m la foto aerea
-        // sarebbe una macchia sfocata. Lì la TINTA viene dalla foto mediata su ~4 m (mip grossi)
-        // e tutta la GRANA da texture nitide: prato, erba secca/terra, pavimentato, ciottoli.
-        // Il materiale si sceglie dalla copertura del suolo e dal colore stesso della foto.
-        float pxs = length(fwidth(vWPos.xz));
-        // da lontano le texture si riducono alla loro media: resta la foto mediata e corretta (senza viola)
-        float rep = 1.0 - smoothstep(2.5, 8.0, pxs);
-        if (rep > 0.0) {
+        // Suolo (ground.js). In Drone il pixel è grande e la foto, anche mediata, è una macchia
+        // (ombre e fontane cotte dentro). L'ALBEDO è quello del materiale — prato, terra, ciottoli,
+        // pavimentato — scelto dalla copertura del suolo. L'ortofoto entra solo come tinta lenta:
+        // un po' più chiaro o più scuro, e un filo della sua crominanza. Da pochi metri si rimescola
+        // la foto nitida (oggetti veri). Da molto lontano torna l'ortofoto intera.
+        float pxs = pxsN;
+        // l'albedo del materiale copre il suolo del paese (piazze e sterrato da drone). Oltre pochi
+        // metri per pixel — le colline e lo sfondo — torna la foto, col tono vero.
+        float cover = 1.0 - smoothstep(0.85, 1.7, pxs);
+        float near = 1.0 - smoothstep(0.05, 0.22, pxs);
+        if (cover > 0.0) {
           vec4 lc = landcover(vWPos.xz);
           float wSea = lc.x > 0.02 ? 1.0 : 0.0;
           vec3 low = texture2D(map, vMapUv, 3.0).rgb;
@@ -166,13 +172,15 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
           float wPav = (1.0 - smoothstep(0.1, 0.22, sat)) * smoothstep(0.06, 0.16, lum) * (1.0 - wGreen) * (1.0 - wBeach);
           float wDry = clamp(1.0 - wBeach - wGreen - wPav, 0.0, 1.0);
           vec2 p = vWPos.xz;
-          vec3 tex = detailT(grsMap, p, 1.6) / grsMean * wGreen + detailT(dryMap, p, 2.8) / dryMean * wDry + detailT(pavMap, p, 3.2) / pavMean * wPav;
-          // spiaggia: i ciottoli hanno colore e forma propri, la luminosità viene dalla foto
-          vec3 beach = detailT(pebMap, p, 2.2) * (lum / max(dot(pebMean, vec3(0.2126, 0.7152, 0.0722)), 0.01));
-          vec3 c = low * tex + beach * wBeach;
-          // un filo di foto nitida: sentieri, bordi e oggetti veri non spariscono del tutto
-          c = mix(c, diffuseColor.rgb, 0.18);
-          diffuseColor.rgb = mix(diffuseColor.rgb, c, rep * (1.0 - wSea));        }` : ''}
+          vec3 alb = detailT(grsMap, p, 1.6) * wGreen + detailT(dryMap, p, 2.8) * wDry + detailT(pavMap, p, 3.2) * wPav + detailT(pebMap, p, 2.2) * wBeach;
+          // tinta lenta: la luminosità della foto (già sul mip grosso) modula il materiale, non lo sostituisce
+          float rel = clamp(lum / 0.22, 0.72, 1.32);
+          vec3 chroma = low / max(lum, 1e-3);
+          vec3 mid = alb * rel;
+          mid *= mix(vec3(1.0), chroma, 0.2);
+          // a pochi metri: un po' della foto nitida, così tombini e bordi veri non spariscono
+          vec3 c = mix(mid, mix(mid, diffuseColor.rgb, 0.45), near);
+          diffuseColor.rgb = mix(diffuseColor.rgb, c, cover * (1.0 - wSea));        }` : ''}
       }
       diffuseColor.rgb *= diffuse;`);
   };

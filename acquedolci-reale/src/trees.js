@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { ve3TreeClash } from './piazza-ve3.js';
 
 const BLOCK = 400, DRAW_DIST = 1400;
 
@@ -45,6 +46,7 @@ export function buildTrees(flat) {
   const blocks = new Map();
   for (let i = 0; i < n; i++) {
     const x = flat[i * 6], z = flat[i * 6 + 1];
+    if (ve3TreeClash(x, z)) continue;
     const key = `${Math.floor(x / BLOCK)},${Math.floor(z / BLOCK)},${flat[i * 6 + 5]}`;
     if (!blocks.has(key)) blocks.set(key, []);
     blocks.get(key).push(i);

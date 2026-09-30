@@ -5,7 +5,9 @@ import { buildBuildings, makeCollider } from './buildings.js';
 import { buildTrees } from './trees.js';
 import { facadeMaterials } from './facade.js';
 import { buildStreets } from './streets.js';
+import { buildSigns } from './signs.js';
 import { buildLandmarks } from './landmarks.js';
+import { ve3Floor } from './piazza-ve3.js';
 import { createOrthoHR } from './ortho-hr.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
@@ -13,6 +15,9 @@ import { buildBackground } from './background.js';
 import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
 import { createIntro } from './intro.js';
 import { createPost } from './post.js';
+import { createTraffic } from './traffic.js';
+import { createNPCs } from './npcs.js';
+import { createCharacter, SKIN_OPTS, HAIR_OPTS, SHIRT_OPTS, PANT_OPTS, HAT_OPTS, GLASS_OPTS, loadChar } from './character.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -37,6 +42,11 @@ bgScene.background = new THREE.Color(HAZE);
 bgScene.fog = scene.fog;
 const bgCamera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 50, 250000);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 12000);
+// camera ortografica per la vista miniatura (drone, toggle impostazioni)
+// near fortemente negativo: evita il piano di taglio anteriore che "affetta" gli edifici
+// alle angolazioni basse (l'ortografica può avere near < 0 senza problemi di depth buffer)
+const orthoCamera   = new THREE.OrthographicCamera(-1, 1, 1, -1, -8000, 15000);
+const bgOrthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -8000, 250000);
 
 // luci: sole (con ombre), cielo/terreno, luna. Le governa l'ora del giorno (daylight.js)
 const hemi = new THREE.HemisphereLight(0xdfeeff, 0x8a7a66, 1.25);
@@ -52,11 +62,12 @@ const sky = createSky(bgScene);
 
 async function load() {
   say('modello degli edifici');
-  const [model, dtmMeta, orthoMeta, streets] = await Promise.all([
+  const [model, dtmMeta, orthoMeta, streets, signsData] = await Promise.all([
     fetch('data/model.json').then((r) => r.json()),
     fetch('data/dtm.json').then((r) => r.json()),
     fetch('data/ortho.json').then((r) => r.json()),
     fetch('data/streets.json').then((r) => r.json()),
+    fetch('data/signs.json').then((r) => r.ok ? r.json() : null).catch(() => null),
   ]);
   const hrMeta = await fetch('data/ortho-hr.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   // quote in decimetri, Uint16 in base64 (vedi build-model.mjs)
@@ -103,6 +114,8 @@ async function load() {
   const collider = makeCollider(footprints);
   say('strade');
   scene.add(buildStreets(streets, heightAt, collider));
+  say('cartelli stradali');
+  if (signsData) scene.add(buildSigns(signsData, heightAt));
   say('luoghi d\'interesse');
   scene.add(buildLandmarks(model, heightAt));
   say('alberi');
@@ -117,6 +130,15 @@ async function load() {
 
 const { model, heightAt, collider, trees, streets, hr, water, farSea, farLabels } = await load();
 $('loader').classList.add('hide');
+
+// ---------- traffico + pedoni
+const traffic = createTraffic(streets.roads, heightAt);
+const npcs    = createNPCs(streets.roads, heightAt);
+scene.add(traffic.group, npcs.group);
+
+// ---------- personaggio giocatore + schermata creazione
+const character = createCharacter(scene, heightAt);
+setupCharScreen(character);
 
 // ---------- etichette dei luoghi (nomi OSM)
 const labels = model.pois.map((p) => {
@@ -186,6 +208,20 @@ function moveJoy(e) {
   knob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
 }
 
+// ---------- drone joystick (pan in piano, solo touch)
+const droneJoy = $('droneJoy'), droneKnob = droneJoy.querySelector('i');
+const droneMove = { x: 0, y: 0 };
+droneJoy.addEventListener('pointerdown', (e) => { droneJoy.setPointerCapture(e.pointerId); moveDroneJoy(e); e.stopPropagation(); });
+droneJoy.addEventListener('pointermove', (e) => { if (droneJoy.hasPointerCapture(e.pointerId)) moveDroneJoy(e); });
+droneJoy.addEventListener('pointerup', () => { droneMove.x = droneMove.y = 0; droneKnob.style.transform = ''; });
+function moveDroneJoy(e) {
+  const r = droneJoy.getBoundingClientRect();
+  let x = (e.clientX - r.left) / r.width * 2 - 1, y = (e.clientY - r.top) / r.height * 2 - 1;
+  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+  droneMove.x = x; droneMove.y = y;
+  droneKnob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
+}
+
 function setMode(walk) {
   walker.on = walk;
   document.body.classList.toggle('walk', walk);
@@ -212,20 +248,22 @@ function setMode(walk) {
   }
   $('hint').textContent = walk
     ? (touch ? 'joystick: cammina · trascina: guarda' : 'WASD / frecce: cammina · Shift: corri · trascina: guarda')
-    : (touch ? 'trascina: ruota · pizzica: zoom · due dita: sposta' : 'trascina: ruota · rotella: zoom · tasto destro: sposta');
+    : (touch ? 'joystick: sposta · trascina: ruota · pizzica: zoom' : 'trascina: ruota · rotella: zoom · tasto destro: sposta');
 }
 $('bWalk').onclick = () => setMode(true);
 $('bDrone').onclick = () => setMode(false);
 setMode(false);
 
 // ---------- impostazioni: nomi dei luoghi, ora del giorno, luci notturne (ricordate nel browser)
-const settings = { names: false, hour: 11, lights: true, sharp: true };
+const settings = { names: false, hour: 11, lights: true, sharp: true, ortho: false };
 const post = createPost(renderer);
 try { Object.assign(settings, JSON.parse(localStorage.getItem('acq-settings') || '{}')); } catch { /* niente memoria: valori di base */ }
 const saveSettings = () => { try { localStorage.setItem('acq-settings', JSON.stringify(settings)); } catch { /* pazienza */ } };
 const basics = new Set();
 for (const sc of [scene, bgScene]) sc.traverse((o) => { const m = o.material; if (o.isMesh && m?.isMeshBasicMaterial && m.blending === THREE.NormalBlending) basics.add(m); });
 const lamps = scene.getObjectByName('lamps');
+const plazaProps = scene.getObjectByName('plaza-props');
+const ve3 = scene.getObjectByName('piazza-ve3');
 const dayCtx = { sky, sun, hemi, moonLight, fog: scene.fog, bgScene, basics: [...basics], waters: [water.uniforms, farSea.uniforms], lights: true, sunDir: new THREE.Vector3(0, 1, 0) };
 const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 /** applica un'ora senza salvarla (l'intro ha le sue ore) */
@@ -233,6 +271,8 @@ function applyHour(h) {
   dayCtx.lights = settings.lights;
   const { sun: S, moon: M } = applyTime(h, dayCtx);
   lamps?.userData.night?.(NIGHT.value);
+  plazaProps?.userData.night?.(NIGHT.value);
+  ve3?.userData.night?.(NIGHT.value);
   $('optTime').value = h; $('timeOut').textContent = hhmm(h);
   const moonTxt = M.alt > 0 ? `luna ${Math.round(M.lit * 100)}% alta ${Math.round(M.alt * 57.3)}°` : 'luna sotto l\'orizzonte';
   $('sunInfo').textContent = `sole ${Math.round(S.alt * 57.3)}° · ${moonTxt}`;
@@ -244,17 +284,112 @@ $('optNames').onchange = (e) => { settings.names = e.target.checked; saveSetting
 $('optLights').onchange = (e) => { settings.lights = e.target.checked; setHour(settings.hour); };
 $('optSharp').checked = settings.sharp;
 $('optSharp').onchange = (e) => { settings.sharp = e.target.checked; saveSettings(); };
+$('optOrtho').checked = settings.ortho;
+$('optOrtho').onchange = (e) => { settings.ortho = e.target.checked; saveSettings(); };
 $('optTime').oninput = (e) => setHour(+e.target.value);
 $('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
 setHour(settings.hour);
+try { localStorage.removeItem('acq-gkey'); } catch { /* niente da togliere */ }
 
-// ---------- intro: panoramiche e titolo (intro.js), poi il paese libero dalla vista di partenza
+// ---------- schermata creazione personaggio
+function setupCharScreen(char) {
+  const toCSS = (h) => h != null ? '#' + h.toString(16).padStart(6, '0') : null;
+
+  const buildSwatches = (containerId, opts, getIdx, setIdx, onPick) => {
+    const el = $(containerId);
+    opts.forEach((opt, i) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'swatch' + (getIdx() === i ? ' sel' : '');
+      if (opt.hex != null) {
+        sw.style.background = toCSS(opt.hex);
+      } else {
+        sw.classList.add('swatch-none');
+      }
+      sw.title = opt.label;
+      sw.addEventListener('click', () => {
+        setIdx(i);
+        el.querySelectorAll('.swatch').forEach((s, j) => s.classList.toggle('sel', j === i));
+        if (onPick) onPick();
+      });
+      el.appendChild(sw);
+    });
+  };
+
+  let draft = { ...char.data };
+
+  const updatePreview = () => {
+    const skinHex  = SKIN_OPTS[draft.skin]?.hex  ?? SKIN_OPTS[0].hex;
+    const hairHex  = HAIR_OPTS[draft.hair]?.hex  ?? HAIR_OPTS[0].hex;
+    const shirtHex = SHIRT_OPTS[draft.shirt]?.hex ?? SHIRT_OPTS[0].hex;
+    const pantHex  = PANT_OPTS[draft.pant]?.hex  ?? PANT_OPTS[0].hex;
+    const hatOpt   = HAT_OPTS[draft.hat   ?? 0];
+    const glassOpt = GLASS_OPTS[draft.glass ?? 0];
+    const fig = $('charFigure');
+    if (!fig) return;
+    fig.querySelector('.fig-hair').style.background  = toCSS(hairHex);
+    fig.querySelector('.fig-head').style.background  = toCSS(skinHex);
+    fig.querySelector('.fig-torso').style.background = toCSS(shirtHex);
+    fig.querySelectorAll('.fig-leg').forEach(l => l.style.background = toCSS(pantHex));
+    // cappello
+    const figHat = fig.querySelector('.fig-hat');
+    if (figHat) {
+      figHat.style.background = hatOpt?.hex != null ? toCSS(hatOpt.hex) : 'transparent';
+      figHat.style.visibility = hatOpt?.hex != null ? 'visible' : 'hidden';
+    }
+    // occhiali
+    const figGlass = fig.querySelector('.fig-glasses');
+    if (figGlass) {
+      figGlass.style.display    = glassOpt?.hex != null ? 'block' : 'none';
+      figGlass.style.background = glassOpt?.hex != null ? toCSS(glassOpt.hex) : 'transparent';
+    }
+  };
+
+  const openScreen = () => {
+    draft = { ...char.data };
+    $('charName').value    = draft.name || 'Giocatore';
+    $('charSlim').checked  = !!draft.slim;
+    ['skinPicker','hairPicker','shirtPicker','pantPicker','hatPicker','glassPicker']
+      .forEach(id => $(id).innerHTML = '');
+    buildSwatches('skinPicker',  SKIN_OPTS,  () => draft.skin,  (i) => { draft.skin  = i; }, updatePreview);
+    buildSwatches('hairPicker',  HAIR_OPTS,  () => draft.hair,  (i) => { draft.hair  = i; }, updatePreview);
+    buildSwatches('shirtPicker', SHIRT_OPTS, () => draft.shirt, (i) => { draft.shirt = i; }, updatePreview);
+    buildSwatches('pantPicker',  PANT_OPTS,  () => draft.pant,  (i) => { draft.pant  = i; }, updatePreview);
+    buildSwatches('hatPicker',   HAT_OPTS,   () => draft.hat   ?? 0, (i) => { draft.hat   = i; }, updatePreview);
+    buildSwatches('glassPicker', GLASS_OPTS, () => draft.glass ?? 0, (i) => { draft.glass = i; }, updatePreview);
+    updatePreview();
+    $('charScreen').hidden = false;
+  };
+
+  const confirmScreen = () => {
+    draft.name  = $('charName').value.trim() || 'Giocatore';
+    draft.slim  = $('charSlim').checked;
+    char.applyData(draft);
+    $('charScreen').hidden = true;
+    if (!walker.on) setMode(true);
+  };
+
+  $('charConfirm').onclick = confirmScreen;
+  $('charName').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmScreen(); });
+  $('charSlim').onchange = (e) => { draft.slim = e.target.checked; };
+  $('bChar').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); openScreen(); };
+
+  // apri solo la prima volta (se il personaggio non è mai stato salvato)
+  if (!localStorage.getItem('acq-char')) {
+    char._pendingOpen = openScreen;
+  }
+
+  return { openScreen };
+}
+
+
 const intro = createIntro({
   camera, controls, heightAt, setTime: applyHour,
   onEnd() {
     applyHour(settings.hour);
     controls.target.set(-60, g0, -20); camera.position.set(-10, g0 + 90, 190); controls.update();
+    if (character._pendingOpen) { character._pendingOpen(); character._pendingOpen = null; }
   },
 });
 $('bIntro').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); if (walker.on) setMode(false); intro.start(); };
@@ -274,7 +409,7 @@ function stepWalk(dt) {
     if (!collider(walker.pos.x + dx, walker.pos.z)) walker.pos.x += dx;
     if (!collider(walker.pos.x, walker.pos.z + dz)) walker.pos.z += dz;
   }
-  walker.pos.y = heightAt(walker.pos.x, walker.pos.z);
+  walker.pos.y = ve3Floor(walker.pos.x, walker.pos.z, heightAt(walker.pos.x, walker.pos.z));
   camera.position.set(walker.pos.x, walker.pos.y + 1.7, walker.pos.z);
   camera.rotation.set(walker.pitch, walker.yaw, 0, 'YXZ');
 }
@@ -283,6 +418,20 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
   if (intro.active) intro.update(dt); else if (walker.on) stepWalk(dt); else controls.update();
+
+  // drone joystick: pan orizzontale proporzionale all'altezza sul target
+  if (!walker.on && !intro.active && (droneMove.x !== 0 || droneMove.y !== 0)) {
+    const dist = Math.max(10, camera.position.distanceTo(controls.target));
+    const speed = dist * 0.35 * dt;
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;
+    if (fwd.lengthSq() < 0.001) fwd.set(0, 0, -1); else fwd.normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    const dx = (right.x * droneMove.x - fwd.x * droneMove.y) * speed;
+    const dz = (right.z * droneMove.x - fwd.z * droneMove.y) * speed;
+    controls.target.x += dx; controls.target.z += dz;
+    camera.position.x += dx; camera.position.z += dz;
+  }
+
   // l'ombra segue ciò che si guarda
   const focus = walker.on ? walker.pos : controls.target;
   const sd = dayCtx.sunDir.y > 0.02 ? dayCtx.sunDir : new THREE.Vector3(0.4, 0.6, 0.45).normalize();
@@ -293,17 +442,39 @@ function frame() {
   hr.update(focus);
   water.update(clock.elapsedTime);
   farSea.update(clock.elapsedTime, camera);
+  traffic.update(dt, camera);
+  npcs.update(dt, camera);
+  character.update(dt, walker);
   bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
   if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
   updateLabels();
+
+  // camera attiva: ortografica (drone, se abilitato) o prospettica
+  const useOrtho = settings.ortho && !walker.on && !intro.active;
+  if (useOrtho) {
+    const dist = Math.max(1, camera.position.distanceTo(controls.target));
+    const halfH = dist * Math.tan(camera.fov * Math.PI / 360);
+    const halfW = halfH * (innerWidth / innerHeight);
+    orthoCamera.left = -halfW; orthoCamera.right = halfW;
+    orthoCamera.top = halfH; orthoCamera.bottom = -halfH;
+    orthoCamera.position.copy(camera.position); orthoCamera.quaternion.copy(camera.quaternion);
+    orthoCamera.updateProjectionMatrix();
+    bgOrthoCamera.left = -halfW; bgOrthoCamera.right = halfW;
+    bgOrthoCamera.top = halfH; bgOrthoCamera.bottom = -halfH;
+    bgOrthoCamera.position.copy(camera.position); bgOrthoCamera.quaternion.copy(camera.quaternion);
+    bgOrthoCamera.updateProjectionMatrix();
+  }
+  const activeCam = useOrtho ? orthoCamera : camera;
+  const activeBgCam = useOrtho ? bgOrthoCamera : bgCamera;
+
   // con la nitidezza la scena passa da un buffer con antialiasing (post.js), altrimenti dritta a schermo
   renderer.setRenderTarget(settings.sharp ? post.target : null);
   renderer.clear();
-  renderer.render(bgScene, bgCamera);
+  renderer.render(bgScene, activeBgCam);
   renderer.clearDepth();
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCam);
   if (settings.sharp) post.present();
 }
 frame();
-addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro };
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
+window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
