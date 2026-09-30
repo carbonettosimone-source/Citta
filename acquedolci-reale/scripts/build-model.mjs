@@ -372,9 +372,14 @@ function distRoad(x, z) {
  * se il centro sta su un edificio o sulla carreggiata, o non c'è posto per almeno 0,7 m, l'albero si toglie.
  */
 let squeezed = 0, removedClear = 0;
-function fitTree(x, z, h0, r0) {
-  let r = Math.min(3.5, Math.max(0.8, r0 * 0.55));
-  const h = Math.min(26, h0 * 1.3 + 0.8);
+// per specie: [raggio max, altezza max, altezza/diametro minimo] — pino domestico a ombrello largo,
+// agrumi e ulivi bassi, latifoglie un filo più alte che larghe
+const SPECIES_FIT = [[3.5, 18, 0.9], [5.5, 20, 1.1], [3.2, 8, 0.8], [2.4, 5, 0.9], [2, 14, 2], [1.4, 2, 0.3]];
+function fitTree(x, z, h0, r0, sp = 0) {
+  const [rMax, hMax, ratio] = SPECIES_FIT[sp];
+  let r = Math.min(rMax, Math.max(0.8, r0 * (sp === 1 ? 0.7 : 0.55)));
+  let h = Math.min(hMax, h0 * 1.3 + 0.8);
+  if (h < ratio * 2 * r) r = Math.max(0.8, h / (ratio * 2)); // mai più largo che alto: niente alberi tozzi
   const room = Math.min(distBuilding(x, z), distRoad(x, z)) - 0.25;
   if (room < 0.7) { removedClear++; return null; }
   if (room < r) { r = room; squeezed++; }
@@ -393,7 +398,7 @@ if (existsSync(canopyPath)) {
     const x = ux - OX, z = -(uy - OY);
     const hc = Math.min(22, h0), rc = Math.min(8, r0 || 2);
     const sp = species(ux, uy, hc, rc); // la specie si sceglie sulle misure originali della chioma
-    const fit = fitTree(x, z, hc, rc);
+    const fit = fitTree(x, z, hc, rc, sp);
     if (!fit) continue;
     trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +fit[0].toFixed(1), +fit[1].toFixed(1), sp);
   }
