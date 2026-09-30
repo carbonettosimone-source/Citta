@@ -180,8 +180,8 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
           mid *= mix(vec3(1.0), chroma, 0.2);
           // a pochi metri: un po' della foto nitida, così tombini e bordi veri non spariscono
           vec3 c = mix(mid, mix(mid, diffuseColor.rgb, 0.45), near);
-          // sabbia bagnata: la battigia (sotto ~1 m sul mare) è più scura e più calda, con un bordo irregolare
-          float wy = 1.0 - smoothstep(0.55 + (gNoise(p * 0.11) - 0.5) * 0.6, 1.5 + (gNoise(p * 0.3 + 4.0) - 0.5) * 0.4, vWPos.y);
+          // sabbia bagnata: la battigia (sotto ~0,5 m sul mare) è più scura e più calda, con un bordo irregolare
+          float wy = 1.0 - smoothstep(0.1 + (gNoise(p * 0.11) - 0.5) * 0.25, 0.6 + (gNoise(p * 0.3 + 4.0) - 0.5) * 0.3, vWPos.y);
           c *= 1.0 - 0.3 * wBeach * wy;
           c = mix(c, c * vec3(1.06, 0.98, 0.88), wBeach * wy * 0.6);
           diffuseColor.rgb = mix(diffuseColor.rgb, c, cover * (1.0 - wSea));        }` : ''}

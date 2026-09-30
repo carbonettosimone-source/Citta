@@ -159,15 +159,24 @@ writeFileSync(new URL('data/landcover.json', root), JSON.stringify({
   channels: 'R: mare (30 a riva → 255 a 80 m), G: spiaggia, B: verde',
 }));
 
-// MDT sulla costa: fondale che scende sotto il mare, spiaggia del 2022 asciutta
+// MDT sulla costa: fondale che scende sotto il mare, spiaggia del 2022 asciutta.
+// Il profilo è CONTINUO nella distanza con segno dalla riva (s > 0 mare): la quota vale 0 sulla riva e
+// cresce/decresce in modo regolare. Un salto netto fra mare e spiaggia su una maglia da 4 m faceva
+// scattare la linea d'acqua a gradini (la quota interpolata attraversa lo zero a scalini di una cella).
+const signed = (k) => (sea[k] ? toLand[k] - STEP / 2 : -(toSea[k] - STEP / 2));
 const out = Float32Array.from(dtm);
 for (let r = 0; r < dtmMeta.height; r++) for (let c = 0; c < dtmMeta.width; c++) {
   const x = dtmMeta.xmin + c * dtmMeta.step, y = dtmMeta.ymax - r * dtmMeta.step;
-  const cx = Math.floor((x - X0) / STEP), cy = Math.floor((Y1 - y) / STEP);
-  if (cx < 0 || cy < 0 || cx >= W || cy >= H) continue;
-  const k = cy * W + cx, i = r * dtmMeta.width + c;
-  if (sea[k]) out[i] = -Math.min(6, 0.4 + toLand[k] * 0.05);
-  else if (out[i] < 0.4) out[i] = 0.4 + Math.min(1.2, toSea[k] * 0.03);
+  const cx = Math.round((x - X0) / STEP), cy = Math.round((Y1 - y) / STEP);
+  if (cx < 1 || cy < 1 || cx >= W || cy >= H) continue;
+  // il vertice sta all'incrocio di quattro celle da 2 m: media della distanza con segno
+  const s = (signed(cy * W + cx) + signed(cy * W + cx - 1) + signed((cy - 1) * W + cx) + signed((cy - 1) * W + cx - 1)) / 4;
+  const i = r * dtmMeta.width + c;
+  if (s > 0) out[i] = -Math.min(6, s * 0.08);
+  else if (s > -60 && out[i] < 3) {
+    const d = -s, h0 = d < 10 ? d * 0.08 : 0.8 + (d - 10) * 0.02;   // pendio della battigia
+    out[i] = h0 + Math.min(Math.max(out[i] - h0, 0), 0.12 * d);      // il rilievo vero sale solo piano
+  }
 }
 writeFileSync(new URL('data/dtm-sea.bin', root), Buffer.from(out.buffer));
 console.log(`copertura ${W}×${H} a ${STEP} m: mare ${(nSea * STEP * STEP / 1e6).toFixed(2)} km², spiaggia ${(nBeach * STEP * STEP / 1e4).toFixed(1)} ha`);
