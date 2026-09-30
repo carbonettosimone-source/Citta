@@ -9,6 +9,7 @@
     "build": "vite build",
     "fetch": "node scripts/fetch-buildings.mjs && node scripts/fetch-dtm.mjs && node scripts/fetch-ortho.mjs && NODE_USE_ENV_PROXY=1 node scripts/fetch-lidar.mjs",
     "model": "node scripts/build-model.mjs",
+    "signs": "node scripts/build-signs.mjs",
     "artifact": "node scripts/build-artifact.mjs"
   },
   "dependencies": {
