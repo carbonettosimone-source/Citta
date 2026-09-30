@@ -156,6 +156,7 @@ ul.assList { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .sheet.title table.traits td { border-color: rgba(255,255,255,.15); }
 .sheet.title h2 { justify-content: center; color: var(--gold); }
 #toast { position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -140%); z-index: 50; background: var(--night); color: #fff; padding: 10px 14px; border-radius: 12px; font-size: 13px; max-width: min(92vw, 420px); box-shadow: 0 4px 16px rgba(0,0,0,.35); transition: transform .3s; pointer-events: none; }
+#toast:not(.on) { visibility: hidden; transition: transform .3s, visibility 0s .3s; }
 #toast.on { transform: translate(-50%, 0); }
 .gain { position: fixed; left: 50%; top: 42%; transform: translateX(-50%); z-index: 45; font: 800 20px/1 system-ui, sans-serif; pointer-events: none; animation: rise 1.8s ease-out forwards; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
 .gain.up { color: #6cf2a8; } .gain.down { color: #ff8a80; }
