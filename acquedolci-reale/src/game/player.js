@@ -12,9 +12,9 @@ export function createPlayer(scene, character, groundAt) {
 
   // ---- freccia: cono rovesciato + anello a terra, colori da gioco, sempre visibile
   const arrow = new THREE.Group();
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.8, 4), new THREE.MeshBasicMaterial({ color: 0xffc629, depthTest: false }));
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.8, 16), new THREE.MeshBasicMaterial({ color: 0xffc629, depthTest: false }));
   cone.rotation.x = Math.PI; cone.position.y = 0.9;
-  const rim = new THREE.Mesh(new THREE.ConeGeometry(1.15, 2.2, 4), new THREE.MeshBasicMaterial({ color: 0x3a2400, depthTest: false }));
+  const rim = new THREE.Mesh(new THREE.ConeGeometry(1.05, 2.25, 16), new THREE.MeshBasicMaterial({ color: 0x3a2400, depthTest: false }));
   rim.rotation.x = Math.PI; rim.position.y = 0.9; rim.scale.set(1, 1, 1);
   arrow.add(rim, cone);
   arrow.renderOrder = 20; cone.renderOrder = 21; rim.renderOrder = 20;

@@ -166,3 +166,5 @@ ul.assList { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 #loader div em { font-style: normal; font-size: 10px; letter-spacing: .3em; text-transform: uppercase; opacity: .7; }
 #bNewGame { border: 1px solid var(--bad); border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--bad); font-weight: 600; cursor: pointer; }
 @media (max-width: 420px) { #gbar button { width: 52px; } #hud { font-size: 11px; } }
+body.playing #credits { display: none; }
+#settings .credits { margin: 0; font-size: 10px; line-height: 1.35; opacity: .7; }

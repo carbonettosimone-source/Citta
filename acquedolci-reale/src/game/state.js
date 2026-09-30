@@ -49,6 +49,8 @@ export const look = (s) => (s.car ? CARS.find((c) => c.id === s.car)?.look || 0 
 export function shift(s, d, from = null) {
   const V = s.votes;
   if (d > 0) {
+    // rendimenti decrescenti: oltre il 40% ogni punto costa sempre di più
+    d *= Math.max(0.12, 1 - Math.max(0, V.player - 25) / 45);
     const fromU = Math.min(V.undecided, d * 0.5);
     V.undecided -= fromU;
     let rest = d - fromU;
@@ -79,7 +81,7 @@ export function discoverRelic(s, relic) {
   if (s.relics.includes(relic.id)) return null;
   s.relics.push(relic.id);
   s.notes.push({ kind: 'relic', id: relic.id, t: 'sindaco', p: 2, title: relic.title, text: relic.text, used: false });
-  const g = 0.5 * gainMult(s, 'pop');
+  const g = 0.35 * gainMult(s, 'pop');
   shift(s, g, 'sindaco');
   return g;
 }
@@ -99,7 +101,7 @@ export function hangout(s, spot) {
     const note = { kind: 'rumor', id: `r${s.notes.length}`, t: r.t, p: r.p, title: `Su ${rival.name}`, text: r.text, used: false };
     s.notes.push(note); got.push(note);
   }
-  const g = 0.3 * gainMult(s, 'pop');
+  const g = 0.12 * gainMult(s, 'pop');
   shift(s, g);
   return { got, gain: g };
 }
@@ -110,13 +112,13 @@ export function rally(s, noteIds) {
   s.rallyDay = s.day;
   const t = teamStats(s.team);
   const cred = 0.6 + t.fam * 0.08 + s.rep / 250;
-  let total = 0.6 * gainMult(s, 'car');
+  let total = 0.35 * gainMult(s, 'car');
   const hits = { sindaco: 0, commendatore: 0 };
   for (const id of noteIds) {
     const n = s.notes.find((x) => x.id === id && !x.used);
     if (!n) continue;
     n.used = true;
-    const g = n.p * 0.9 * (0.7 + t.car * 0.12) * cred;
+    const g = n.p * 0.32 * (0.7 + t.car * 0.12) * cred;
     hits[n.t] += g; total += g * 0.4;
   }
   for (const r of ['sindaco', 'commendatore']) if (hits[r]) shift(s, hits[r], r);
@@ -131,7 +133,7 @@ export function buyAd(s, id) {
   const times = s.adsToday[k] || 0;
   s.adsToday[k] = times + 1;
   spend(s, ad.price);
-  const g = ad.gain * gainMult(s, 'pop') / (1 + times * 0.8);
+  const g = ad.gain * 0.45 * gainMult(s, 'pop') / (1 + times * 0.8);
   shift(s, g);
   return g;
 }
@@ -171,14 +173,15 @@ export function answerQuest(s, q, accept) {
 export function endDay(s) {
   const t = teamStats(s.team);
   const V = s.votes, before = V.player;
-  // il sindaco perde terreno da solo; il commendatore compra spazio
-  const sd = -0.4 + rnd() * 0.6, cm = 0.2 + rnd() * 0.9;
+  // il sindaco perde terreno da solo; il commendatore compra spazio. Più sei avanti, più ti attaccano.
+  const lead = Math.max(0, V.player - Math.max(V.sindaco, V.commendatore));
+  const sd = -0.3 + rnd() * 0.6 + lead * 0.02, cm = 0.5 + rnd() * 1.0 + lead * 0.05;
   const fromU = Math.min(V.undecided * 0.1, Math.max(0, sd) + cm);
   V.undecided -= fromU;
   V.sindaco += sd; V.commendatore += cm;
   V.undecided += Math.max(0, -sd);
   // passaparola della lista
-  shift(s, 0.15 + t.pop * 0.08);
+  shift(s, 0.05 + t.pop * 0.05);
   normalize(s);
   let scandal = null;
   const p = s.risk / 100 * (1.1 - t.fam * 0.15);
