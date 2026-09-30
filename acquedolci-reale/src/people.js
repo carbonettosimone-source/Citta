@@ -16,7 +16,7 @@ export const SLOT = { skin: 0, hair: 1, shirt: 2, pants: 3, shoes: 4, eye: 5, pu
 const FIXED = { [SLOT.shoes]: 0x2a221c, [SLOT.eye]: 0xf7f4ee, [SLOT.pupil]: 0x1b1410, [SLOT.mouth]: 0x9c3b35 };
 
 // punti di aggancio (y): spalla, anca
-export const RIG = { shoulderY: 1.40, shoulderX: 0.205, hipY: 0.90, hipX: 0.085, headY: 1.58, headR: 0.135 };
+export const RIG = { shoulderY: 1.39, shoulderX: 0.19, hipY: 0.90, hipX: 0.085, headY: 1.58, headR: 0.135 };
 
 function slotted(geo, slot) {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -80,7 +80,7 @@ export function bodyGeometry({ hair = 'short', female = false, slim = false, q =
   const t = new THREE.CylinderGeometry(0.185 * w, (female ? 0.15 : 0.16) * w, 0.52, n(16, 6)); t.scale(1, 1, 0.62);
   P.push(slotted(at(t, 0, 1.15, 0), SLOT.shirt));
   // spalle tonde
-  for (const s of [1, -1]) { const sh = new THREE.SphereGeometry(0.07 * w, n(12, 5), n(8, 4)); sh.scale(1, 0.8, 0.9); P.push(slotted(at(sh, s * RIG.shoulderX * w, RIG.shoulderY - 0.01, 0), SLOT.shirt)); }
+  for (const s of [1, -1]) { const sh = new THREE.SphereGeometry(0.066 * w, n(12, 5), n(8, 4)); sh.scale(1.1, 0.75, 0.85); P.push(slotted(at(sh, s * (RIG.shoulderX - 0.025) * w, RIG.shoulderY - 0.005, 0), SLOT.shirt)); }
   // colletto
   const col = new THREE.TorusGeometry(0.058, 0.014, n(6, 3), n(16, 6)); col.rotateX(Math.PI / 2);
   P.push(slotted(at(col, 0, 1.405, 0), SLOT.shirt));

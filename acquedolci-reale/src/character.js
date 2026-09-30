@@ -100,9 +100,9 @@ const R = RIG.headR, HY = RIG.headY;
 function buildHat(group, style, hex) {
   switch (style) {
     case 'beanie': {
-      const geo = new THREE.SphereGeometry(R * 1.12, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
-      const h = part(geo, hex); h.position.y = HY + 0.03; group.add(h);
-      const rim = part(new THREE.TorusGeometry(R * 1.02, 0.022, 8, 20), hex); rim.rotation.x = Math.PI / 2; rim.position.y = HY + 0.045; group.add(rim);
+      const geo = new THREE.SphereGeometry(R * 1.16, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
+      const h = part(geo, hex); h.position.y = HY + 0.05; group.add(h);
+      const rim = part(new THREE.TorusGeometry(R * 1.02, 0.022, 8, 20), hex); rim.rotation.x = Math.PI / 2; rim.position.y = HY + 0.07; group.add(rim);
       break;
     }
     case 'fedora': {
@@ -110,20 +110,20 @@ function buildHat(group, style, hex) {
       hatG.add(part(new THREE.CylinderGeometry(R * 0.78, R * 0.95, 0.15, 16), hex));
       const band = part(new THREE.CylinderGeometry(R * 0.96, R * 0.97, 0.03, 16), 0x1a1210); band.position.y = -0.045; hatG.add(band);
       const brim = part(new THREE.CylinderGeometry(R * 1.75, R * 1.75, 0.016, 20), hex); brim.position.y = -0.07; hatG.add(brim);
-      hatG.position.y = HY + 0.13; group.add(hatG);
+      hatG.position.y = HY + 0.18; group.add(hatG);
       break;
     }
     case 'cap': { // coppola siciliana: piatta, visiera corta in avanti
       const hatG = new THREE.Group();
-      const top = new THREE.SphereGeometry(R * 1.1, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.4); top.scale(1, 0.55, 1.12);
+      const top = new THREE.SphereGeometry(R * 1.18, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.45); top.scale(1, 0.6, 1.15);
       hatG.add(part(top, hex));
       const brim = part(new THREE.CylinderGeometry(R * 0.75, R * 0.75, 0.014, 16, 1, false, -Math.PI / 2, Math.PI), hex); brim.position.set(0, 0.005, R * 0.72); hatG.add(brim);
-      hatG.position.y = HY + 0.06; hatG.rotation.x = 0.12; group.add(hatG);
+      hatG.position.y = HY + 0.115; hatG.rotation.x = 0.12; group.add(hatG);
       break;
     }
     case 'beret': {
       const geo = new THREE.SphereGeometry(R * 1.2, 16, 8); geo.scale(1, 0.32, 1);
-      const h = part(geo, hex); h.position.set(0.03, HY + 0.1, -0.01); h.rotation.z = -0.15; group.add(h);
+      const h = part(geo, hex); h.position.set(0.03, HY + 0.14, -0.01); h.rotation.z = -0.15; group.add(h);
       break;
     }
   }
