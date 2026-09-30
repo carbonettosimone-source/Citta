@@ -10,7 +10,8 @@
     "fetch": "node scripts/fetch-buildings.mjs && node scripts/fetch-dtm.mjs && node scripts/fetch-ortho.mjs && NODE_USE_ENV_PROXY=1 node scripts/fetch-lidar.mjs",
     "model": "node scripts/build-model.mjs",
     "reference": "node scripts/reference-studio.mjs",
-    "artifact": "node scripts/build-artifact.mjs"
+    "artifact": "node scripts/build-artifact.mjs",
+    "export:blender": "node scripts/export-blender.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
