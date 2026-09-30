@@ -148,7 +148,7 @@ export function orthoMaterial(map, { nearNeutral = false, roof = false } = {}) {
         float near = 1.0 - smoothstep(0.05, 0.22, pxs);
         if (cover > 0.0) {
           vec4 lc = landcover(vWPos.xz);
-          float wSea = smoothstep(-0.25, 0.25, (lc.x * 255.0 - 128.0) / 1.6); // R: distanza con segno dalla riva
+          float wSea = smoothstep(-0.25, 0.25, lcSigned(lc.x)); // R: distanza con segno dalla riva
           vec3 low = texture2D(map, vMapUv, 3.0).rgb;
           vec2 hu = vec2(vWPos.x - hrRect.x, hrRect.y - vWPos.z) / hrRect.z;
           vec2 he = min(hu, 1.0 - hu);

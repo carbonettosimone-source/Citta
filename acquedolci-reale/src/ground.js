@@ -100,4 +100,9 @@ vec4 landcover(vec2 xz) {
   vec2 uv = (xz - lcRect.xy) / lcRect.zw;
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(-1.0);
   return texture2D(lcMap, uv);
+}
+// R = distanza con segno dalla riva in metri (+ mare, - terra): 0,125 m/unità entro 8 m, poi ~1,14 m/unità
+float lcSigned(float r) {
+  float a = r * 255.0 - 128.0, q = abs(a);
+  return sign(a) * (q < 64.0 ? q / 8.0 : 8.0 + (q - 64.0) / 0.875);
 }`;

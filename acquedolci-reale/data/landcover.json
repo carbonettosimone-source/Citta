@@ -1,1 +1,1 @@
-{"source":"classificata dall'ortofoto 2022 SITR (CC BY 4.0)","step":2,"width":1810,"height":1840,"xmin":462172,"ymax":4213116,"channels":"R: distanza con segno dalla riva (128 = riva, +1,6/m verso il largo, -1,6/m verso terra), G: spiaggia, B: verde"}
+{"source":"classificata dall'ortofoto 2022 SITR (CC BY 4.0)","step":2,"width":1810,"height":1840,"xmin":462172,"ymax":4213116,"channels":"R: distanza con segno dalla riva, codificata (128 = riva; vedi lcSigned in ground.js), G: spiaggia, B: verde"}

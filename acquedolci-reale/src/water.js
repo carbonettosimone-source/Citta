@@ -53,8 +53,8 @@ export function buildWater(sunDir, { far = false } = {}) {
         ${far ? '' : `
         // mare del paese: solo dentro la copertura del suolo; fuori c'è quello dello sfondo
         vec4 lc = landcover(vW.xz);
-        // R = distanza con segno dalla riva (128 = riva, +1,6 per metro verso il largo)
-        float sd = (lc.x * 255.0 - 128.0) / 1.6;
+        // R = distanza con segno dalla riva in metri (ground.js)
+        float sd = lcSigned(lc.x);
         if (sd < 0.0) discard;
         shore = clamp(sd, 0.0, 80.0);`}
         float dist = distance(cameraPosition, vW);
