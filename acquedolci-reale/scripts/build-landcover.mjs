@@ -150,7 +150,12 @@ for (let k = 0; k < N; k++) {
   // -1,6 per metro verso terra. Continua attraverso la riva, così la linea d'acqua è precisa sotto la
   // cella da 2 m (con una maschera binaria una riva quasi dritta veniva a lunghe scalinate).
   rgb[k * 3] = Math.max(0, Math.min(255, Math.round(128 + 1.6 * (sea[k] ? toLand[k] - STEP / 2 : -(toSea[k] - STEP / 2)))));
-  if (sea[k]) { nSea++; continue; }
+  if (sea[k]) {
+    // la spiaggia si estende di 8 m sul lato mare (lì copre l'acqua): senza, il passaggio ciottoli → terra
+    // seguiva la cella da 2 m e disegnava la scalinata che si vedeva sulla riva
+    if (toLand[k] < 8) rgb[k * 3 + 1] = 255;
+    nSea++; continue;
+  }
   // spiaggia: terra bassa entro 90 m dal mare, non verde
   const beach = cellH[k] < 6 ? (1 - Math.min(1, Math.max(0, (toSea[k] - 60) / 30))) * (1 - Math.min(1, g * 2)) : 0;
   if (beach > 0.5) nBeach++;
