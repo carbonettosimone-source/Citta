@@ -10,6 +10,7 @@ import { buildSigns } from './signs.js';
 import { buildLandmarks } from './landmarks.js';
 import { ve3Floor } from './piazza-ve3.js';
 import { createOrthoHR } from './ortho-hr.js';
+import { HR } from './ortho.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
 import { buildBackground } from './background.js';
@@ -373,4 +374,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, game, heightAt, grade, setHour: applyHour, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
+window.__acq = { camera, controls, game, heightAt, grade, HR, setHour: applyHour, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
