@@ -7,7 +7,7 @@
  *  - il FONDALE e la RIVA: il MDT 2013 ha il mare a 0 m e taglia la spiaggia sulla linea di costa
  *    del 2013; qui il fondo scende sotto il livello del mare e la spiaggia del 2022 resta asciutta;
  *  - i MATERIALI di dettaglio da vicino (ciottoli, prato, terra) e i cespugli (build-model).
- * Output: data/landcover.png (R profondità mare, G spiaggia, B verde) + .json,
+ * Output: data/landcover.png (R distanza con segno dalla riva, G spiaggia, B verde) + .json,
  *         data/dtm-sea.bin (MDT corretto sulla costa, Float32 come dtm.bin)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -146,7 +146,11 @@ let nSea = 0, nBeach = 0;
 for (let k = 0; k < N; k++) {
   // a meno di 14 m dal mare non c'è prato: il verde è l'acqua bassa della battigia vista dall'alto
   const g = cnt[k] && toSea[k] > 14 ? grn[k] / cnt[k] : 0;
-  if (sea[k]) { rgb[k * 3] = Math.round(30 + 225 * Math.min(1, toLand[k] / 80)); nSea++; continue; }
+  // R = distanza con segno dalla riva: 128 sulla riva, +1,6 per metro verso il largo (fino a 80 m),
+  // -1,6 per metro verso terra. Continua attraverso la riva, così la linea d'acqua è precisa sotto la
+  // cella da 2 m (con una maschera binaria una riva quasi dritta veniva a lunghe scalinate).
+  rgb[k * 3] = Math.max(0, Math.min(255, Math.round(128 + 1.6 * (sea[k] ? toLand[k] - STEP / 2 : -(toSea[k] - STEP / 2)))));
+  if (sea[k]) { nSea++; continue; }
   // spiaggia: terra bassa entro 90 m dal mare, non verde
   const beach = cellH[k] < 6 ? (1 - Math.min(1, Math.max(0, (toSea[k] - 60) / 30))) * (1 - Math.min(1, g * 2)) : 0;
   if (beach > 0.5) nBeach++;
@@ -156,7 +160,7 @@ for (let k = 0; k < N; k++) {
 writeFileSync(new URL('data/landcover.png', root), encodePNG(W, H, rgb));
 writeFileSync(new URL('data/landcover.json', root), JSON.stringify({
   source: 'classificata dall\'ortofoto 2022 SITR (CC BY 4.0)', step: STEP, width: W, height: H, xmin: X0, ymax: Y1,
-  channels: 'R: mare (30 a riva → 255 a 80 m), G: spiaggia, B: verde',
+  channels: 'R: distanza con segno dalla riva (128 = riva, +1,6/m verso il largo, -1,6/m verso terra), G: spiaggia, B: verde',
 }));
 
 // MDT sulla costa: fondale che scende sotto il mare, spiaggia del 2022 asciutta.

@@ -53,8 +53,10 @@ export function buildWater(sunDir, { far = false } = {}) {
         ${far ? '' : `
         // mare del paese: solo dentro la copertura del suolo; fuori c'è quello dello sfondo
         vec4 lc = landcover(vW.xz);
-        if (lc.x < 0.06) discard;
-        shore = clamp((lc.x * 255.0 - 30.0) / 225.0 * 80.0, 0.0, 80.0);`}
+        // R = distanza con segno dalla riva (128 = riva, +1,6 per metro verso il largo)
+        float sd = (lc.x * 255.0 - 128.0) / 1.6;
+        if (sd < 0.0) discard;
+        shore = clamp(sd, 0.0, 80.0);`}
         float dist = distance(cameraPosition, vW);
         // onde: il mare da nord-ovest (il Tirreno davanti ad Acquedolci), più corte vicino a riva
         vec2 g = vec2(0.0);

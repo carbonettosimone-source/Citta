@@ -461,7 +461,7 @@ function urbanGaps(roadPaths, plazaPaths) {
   }
   const greenAt = (k) => {
     const R = lc.data[k * 3], G = lc.data[k * 3 + 1], B = lc.data[k * 3 + 2];
-    return R > 20 || G > 90 || B > 145;
+    return R > 128 || G > 90 || B > 145; // R > 128: mare
   };
   // distanza dagli edifici (chamfer, metri)
   const dist = new Float32Array(N).fill(1e9);
