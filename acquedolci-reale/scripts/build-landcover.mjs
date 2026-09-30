@@ -150,7 +150,7 @@ const sField = new Float32Array(N);
     let s2 = s;
     if (near > 0) {
       const xm = cx * STEP, ym = cy * STEP;
-      const n = (vnoise(xm / 130, ym / 130) - 0.5) * 2 * 5.5 + (vnoise(xm / 55 + 11, ym / 55 + 7) - 0.5) * 2 * 3 + (vnoise(xm / 20 + 3, ym / 20 + 9) - 0.5) * 2 * 1.3 + (vnoise(xm / 8 + 5, ym / 8 + 2) - 0.5) * 2 * 0.5;
+      const n = (vnoise(xm / 140, ym / 140) - 0.5) * 2 * 6 + (vnoise(xm / 60 + 11, ym / 60 + 7) - 0.5) * 2 * 4.5 + (vnoise(xm / 26 + 3, ym / 26 + 9) - 0.5) * 2 * 3 + (vnoise(xm / 11 + 5, ym / 11 + 2) - 0.5) * 2 * 1.3;
       s2 = s + n * near;
     }
     // l'acqua non sale su terra alta (muri, porto, rocce)
