@@ -17,7 +17,7 @@ import { createIntro } from './intro.js';
 import { createPost } from './post.js';
 import { createTraffic } from './traffic.js';
 import { createNPCs } from './npcs.js';
-import { createCharacter, SKIN_OPTS, HAIR_OPTS, SHIRT_OPTS, PANT_OPTS, loadChar } from './character.js';
+import { createCharacter, SKIN_OPTS, HAIR_OPTS, SHIRT_OPTS, PANT_OPTS, HAT_OPTS, GLASS_OPTS, loadChar } from './character.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -294,18 +294,24 @@ try { localStorage.removeItem('acq-gkey'); } catch { /* niente da togliere */ }
 
 // ---------- schermata creazione personaggio
 function setupCharScreen(char) {
-  const buildSwatches = (containerId, opts, getIdx, setIdx, previewFn) => {
+  const toCSS = (h) => h != null ? '#' + h.toString(16).padStart(6, '0') : null;
+
+  const buildSwatches = (containerId, opts, getIdx, setIdx, onPick) => {
     const el = $(containerId);
     opts.forEach((opt, i) => {
       const sw = document.createElement('button');
       sw.type = 'button';
       sw.className = 'swatch' + (getIdx() === i ? ' sel' : '');
-      sw.style.background = '#' + opt.hex.toString(16).padStart(6, '0');
+      if (opt.hex != null) {
+        sw.style.background = toCSS(opt.hex);
+      } else {
+        sw.classList.add('swatch-none');
+      }
       sw.title = opt.label;
       sw.addEventListener('click', () => {
         setIdx(i);
         el.querySelectorAll('.swatch').forEach((s, j) => s.classList.toggle('sel', j === i));
-        previewFn();
+        if (onPick) onPick();
       });
       el.appendChild(sw);
     });
@@ -314,30 +320,44 @@ function setupCharScreen(char) {
   let draft = { ...char.data };
 
   const updatePreview = () => {
-    const skinHex = SKIN_OPTS[draft.skin]?.hex ?? SKIN_OPTS[0].hex;
-    const hairHex = HAIR_OPTS[draft.hair]?.hex ?? HAIR_OPTS[0].hex;
+    const skinHex  = SKIN_OPTS[draft.skin]?.hex  ?? SKIN_OPTS[0].hex;
+    const hairHex  = HAIR_OPTS[draft.hair]?.hex  ?? HAIR_OPTS[0].hex;
     const shirtHex = SHIRT_OPTS[draft.shirt]?.hex ?? SHIRT_OPTS[0].hex;
-    const pantHex = PANT_OPTS[draft.pant]?.hex ?? PANT_OPTS[0].hex;
-    const toCSS = (h) => '#' + h.toString(16).padStart(6,'0');
+    const pantHex  = PANT_OPTS[draft.pant]?.hex  ?? PANT_OPTS[0].hex;
+    const hatOpt   = HAT_OPTS[draft.hat   ?? 0];
+    const glassOpt = GLASS_OPTS[draft.glass ?? 0];
     const fig = $('charFigure');
-    if (fig) {
-      fig.querySelector('.fig-hair').style.background = toCSS(hairHex);
-      fig.querySelector('.fig-head').style.background = toCSS(skinHex);
-      fig.querySelector('.fig-torso').style.background = toCSS(shirtHex);
-      fig.querySelectorAll('.fig-leg').forEach(l => l.style.background = toCSS(pantHex));
+    if (!fig) return;
+    fig.querySelector('.fig-hair').style.background  = toCSS(hairHex);
+    fig.querySelector('.fig-head').style.background  = toCSS(skinHex);
+    fig.querySelector('.fig-torso').style.background = toCSS(shirtHex);
+    fig.querySelectorAll('.fig-leg').forEach(l => l.style.background = toCSS(pantHex));
+    // cappello
+    const figHat = fig.querySelector('.fig-hat');
+    if (figHat) {
+      figHat.style.background = hatOpt?.hex != null ? toCSS(hatOpt.hex) : 'transparent';
+      figHat.style.visibility = hatOpt?.hex != null ? 'visible' : 'hidden';
+    }
+    // occhiali
+    const figGlass = fig.querySelector('.fig-glasses');
+    if (figGlass) {
+      figGlass.style.display    = glassOpt?.hex != null ? 'block' : 'none';
+      figGlass.style.background = glassOpt?.hex != null ? toCSS(glassOpt.hex) : 'transparent';
     }
   };
 
   const openScreen = () => {
     draft = { ...char.data };
-    $('charName').value = draft.name || 'Giocatore';
-    $('charSlim').checked = !!draft.slim;
-    // ricostruisce swatches
-    ['skinPicker','hairPicker','shirtPicker','pantPicker'].forEach(id => $(id).innerHTML = '');
+    $('charName').value    = draft.name || 'Giocatore';
+    $('charSlim').checked  = !!draft.slim;
+    ['skinPicker','hairPicker','shirtPicker','pantPicker','hatPicker','glassPicker']
+      .forEach(id => $(id).innerHTML = '');
     buildSwatches('skinPicker',  SKIN_OPTS,  () => draft.skin,  (i) => { draft.skin  = i; }, updatePreview);
     buildSwatches('hairPicker',  HAIR_OPTS,  () => draft.hair,  (i) => { draft.hair  = i; }, updatePreview);
     buildSwatches('shirtPicker', SHIRT_OPTS, () => draft.shirt, (i) => { draft.shirt = i; }, updatePreview);
     buildSwatches('pantPicker',  PANT_OPTS,  () => draft.pant,  (i) => { draft.pant  = i; }, updatePreview);
+    buildSwatches('hatPicker',   HAT_OPTS,   () => draft.hat   ?? 0, (i) => { draft.hat   = i; }, updatePreview);
+    buildSwatches('glassPicker', GLASS_OPTS, () => draft.glass ?? 0, (i) => { draft.glass = i; }, updatePreview);
     updatePreview();
     $('charScreen').hidden = false;
   };
@@ -357,7 +377,6 @@ function setupCharScreen(char) {
 
   // apri solo la prima volta (se il personaggio non è mai stato salvato)
   if (!localStorage.getItem('acq-char')) {
-    // la apriamo dopo che l'intro finisce (onEnd)
     char._pendingOpen = openScreen;
   }
 
