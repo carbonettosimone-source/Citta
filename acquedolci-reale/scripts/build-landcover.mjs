@@ -7,7 +7,7 @@
  *  - il FONDALE e la RIVA: il MDT 2013 ha il mare a 0 m e taglia la spiaggia sulla linea di costa
  *    del 2013; qui il fondo scende sotto il livello del mare e la spiaggia del 2022 resta asciutta;
  *  - i MATERIALI di dettaglio da vicino (ciottoli, prato, terra) e i cespugli (build-model).
- * Output: data/landcover.png (R profondità mare, G spiaggia, B verde) + .json,
+ * Output: data/landcover.png (R distanza con segno dalla riva, G spiaggia, B verde) + .json,
  *         data/dtm-sea.bin (MDT corretto sulla costa, Float32 come dtm.bin)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -77,33 +77,114 @@ while (q.length) {
     if (!sea[n] && (wet(n) || (cnt[n] === 0 && cellH[n] <= 0.01))) { sea[n] = 1; q.push(n); }
   }
 }
-// distanza da riva (m) con due passate di chamfer, per il mare e per la terra
-function chamfer(src) {
-  const d = new Float32Array(N).fill(1e9);
-  for (let k = 0; k < N; k++) if (src[k]) d[k] = 0;
-  const s = STEP, dg = STEP * Math.SQRT2;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const k = y * W + x; let v = d[k];
-    if (x > 0) v = Math.min(v, d[k - 1] + s);
-    if (y > 0) { v = Math.min(v, d[k - W] + s); if (x > 0) v = Math.min(v, d[k - W - 1] + dg); if (x < W - 1) v = Math.min(v, d[k - W + 1] + dg); }
-    d[k] = v;
+// ---- distanza euclidea esatta (Felzenszwalb): i contorni sono tondi, non ottagonali come col chamfer.
+// dist(src)[k] = metri dalla cella k alla più vicina con src=1 (0 sulle celle src)
+function edt(src) {
+  const INF = 1e20, n = Math.max(W, H);
+  const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+  const g = new Float32Array(N);
+  for (let k = 0; k < N; k++) g[k] = src[k] ? 0 : INF;
+  const line = (len) => {
+    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < len; q++) {
+      let s;
+      for (;;) { s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); if (s <= z[k]) k--; else break; }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  };
+  for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) f[y] = g[y * W + x]; line(H); for (let y = 0; y < H; y++) g[y * W + x] = d[y]; }
+  for (let y = 0; y < H; y++) { for (let x = 0; x < W; x++) f[x] = g[y * W + x]; line(W); for (let x = 0; x < W; x++) g[y * W + x] = d[x]; }
+  for (let k = 0; k < N; k++) g[k] = Math.sqrt(g[k]) * STEP;
+  return g;
+}
+/** sfocatura a scatola separabile (raggio in celle), ripetuta: approssima una gaussiana */
+function blur(a, r, passes = 3) {
+  let cur = Float32Array.from(a), tmp = new Float32Array(N);
+  for (let p = 0; p < passes; p++) {
+    for (let y = 0; y < H; y++) { let acc = 0; const o = y * W;
+      for (let x = -r; x <= r; x++) acc += cur[o + Math.min(W - 1, Math.max(0, x))];
+      for (let x = 0; x < W; x++) { tmp[o + x] = acc / (2 * r + 1); acc += cur[o + Math.min(W - 1, x + r + 1)] - cur[o + Math.max(0, x - r)]; } }
+    for (let x = 0; x < W; x++) { let acc = 0;
+      for (let y = -r; y <= r; y++) acc += tmp[Math.min(H - 1, Math.max(0, y)) * W + x];
+      for (let y = 0; y < H; y++) { cur[y * W + x] = acc / (2 * r + 1); acc += tmp[Math.min(H - 1, y + r + 1) * W + x] - tmp[Math.max(0, y - r) * W + x]; } }
   }
-  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
-    const k = y * W + x; let v = d[k];
-    if (x < W - 1) v = Math.min(v, d[k + 1] + s);
-    if (y < H - 1) { v = Math.min(v, d[k + W] + s); if (x < W - 1) v = Math.min(v, d[k + W + 1] + dg); if (x > 0) v = Math.min(v, d[k + W - 1] + dg); }
-    d[k] = v;
+  return cur;
+}
+// ---- costa naturale. L'ortofoto dà una riva a scalini (pixel da 2,5 m classificati a soglia) e lungo
+// una spiaggia di 3 km è una retta. Si sfoca la maschera (σ ≈ 9 m) e dal suo valore si ricava la distanza
+// dalla riva SOTTO la cella: su un fronte sfocato f = Φ(s/σ), quindi s = σ·Φ⁻¹(f). (La distanza euclidea
+// della maschera binaria no: lungo una riva quasi orizzontale vale uguale su tutta la riga, a plateau.)
+// Poi la riva serpeggia con rumore a più scale (rientranze di 100-130 m, cuspidi di 40-60 m, increspature
+// di 10-20 m), entro ±8 m. `sField` è la distanza con segno (m, > 0 mare) usata per R e per il MDT.
+function probit(p) { // inversa della gaussiana (Acklam)
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  if (p < 0.02425) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  if (p > 0.97575) { const q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  const q = p - 0.5, r = q * q;
+  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+const sField = new Float32Array(N);
+{
+  const R = 4, SIG = Math.sqrt(3 * ((2 * R + 1) ** 2 - 1) / 12) * STEP; // σ della sfocatura in metri
+  const f0 = new Float32Array(N); for (let k = 0; k < N; k++) f0[k] = sea[k];
+  const soft = blur(f0, R);
+  const m1 = new Uint8Array(N); for (let k = 0; k < N; k++) m1[k] = soft[k] > 0.5 ? 1 : 0;
+  const dLand0 = edt(m1.map((v) => 1 - v)), dSea0 = edt(m1);
+  const hash = (x, y) => { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const vnoise = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, u = fx * fx * (3 - 2 * fx), w = fy * fy * (3 - 2 * fy);
+    return (hash(xi, yi) * (1 - u) + hash(xi + 1, yi) * u) * (1 - w) + (hash(xi, yi + 1) * (1 - u) + hash(xi + 1, yi + 1) * u) * w; };
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  let flipped = 0;
+  for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) {
+    const k = cy * W + cx;
+    const sEdt = m1[k] ? dLand0[k] - STEP / 2 : -(dSea0[k] - STEP / 2);
+    const sFine = SIG * probit(Math.min(0.9995, Math.max(0.0005, soft[k])));
+    const w = smooth(14, 20, Math.abs(sFine));          // oltre ~20 m il fronte sfocato satura: vale l'EDT
+    const s = sFine * (1 - w) + sEdt * w;
+    const near = 1 - Math.min(1, Math.abs(s) / 60);
+    let s2 = s;
+    if (near > 0) {
+      const xm = cx * STEP, ym = cy * STEP;
+      const n = (vnoise(xm / 140, ym / 140) - 0.5) * 2 * 6 + (vnoise(xm / 60 + 11, ym / 60 + 7) - 0.5) * 2 * 4.5 + (vnoise(xm / 26 + 3, ym / 26 + 9) - 0.5) * 2 * 3 + (vnoise(xm / 11 + 5, ym / 11 + 2) - 0.5) * 2 * 1.3;
+      s2 = s + n * near;
+    }
+    // l'acqua non sale su terra alta (muri, porto, rocce)
+    if (s2 > 0 && !m1[k] && cellH[k] >= 2.5) s2 = -0.05;
+    sField[k] = s2;
+    sea[k] = s2 > 0 ? 1 : 0;
+    if (sea[k] !== m1[k]) flipped++;
   }
-  return d;
+  console.log(`costa: maschera sfocata (σ ${SIG.toFixed(1)} m), riva sub-cella e frastagliata (${flipped} celle cambiate)`);
 }
 const land = sea.map((v) => 1 - v);
-const toLand = chamfer(land), toSea = chamfer(sea);
+const toLand = edt(land), toSea = edt(sea);
 
 const rgb = new Uint8Array(N * 3);
 let nSea = 0, nBeach = 0;
 for (let k = 0; k < N; k++) {
-  const g = cnt[k] ? grn[k] / cnt[k] : 0;
-  if (sea[k]) { rgb[k * 3] = Math.round(30 + 225 * Math.min(1, toLand[k] / 80)); nSea++; continue; }
+  // a meno di 14 m dal mare non c'è prato: il verde è l'acqua bassa della battigia vista dall'alto
+  const g = cnt[k] && toSea[k] > 14 ? grn[k] / cnt[k] : 0;
+  // R = distanza con segno dalla riva (128 = riva, + verso il largo, - verso terra), continua attraverso la
+  // riva: la linea d'acqua è precisa sotto la cella da 2 m (con una maschera binaria una riva quasi dritta
+  // veniva a lunghe scalinate). Decodifica in ground.js (lcSigned).
+  {
+    const sd = sField[k], a = Math.abs(sd);
+    // codifica non lineare: 0,125 m per unità entro 8 m dalla riva (dove serve la precisione: una riva quasi
+    // orizzontale in 8 bit a 0,6 m per unità veniva a gradini), poi ~1,1 m per unità fino a 80 m
+    const q = a < 8 ? a * 8 : 64 + (a - 8) * 0.875;
+    rgb[k * 3] = Math.max(0, Math.min(255, Math.round(128 + Math.sign(sd) * q)));
+  }
+  if (sea[k]) {
+    // la spiaggia si estende di 8 m sul lato mare (lì copre l'acqua): senza, il passaggio ciottoli → terra
+    // seguiva la cella da 2 m e disegnava la scalinata che si vedeva sulla riva
+    if (sField[k] < 8) rgb[k * 3 + 1] = 255;
+    nSea++; continue;
+  }
   // spiaggia: terra bassa entro 90 m dal mare, non verde
   const beach = cellH[k] < 6 ? (1 - Math.min(1, Math.max(0, (toSea[k] - 60) / 30))) * (1 - Math.min(1, g * 2)) : 0;
   if (beach > 0.5) nBeach++;
@@ -113,18 +194,27 @@ for (let k = 0; k < N; k++) {
 writeFileSync(new URL('data/landcover.png', root), encodePNG(W, H, rgb));
 writeFileSync(new URL('data/landcover.json', root), JSON.stringify({
   source: 'classificata dall\'ortofoto 2022 SITR (CC BY 4.0)', step: STEP, width: W, height: H, xmin: X0, ymax: Y1,
-  channels: 'R: mare (30 a riva → 255 a 80 m), G: spiaggia, B: verde',
+  channels: 'R: distanza con segno dalla riva, codificata (128 = riva; vedi lcSigned in ground.js), G: spiaggia, B: verde',
 }));
 
-// MDT sulla costa: fondale che scende sotto il mare, spiaggia del 2022 asciutta
+// MDT sulla costa: fondale che scende sotto il mare, spiaggia del 2022 asciutta.
+// Il profilo è CONTINUO nella distanza con segno dalla riva (s > 0 mare): la quota vale 0 sulla riva e
+// cresce/decresce in modo regolare. Un salto netto fra mare e spiaggia su una maglia da 4 m faceva
+// scattare la linea d'acqua a gradini (la quota interpolata attraversa lo zero a scalini di una cella).
+const signed = (k) => sField[k];
 const out = Float32Array.from(dtm);
 for (let r = 0; r < dtmMeta.height; r++) for (let c = 0; c < dtmMeta.width; c++) {
   const x = dtmMeta.xmin + c * dtmMeta.step, y = dtmMeta.ymax - r * dtmMeta.step;
-  const cx = Math.floor((x - X0) / STEP), cy = Math.floor((Y1 - y) / STEP);
-  if (cx < 0 || cy < 0 || cx >= W || cy >= H) continue;
-  const k = cy * W + cx, i = r * dtmMeta.width + c;
-  if (sea[k]) out[i] = -Math.min(6, 0.4 + toLand[k] * 0.05);
-  else if (out[i] < 0.4) out[i] = 0.4 + Math.min(1.2, toSea[k] * 0.03);
+  const cx = Math.round((x - X0) / STEP), cy = Math.round((Y1 - y) / STEP);
+  if (cx < 1 || cy < 1 || cx >= W || cy >= H) continue;
+  // il vertice sta all'incrocio di quattro celle da 2 m: media della distanza con segno
+  const s = (signed(cy * W + cx) + signed(cy * W + cx - 1) + signed((cy - 1) * W + cx) + signed((cy - 1) * W + cx - 1)) / 4;
+  const i = r * dtmMeta.width + c;
+  if (s > 0) out[i] = -Math.min(6, s * 0.08);
+  else if (s > -60 && out[i] < 3) {
+    const d = -s, h0 = d < 10 ? d * 0.08 : 0.8 + (d - 10) * 0.02;   // pendio della battigia
+    out[i] = h0 + Math.min(Math.max(out[i] - h0, 0), 0.12 * d);      // il rilievo vero sale solo piano
+  }
 }
 writeFileSync(new URL('data/dtm-sea.bin', root), Buffer.from(out.buffer));
 console.log(`copertura ${W}×${H} a ${STEP} m: mare ${(nSea * STEP * STEP / 1e6).toFixed(2)} km², spiaggia ${(nBeach * STEP * STEP / 1e4).toFixed(1)} ha`);

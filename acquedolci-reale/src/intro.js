@@ -1,6 +1,6 @@
 /**
- * Intro di "the lord of the sweetwater". Nessuna didascalia: solo movimenti di camera,
- * e alla fine il titolo. Esc interrompe. Poi si entra nel paese.
+ * Intro di "Sweetwaters — Road to Leadership": una sola inquadratura, il dolly serale sul paese,
+ * con il titolo in alto. Esc interrompe. Poi si entra nel paese.
  *
  * Le quote sono metri sopra il terreno. Il nadir guarda dritto in basso, con il sud
  * in alto nel quadro (Municipio in alto, mare in basso, come le foto drone).
@@ -13,13 +13,7 @@ const settle = (k) => ease(Math.min(1, k / 0.7));
 const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 const SHOTS = [
-  { // breve nadir: il paese dall'alto si avvicina dolcemente
-    hour: 10.5, dur: 5, fov: 38, nadir: true,
-    from: { cam: [-6, 520, -18], look: [-6, 0, -18] },
-    to: { cam: [-6, 130, -18], look: [-6, 0, -18] },
-    ease: settle,
-  },
-  { // dolly serale lento: si apre il paese, compare il titolo, poi si entra
+  { // dolly serale lento: si apre il paese, compare il titolo (in alto, così il Municipio resta libero)
     hour: 18.2, dur: 7, fov: 46, final: true,
     from: { cam: [-55, 68, -270], look: [-8, 14, -28] },
     to: { cam: [-22, 112, -370], look: [-6, 20, -36] },

@@ -317,11 +317,11 @@ function onBeach(ux, uy) {
   const cx = Math.floor((ux - lcMeta.xmin) / lcMeta.step), cy = Math.floor((lcMeta.ymax - uy) / lcMeta.step);
   if (cx < 0 || cy < 0 || cx >= lc.width || cy >= lc.height) return false;
   const i = (cy * lc.width + cx) * 3;
-  if (lc.data[i] > 0 || lc.data[i + 1] > 60) return true;
+  if (lc.data[i] > 128 || lc.data[i + 1] > 60) return true; // R > 128: mare (distanza con segno dalla riva)
   // niente piante a meno di 12 m dal mare
   for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
     const x = cx + dx, y = cy + dy;
-    if (x >= 0 && y >= 0 && x < lc.width && y < lc.height && lc.data[(y * lc.width + x) * 3] > 0) return true;
+    if (x >= 0 && y >= 0 && x < lc.width && y < lc.height && lc.data[(y * lc.width + x) * 3] > 128) return true;
   }
   return false;
 }
@@ -414,7 +414,7 @@ if (lc) {
   }
   for (let cy = 0; cy < lc.height; cy++) for (let cx = 0; cx < lc.width; cx++) {
     const i = (cy * lc.width + cx) * 3;
-    if (lc.data[i] || lc.data[i + 1] > 40 || lc.data[i + 2] < 150) continue; // mare, spiaggia, poco verde
+    if (lc.data[i] > 128 || lc.data[i + 1] > 40 || lc.data[i + 2] < 150) continue; // mare, spiaggia, poco verde
     const hsh = hash(cy * 7919 + cx);
     if (hsh > 0.5) continue;
     const ux = lcMeta.xmin + (cx + hash(cx * 31 + cy)) * lcMeta.step, uy = lcMeta.ymax - (cy + hash(cy * 17 + cx)) * lcMeta.step;
