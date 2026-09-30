@@ -326,6 +326,60 @@ function onBeach(ux, uy) {
   return false;
 }
 let beachDropped = 0;
+
+// ---- distanze per non far toccare le chiome a edifici e strade
+const CELL = 8;
+const cellKey = (x, z) => `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+const bGrid = new Map(); // celle da 8 m → piante degli edifici (anelli in coordinate locali)
+for (const b of out) {
+  const R = []; for (let i = 0; i < b.r.length; i += 2) R.push([b.r[i], b.r[i + 1]]);
+  const xs = R.map((p) => p[0]), zs = R.map((p) => p[1]);
+  for (let gx = Math.floor(Math.min(...xs) / CELL); gx <= Math.floor(Math.max(...xs) / CELL); gx++) for (let gz = Math.floor(Math.min(...zs) / CELL); gz <= Math.floor(Math.max(...zs) / CELL); gz++) { const k = `${gx},${gz}`; if (!bGrid.has(k)) bGrid.set(k, []); bGrid.get(k).push(R); }
+}
+const segDist = (x, z, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1e-9; const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2)); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
+/** distanza dalla pianta più vicina (m); −1 se il punto è dentro un edificio */
+function distBuilding(x, z) {
+  let best = Infinity;
+  const gx = Math.floor(x / CELL), gz = Math.floor(z / CELL);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const R of bGrid.get(`${gx + i},${gz + j}`) || []) {
+    if (inRingXY(x, z, R)) return -1;
+    for (let k = 0; k < R.length; k++) { const [ax, az] = R[k], [bx, bz] = R[(k + 1) % R.length]; best = Math.min(best, segDist(x, z, ax, az, bx, bz)); }
+  }
+  return best;
+}
+// strade (build-streets.mjs): asse e larghezza della carreggiata; se il file non c'è, nessun vincolo
+const streetsPath = new URL('public/data/streets.json', root);
+const rGrid = new Map();
+if (existsSync(streetsPath)) {
+  for (const rd of JSON.parse(readFileSync(streetsPath)).roads) {
+    for (let i = 0; i + 3 < rd.p.length; i += 2) {
+      const s = [rd.p[i], rd.p[i + 1], rd.p[i + 2], rd.p[i + 3], rd.cw / 2];
+      for (let gx = Math.floor(Math.min(s[0], s[2]) / CELL); gx <= Math.floor(Math.max(s[0], s[2]) / CELL); gx++) for (let gz = Math.floor(Math.min(s[1], s[3]) / CELL); gz <= Math.floor(Math.max(s[1], s[3]) / CELL); gz++) { const k = `${gx},${gz}`; if (!rGrid.has(k)) rGrid.set(k, []); rGrid.get(k).push(s); }
+    }
+  }
+}
+/** distanza dal bordo dell'asfalto più vicino (m); negativa se il punto è sulla carreggiata */
+function distRoad(x, z) {
+  let best = Infinity;
+  const gx = Math.floor(x / CELL), gz = Math.floor(z / CELL);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const s of rGrid.get(`${gx + i},${gz + j}`) || []) best = Math.min(best, segDist(x, z, s[0], s[1], s[2], s[3]) - s[4]);
+  return best;
+}
+/**
+ * Scala vera degli alberi. Le chiome Meta/WRI (1 m) sono larghe e basse: nel mondo 3D sembrano cupole
+ * che toccano case e strade. Qui la chioma si stringe (×0,55, mai oltre 3,5 m di raggio) e l'albero si alza
+ * (×1,3 + 0,8 m). Poi il raggio si limita alla distanza libera da edifici e asfalto (0,25 m di margine):
+ * se il centro sta su un edificio o sulla carreggiata, o non c'è posto per almeno 0,7 m, l'albero si toglie.
+ */
+let squeezed = 0, removedClear = 0;
+function fitTree(x, z, h0, r0) {
+  let r = Math.min(3.5, Math.max(0.8, r0 * 0.55));
+  const h = Math.min(26, h0 * 1.3 + 0.8);
+  const room = Math.min(distBuilding(x, z), distRoad(x, z)) - 0.25;
+  if (room < 0.7) { removedClear++; return null; }
+  if (room < r) { r = room; squeezed++; }
+  return [h, r];
+}
 // chiome Meta/WRI estratte da scripts/fetch-canopy.mjs, già in UTM e già senza quelle sui tetti DBTR
 const canopyPath = new URL('data/canopy.json', root);
 if (existsSync(canopyPath)) {
@@ -337,8 +391,11 @@ if (existsSync(canopyPath)) {
   for (const [ux, uy, h0, r0] of best.values()) {
     if (onBeach(ux, uy)) { beachDropped++; continue; }
     const x = ux - OX, z = -(uy - OY);
-    const h = Math.min(22, h0), r = Math.min(8, r0 || 2);
-    trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +h.toFixed(1), +r.toFixed(1), species(ux, uy, h, r));
+    const hc = Math.min(22, h0), rc = Math.min(8, r0 || 2);
+    const sp = species(ux, uy, hc, rc); // la specie si sceglie sulle misure originali della chioma
+    const fit = fitTree(x, z, hc, rc);
+    if (!fit) continue;
+    trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +fit[0].toFixed(1), +fit[1].toFixed(1), sp);
   }
 }
 // Cespugli: dove l'ortofoto è verde (copertura del suolo, build-landcover.mjs) ma non c'è né un
@@ -350,12 +407,6 @@ if (lc) {
     const [x, z, , , r] = trees.slice(i, i + 6), R = r * 0.9;
     for (let gx = Math.floor((x - R) / 4); gx <= Math.floor((x + R) / 4); gx++) for (let gz = Math.floor((z - R) / 4); gz <= Math.floor((z + R) / 4); gz++) treeGrid.set(`${gx},${gz}`, 1);
   }
-  const bGrid = new Map(); // celle da 8 m → piante degli edifici
-  for (const b of out) {
-    const xs = [], zs = []; for (let i = 0; i < b.r.length; i += 2) { xs.push(b.r[i]); zs.push(b.r[i + 1]); }
-    for (let gx = Math.floor(Math.min(...xs) / 8); gx <= Math.floor(Math.max(...xs) / 8); gx++) for (let gz = Math.floor(Math.min(...zs) / 8); gz <= Math.floor(Math.max(...zs) / 8); gz++) { const k = `${gx},${gz}`; if (!bGrid.has(k)) bGrid.set(k, []); bGrid.get(k).push(b); }
-  }
-  const inB = (x, z) => (bGrid.get(`${Math.floor(x / 8)},${Math.floor(z / 8)}`) || []).some((b) => { const R = []; for (let i = 0; i < b.r.length; i += 2) R.push([b.r[i], b.r[i + 1]]); return inRingXY(x, z, R); });
   for (let cy = 0; cy < lc.height; cy++) for (let cx = 0; cx < lc.width; cx++) {
     const i = (cy * lc.width + cx) * 3;
     if (lc.data[i] || lc.data[i + 1] > 40 || lc.data[i + 2] < 150) continue; // mare, spiaggia, poco verde
@@ -363,14 +414,17 @@ if (lc) {
     if (hsh > 0.5) continue;
     const ux = lcMeta.xmin + (cx + hash(cx * 31 + cy)) * lcMeta.step, uy = lcMeta.ymax - (cy + hash(cy * 17 + cx)) * lcMeta.step;
     const x = ux - OX, z = -(uy - OY);
-    if (treeGrid.has(`${Math.floor(x / 4)},${Math.floor(z / 4)}`) || inB(x, z)) continue;
+    if (treeGrid.has(`${Math.floor(x / 4)},${Math.floor(z / 4)}`)) continue;
     if (onBeach(ux, uy)) { beachDropped++; continue; }
-    const h = 0.5 + hsh * 2.6, r = 0.6 + hash(cx * 13 + cy * 3) * 0.9;
+    // i cespugli non stanno né sugli edifici né sull'asfalto e non li toccano
+    const room = Math.min(distBuilding(x, z), distRoad(x, z)) - 0.15;
+    if (room < 0.4) continue;
+    const h = 0.5 + hsh * 2.6, r = Math.min(0.6 + hash(cx * 13 + cy * 3) * 0.9, room);
     trees.push(+x.toFixed(1), +z.toFixed(1), +terrainAt(ux, uy).toFixed(1), +h.toFixed(1), +r.toFixed(1), 5);
     shrubs++;
   }
 }
-console.log('cespugli dal verde dell\'ortofoto:', shrubs, '· tolti da spiaggia e mare:', beachDropped);
+console.log('cespugli dal verde dell\'ortofoto:', shrubs, '· tolti da spiaggia e mare:', beachDropped, '· alberi ristretti dagli ingombri:', squeezed, '· tolti perché su edifici o strada:', removedClear);
 const spCount = [0, 0, 0, 0, 0, 0]; for (let i = 5; i < trees.length; i += 6) spCount[trees[i]]++;
 console.log('alberi', trees.length / 6, 'per specie [latifoglia, pino, ulivo, agrume, palma, cespuglio]:', spCount);
 

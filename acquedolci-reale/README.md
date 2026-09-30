@@ -142,6 +142,25 @@ Come funziona l'ora del giorno (`src/daylight.js`):
 
 Le luci notturne sono tipiche, non censite.
 
+## Facciate da foto stradali aperte (pipeline automatica)
+
+Per modellare palazzi e piazze «come sono» servono foto da terra. Street View non si può usare: i termini di Google Maps Platform vietano di scaricare le immagini e di ricavarne opere derivate. Si usano quindi foto con licenza aperta, cioè **Mapillary (CC BY-SA 4.0)**, e le proprie foto.
+
+Stato della copertura aperta ad Acquedolci: 97 foto nel nucleo, 51 sull'autostrada e quasi nessuna nelle vie. Bisogna quindi produrre le foto, con un giro col telefono. Poi è tutto automatico:
+
+1. **Girare col telefono** (20–30 minuti per il centro):
+   - installare l'app **Mapillary** (gratuita) e accedere;
+   - modalità *foto* a intervalli (ogni 2–3 s), telefono fermo in mano, **rivolto verso le facciate** (di lato, non davanti);
+   - camminare piano lungo una via per lato, e attorno alla piazza scattando verso l'interno;
+   - caricare con il Wi-Fi e attendere l'elaborazione (alcune ore).
+2. `MAPILLARY_TOKEN=… node scripts/fetch-street-photos.mjs` scarica le foto con posizione e direzione.
+3. `python3 scripts/facade-from-photos.py` (`pip install pillow numpy`) trova, per ogni lato di ogni edificio, le foto che lo inquadrano. Scarta le parti nascoste da altri edifici, corregge la direzione della bussola con le linee orizzontali e produce la **facciata raddrizzata in vista frontale**, in scala metrica (40 px/m). Fa anche i fogli di contatto per edificio (`data/facade-crops/`).
+4. Dai fogli si descrivono le facciate (piani, campate, aperture, balconi, piano terra, colori) in `facade-specs.json`, che il renderer userà per costruire ogni edificio.
+
+Provata sulle 97 foto esistenti: 20 lati inquadrati (le aree di servizio dell'autostrada), a conferma che la geometria funziona. La raddrizzatura è buona ma l'assetto della camera non è perfettamente noto, quindi restano piccole inclinazioni. Il punto 4 e la lettura di `facade-specs.json` nel renderer non ci sono ancora: il formato lo fissiamo sulle foto vere delle vie.
+
+Le foto sono **solo riferimento**: nessun pixel finisce nel gioco. Credito richiesto: Mapillary contributors (CC BY-SA 4.0).
+
 ## Colori dal vero
 
 L'ortofoto vede le facciate di sbieco e le tinge di rosa-malva: a* mediano 6,4 contro 1,3 nelle foto da terra. `photo-palette.mjs` estrae dalle panoramiche solo i pixel d'intonaco (via cielo, mare, verde, coppi, ombre). Poi `build-model.mjs` porta la tinta di ogni edificio sulla distribuzione dal vero per quantili: l'ordine resta quello misurato, la luminosità anche. I coppi nelle foto sono ~1,4 volte più saturi e più aranci; il ritocco è nello shader dei tetti (`ortho.js`, in CIELAB).
