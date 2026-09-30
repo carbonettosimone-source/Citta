@@ -82,7 +82,7 @@ export const RALLY_SPOTS = [
 ];
 
 export const DEALER = { id: 'autosalone', x: 509, z: -212, icon: '🚗', title: 'Autosalone', text: 'Qui l\'apparenza si compra a rate.' };
-export const START = { x: 19, z: 35 };
+export const START = { x: -17, z: 12 }; // piazza del Municipio
 
 /** auto acquistabili: apparenza (0–5), velocità (m/s) */
 export const CARS = [

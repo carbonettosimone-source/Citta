@@ -53,15 +53,11 @@ body.intro #hud, body.intro #modes, body.intro #settings, body.intro #hint, body
 .swatch.sel { border-color: var(--ink); transform: scale(1.14); }
 .swatch-none { background: #f0f0f0 !important; position: relative; }
 .swatch-none::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #888; }
-#charPreview { display: flex; justify-content: center; padding: 8px 0 4px; }
-#charFigure { position: relative; width: 60px; height: 132px; display: flex; flex-direction: column; align-items: center; gap: 0; }
-.fig-hat  { width: 30px; height: 8px; border-radius: 4px 4px 0 0; background: transparent; }
-.fig-hair { width: 28px; height: 10px; border-radius: 50% 50% 0 0; background: #180c04; margin-top: -1px; }
-.fig-head { width: 26px; height: 26px; border-radius: 50%; background: #f8d4a8; margin-top: -2px; position: relative; display: flex; align-items: center; justify-content: center; }
-.fig-glasses { width: 20px; height: 6px; background: transparent; border-radius: 2px; display: none; }
-.fig-torso { width: 34px; height: 28px; border-radius: 5px 5px 3px 3px; background: #4a88cc; margin-top: 2px; }
-.fig-legs { display: flex; gap: 3px; margin-top: 2px; }
-.fig-leg { width: 14px; height: 32px; border-radius: 3px 3px 5px 5px; background: #2a3f6a; }
+#charPreview { display: flex; justify-content: center; margin: -4px 0 -2px; background: radial-gradient(ellipse at 50% 60%, #f3ead6, #fff 70%); border-radius: 14px; }
+#charCanvas { width: 200px; height: 231px; }
+.chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.chip { border: 1.5px solid #ddd; background: #fff; border-radius: 999px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
+.chip.sel { border-color: var(--ink); background: var(--ink); color: #fff; }
 #charConfirm { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; letter-spacing: .01em; transition: opacity .15s; }
 #charConfirm:hover { opacity: .88; }
 

@@ -316,7 +316,9 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
     s = state; closeAll();
     document.body.classList.remove('menu');
     document.body.classList.add('playing');
-    player.place(START.x, START.z);
+    // si parte in strada davanti al Municipio (il nodo stradale più vicino, mai dentro un edificio)
+    const st = nav.nearest(START.x, START.z, false) || START;
+    player.place(st.x, st.z);
     player.setCar(s.car ? CARS.find((c) => c.id === s.car) : null);
     controls.target.copy(player.state.pos);
     camera.position.set(player.state.pos.x + 35, player.state.pos.y + 95, player.state.pos.z + 70);
