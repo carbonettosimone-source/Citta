@@ -13,8 +13,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ---- parametri globali -------------------------------------------------------
-const POOL      = 30;   // auto totali nel pool
-const CULL      = 880;  // m — oltre questa distanza la macchina respawna
+const POOL      = 140;  // auto totali nel pool
+const CULL      = 940;  // m — oltre questa distanza la macchina respawna
 const NEAR      = 12;   // m — tolleranza per connessione tra segmenti
 const ROAD_CULL = 1100; // m — usa solo strade entro questo raggio dall'origine
 
@@ -226,7 +226,8 @@ export function createTraffic(roads, heightAt) {
       : perType;
     const geo = buildCarGeo(vt);
     const im = new THREE.InstancedMesh(geo, mat, count);
-    im.castShadow = true;
+    im.castShadow = false; // shadow map troppo costosa con 140 istanze
+    im.receiveShadow = true;
     im.name = `car_${vt.label}`;
     im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
     group.add(im);
@@ -236,6 +237,7 @@ export function createTraffic(roads, heightAt) {
   // stato macchina: { typeIdx, instIdx, segIdx, dist, dir, speed, colorHex }
   const cars = [];
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(1,1,1), pv = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0); // pre-allocato, non ricreato nel loop
 
   function spawnCar(car, refX, refZ) {
     // scegli un segmento non troppo vicino al punto di riferimento
@@ -287,14 +289,15 @@ export function createTraffic(roads, heightAt) {
       const seg = segs[car.segIdx];
       // cull: troppo lontano dalla camera → respawn
       const { x, z } = posAtDist(seg, car.dist);
-      if (Math.hypot(x - cx, z - cz) > CULL) {
+      const distCam = Math.hypot(x - cx, z - cz);
+      if (distCam > CULL) {
         spawnCar(car, cx, cz);
         const c = new THREE.Color(car.colorHex);
         ims[car.typeIdx].im.setColorAt(car.instIdx, c);
         ims[car.typeIdx].im.instanceColor.needsUpdate = true;
       }
 
-      // avanza
+      // avanza sempre (anche se si salta il repaint)
       car.dist += car.dir * car.speed * dt;
 
       // raggiunto un estremo: cerca connessione
@@ -318,6 +321,9 @@ export function createTraffic(roads, heightAt) {
         }
       }
 
+      // frame-skip per auto lontane: aggiorna transform ogni 2 frame oltre 660 m
+      if (distCam > 660 && (car.instIdx & 1) !== (Math.round(distCam * 0.1) & 1)) continue;
+
       // posiziona istanza
       const pos = posAtDist(segs[car.segIdx], car.dist);
       const y = heightAt(pos.x, pos.z);
@@ -326,7 +332,7 @@ export function createTraffic(roads, heightAt) {
       const offZ =  pos.hx * 0.9 * (car.dir > 0 ? 1 : -1);
       pv.set(pos.x + offX, y, pos.z + offZ);
       const ang = Math.atan2(pos.hx * car.dir, pos.hz * car.dir);
-      q.setFromAxisAngle(new THREE.Vector3(0,1,0), ang);
+      q.setFromAxisAngle(UP, ang);
       m4.compose(pv, q, sv);
       ims[car.typeIdx].im.setMatrixAt(car.instIdx, m4);
     }

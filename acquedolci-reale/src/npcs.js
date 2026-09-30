@@ -13,8 +13,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ---- parametri ---------------------------------------------------------------
-const POOL      = 60;
-const CULL      = 380;   // m
+const POOL      = 260;
+const CULL      = 420;   // m
 const SPD_MIN   = 0.8;
 const SPD_MAX   = 1.6;   // m/s
 const ROAD_CULL = 900;
@@ -156,7 +156,8 @@ export function createNPCs(roads, heightAt) {
   const imSlim   = new THREE.InstancedMesh(geoSlim,   mat, Math.ceil(POOL/2));
   const imNormal = new THREE.InstancedMesh(geoNormal, mat, Math.floor(POOL/2));
   imSlim.name = 'ped_slim'; imNormal.name = 'ped_normal';
-  imSlim.castShadow = imNormal.castShadow = true;
+  imSlim.castShadow = imNormal.castShadow = false; // shadow map troppo costosa con 260 istanze
+  imSlim.receiveShadow = imNormal.receiveShadow = true;
   imSlim.instanceColor   = new THREE.InstancedBufferAttribute(new Float32Array(Math.ceil(POOL/2)*3), 3);
   imNormal.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.floor(POOL/2)*3), 3);
 
@@ -189,16 +190,19 @@ export function createNPCs(roads, heightAt) {
   imNormal.instanceColor.needsUpdate = true;
 
   let clock = 0;
+  let frameN = 0; // contatore frame per frame-skip pedoni lontani
 
   function update(dt, camera) {
     clock += dt;
+    frameN++;
     const cx = camera.position.x, cz = camera.position.z;
     for (const ped of peds) {
       const path = paths[ped.pathIdx];
       const pos = pedPosAtDist(path, ped.dist);
+      const distCam = Math.hypot(pos.x - cx, pos.z - cz);
 
       // cull: troppo lontano → respawn
-      if (Math.hypot(pos.x - cx, pos.z - cz) > CULL) {
+      if (distCam > CULL) {
         // trova un path non troppo vicino e non troppo lontano
         let tries = 0;
         do {
@@ -212,10 +216,15 @@ export function createNPCs(roads, heightAt) {
         continue;
       }
 
-      // avanza
+      // frame-skip: pedoni > 180 m aggiornano transform ogni 3 frame
+      const skipTransform = distCam > 180 && (frameN % 3) !== (ped.instIdx % 3);
+
+      // avanza sempre (posizione logica coerente anche quando si salta il repaint)
       ped.dist += ped.dir * ped.speed * dt;
       if (ped.dist <= 0) { ped.dir = 1; ped.dist = 0; }
       if (ped.dist >= path.len) { ped.dir = -1; ped.dist = path.len; }
+
+      if (skipTransform) continue;
 
       const npos = pedPosAtDist(paths[ped.pathIdx], ped.dist);
       const y = heightAt(npos.x, npos.z);
