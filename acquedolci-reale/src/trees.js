@@ -56,7 +56,8 @@ export function buildTrees(flat) {
     const im = new THREE.InstancedMesh(geos[sp], mat, list.length);
     list.forEach((i, k) => {
       const x = flat[i * 6], z = flat[i * 6 + 1], y = flat[i * 6 + 2];
-      const h = sp === 5 ? flat[i * 6 + 3] : Math.max(sp === 3 ? 2.5 : 3, flat[i * 6 + 3]), r = sp === 5 ? flat[i * 6 + 4] : Math.max(1, flat[i * 6 + 4]);
+      // misure già a scala vera dal modello (build-model.mjs → fitTree): niente minimi che rigonfiano la chioma
+      const h = sp === 5 ? flat[i * 6 + 3] : Math.max(2.5, flat[i * 6 + 3]), r = flat[i * 6 + 4];
       q.setFromAxisAngle(up, (i * 2.39996) % (Math.PI * 2));
       m.compose(p.set(x, y, z), q, s.set(r, h, r));
       im.setMatrixAt(k, m);
