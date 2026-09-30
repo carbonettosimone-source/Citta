@@ -18,7 +18,7 @@ export function createGrade(streets, natural) {
   const roads = (streets.roads || []).filter((r) => r.h && r.h.length * 2 === r.p.length);
   const rings = streets.corr || [];
   if (!roads.length || !rings.length) {
-    return { roadAt: natural, groundAt: natural, terrainAt: natural, natural, refine: () => false, edgeDist: () => Infinity, inCorr: () => false, rings: [] };
+    return { roadAt: natural, groundAt: natural, terrainAt: natural, baseAt: natural, natural, refine: () => false, edgeDist: () => Infinity, inCorr: () => false, rings: [] };
   }
 
   // ---- assi: segmenti con la quota ai due capi, in una griglia
@@ -133,6 +133,16 @@ export function createGrade(streets, natural) {
     const d = edgeDist(x, z);
     return d > BAND ? n : Math.min(n, g - UNDER + 0.35 * d);
   }
+  /**
+   * fondo sotto le tessere fini (maglia da 12 m, disegnata 60 cm più giù): il vertice prende il
+   * minimo del terreno spianato nel suo intorno, così nessun triangolo del fondo sporge da uno scavo
+   */
+  function baseAt(x, z) {
+    let h = terrainAt(x, z);
+    if (!sg.has(Math.floor(x / SC) * 65536 + Math.floor(z / SC))) return h;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (i || j) h = Math.min(h, terrainAt(x + i * 12, z + j * 12));
+    return h;
+  }
   /** la cella del terreno ha uno scavo o un riporto: si disegna a 2 m invece che a 6 */
   function refine(x0, z0, x1, z1) {
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
@@ -143,5 +153,5 @@ export function createGrade(streets, natural) {
     }
     return false;
   }
-  return { roadAt, groundAt, terrainAt, natural, refine, edgeDist, inCorr, rings };
+  return { roadAt, groundAt, terrainAt, baseAt, natural, refine, edgeDist, inCorr, rings };
 }

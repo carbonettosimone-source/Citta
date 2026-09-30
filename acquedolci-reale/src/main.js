@@ -110,7 +110,7 @@ async function load() {
   }
   say('terreno');
   const bounds = { xmin: dtmMeta.xmin, xmax: dtmMeta.xmin + (dtmMeta.width - 1) * dtmMeta.step, ymax: dtmMeta.ymax, ymin: dtmMeta.ymax - (dtmMeta.height - 1) * dtmMeta.step };
-  scene.add(buildTerrain({ orthoMeta, textures, heightAt: grade.terrainAt, refine: grade.refine, origin: model.origin, bounds }));
+  scene.add(buildTerrain({ orthoMeta, textures, heightAt: grade.terrainAt, baseAt: grade.baseAt, refine: grade.refine, origin: model.origin, bounds }));
   const water = buildWater(sun.position.clone().sub(sun.target.position));
   scene.add(water.mesh);
   say('litorale ed Eolie');
@@ -136,10 +136,10 @@ async function load() {
   const nLidar = model.buildings.filter((b) => b.src === 'lidar').length;
   $('sub').textContent = `${model.buildings.length} edifici reali · ${nLidar} con altezza LiDAR`;
   const hr = hrMeta ? createOrthoHR(hrMeta, model.origin, renderer) : { update() {} };
-  return { model, heightAt, collider, trees, streets, hr, water, farSea, farLabels: bg.labels };
+  return { model, heightAt, grade, collider, trees, streets, hr, water, farSea, farLabels: bg.labels };
 }
 
-const { model, heightAt, collider, trees, streets, hr, water, farSea, farLabels } = await load();
+const { model, heightAt, grade, collider, trees, streets, hr, water, farSea, farLabels } = await load();
 $('loader').classList.add('hide');
 
 // ---------- traffico + pedoni
@@ -488,4 +488,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
+window.__acq = { camera, controls, walker, heightAt, grade, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };

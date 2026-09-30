@@ -38,15 +38,23 @@ function gridMesh(tile, step, heightAt, origin, texture, drop = 0, bounds = null
   };
   const gx = (i) => x0 + ((x1 - x0) * i) / (nx - 1), gy = (j) => y0 + ((y1 - y0) * j) / (ny - 1);
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) vert(gx(i), gy(j));
-  // celle con scavo o riporto stradale: divise in 3×3 (≈2 m), così il muro di sostegno è netto
-  const SUB = 3, fine = new Uint8Array((nx - 1) * (ny - 1));
+  // celle con scavo o riporto stradale: divise a ≈2 m, così il muro di sostegno è netto
+  const SUB = Math.max(2, Math.round(step / 2)), fine = new Uint8Array((nx - 1) * (ny - 1));
   if (refine) {
     for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
       const xa = gx(i) - OX, xb = gx(i + 1) - OX, za = OY - gy(j + 1), zb = OY - gy(j);
       if (refine(xa, za, xb, zb)) fine[j * (nx - 1) + i] = 1;
     }
   }
-  const isFine = (i, j) => i >= 0 && j >= 0 && i < nx - 1 && j < ny - 1 && fine[j * (nx - 1) + i] === 1;
+  // oltre il bordo della tessera la cella vicina è della tessera accanto: stessa prova, stessa scelta
+  const outside = new Map();
+  const isFine = (i, j) => {
+    if (i >= 0 && j >= 0 && i < nx - 1 && j < ny - 1) return fine[j * (nx - 1) + i] === 1;
+    if (!refine) return false;
+    const k = i * 100003 + j;
+    if (!outside.has(k)) outside.set(k, !!refine(gx(i) - OX, OY - gy(j + 1), gx(i + 1) - OX, OY - gy(j)));
+    return outside.get(k);
+  };
   const idx = [];
   for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
     const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
@@ -83,13 +91,22 @@ function gridMesh(tile, step, heightAt, origin, texture, drop = 0, bounds = null
   return m;
 }
 
-export function buildTerrain({ orthoMeta, textures, heightAt, origin, bounds, refine = null }) {
+export function buildTerrain({ orthoMeta, textures, heightAt, origin, bounds, refine = null, baseAt = heightAt }) {
   const group = new THREE.Group();
   group.name = 'terrain';
   for (const t of orthoMeta.tiles) {
     const tex = textures.get(t.file);
     if (!tex) continue;
-    const m = t.level === 'base' ? gridMesh(t, 12, heightAt, origin, tex, 0.6, bounds) : gridMesh(t, 6, heightAt, origin, tex, 0, bounds, refine);
+    let m;
+    if (t.level === 'base') {
+      // sotto le tessere fini il fondo si abbassa vicino alle vie; fuori è lui il terreno e si raffina
+      const [OX, OY] = origin;
+      const core = orthoMeta.tiles.filter((c) => c.level !== 'base');
+      const covered = (X, Z) => core.some((c) => X + OX >= c.xmin && X + OX <= c.xmax && OY - Z >= c.ymin && OY - Z <= c.ymax);
+      const at = (X, Z) => (covered(X, Z) ? baseAt(X, Z) : heightAt(X, Z));
+      const fine = refine && ((x0, z0, x1, z1) => !(covered(x0, z0) && covered(x1, z1) && covered(x0, z1) && covered(x1, z0)) && refine(x0, z0, x1, z1));
+      m = gridMesh(t, 12, at, origin, tex, 0.6, bounds, fine);
+    } else m = gridMesh(t, 6, heightAt, origin, tex, 0, bounds, refine);
     if (m) group.add(m);
   }
   return group;
