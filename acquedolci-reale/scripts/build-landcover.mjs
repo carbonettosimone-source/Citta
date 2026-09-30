@@ -114,7 +114,7 @@ function blur(a, r, passes = 3) {
 }
 // ---- costa naturale. L'ortofoto dà una riva a scalini (pixel da 2,5 m classificati a soglia) e lungo
 // una spiaggia di 3 km è una retta: sfocata la maschera, poi la riva serpeggia con rumore a tre scale
-// (rientranze di 60-90 m, cuspidi di 25-40 m, increspature di 10 m), sempre entro ±4 m.
+// (rientranze di 100-130 m, cuspidi di 40-60 m, increspature di 10-20 m), entro ±8 m.
 {
   const f0 = new Float32Array(N); for (let k = 0; k < N; k++) f0[k] = sea[k];
   const soft = blur(f0, 3);
@@ -127,10 +127,10 @@ function blur(a, r, passes = 3) {
   for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) {
     const k = cy * W + cx;
     const s = m1[k] ? dLand0[k] - STEP / 2 : -(dSea0[k] - STEP / 2); // >0 mare, distanza con segno dalla riva
-    const near = 1 - Math.min(1, Math.abs(s) / 40);
+    const near = 1 - Math.min(1, Math.abs(s) / 60);
     if (near <= 0) { sea[k] = m1[k]; continue; }
     const xm = cx * STEP, ym = cy * STEP;
-    const n = (vnoise(xm / 80, ym / 80) - 0.5) * 2 * 2.2 + (vnoise(xm / 32 + 11, ym / 32 + 7) - 0.5) * 2 * 1.3 + (vnoise(xm / 10 + 3, ym / 10 + 9) - 0.5) * 2 * 0.6;
+    const n = (vnoise(xm / 130, ym / 130) - 0.5) * 2 * 5.5 + (vnoise(xm / 55 + 11, ym / 55 + 7) - 0.5) * 2 * 3 + (vnoise(xm / 20 + 3, ym / 20 + 9) - 0.5) * 2 * 1.3 + (vnoise(xm / 8 + 5, ym / 8 + 2) - 0.5) * 2 * 0.5;
     const s2 = s + n * near;
     // l'acqua non sale su terra alta (muri, porto, rocce)
     sea[k] = s2 > 0 && (m1[k] || cellH[k] < 2.5) ? 1 : 0;

@@ -85,8 +85,9 @@ export function buildWater(sunDir, { far = false } = {}) {
         body *= 0.93 + 0.14 * noise(vW.xz * 0.02 + 40.0);
         // le pendenze delle onde, amplificate, modellano la luce sull'acqua (da sopra il rilievo si legge)
         vec3 Nd = normalize(vec3(-g.x * 5.0, 1.0, -g.y * 5.0));
-        float sunDiff = max(dot(Nd, uSun), 0.0);
-        vec3 col = mix(body * (0.52 + 0.48 * sunDiff), sky, fres);
+        // la luce media resta quella di prima (colore pieno): le onde aggiungono solo la variazione
+        float sunDiff = clamp(max(dot(Nd, uSun), 0.0) / max(uSun.y, 0.25), 0.55, 1.45);
+        vec3 col = mix(body * (0.55 + 0.45 * sunDiff), sky, fres);
         col += vec3(1.0, 0.95, 0.85) * pow(max(dot(R, uSun), 0.0), 350.0) * uSpec;
         // battigia: fasce di schiuma che corrono verso riva e si rompono col rumore
         float band = sin(shoreW * 0.9 + uTime * 1.3) * 0.5 + 0.5;
