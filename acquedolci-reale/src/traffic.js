@@ -22,7 +22,7 @@ const ROAD_CULL = 1100; // m — usa solo strade entro questo raggio dall'origin
 // w larghezza, h altezza del corpo basso, l lunghezza
 // tH altezza tetto, tW rapporto larghezza tetto, tOff spostamento Z del tetto
 // scooter = false tetto
-const VTYPES = [
+export const VTYPES = [
   { label:'city',    w:1.70, h:1.36, l:3.55, tH:0.66, tW:0.92, tOff: 0.00 }, // utilitaria
   { label:'sedan',   w:1.84, h:1.46, l:4.50, tH:0.60, tW:0.88, tOff:-0.06 }, // berlina
   { label:'van',     w:1.92, h:1.92, l:4.85, tH:0.98, tW:0.96, tOff: 0.10 }, // furgoncino
@@ -48,7 +48,7 @@ function paint(geo, r, g, b) {
   return geo.toNonIndexed ? geo.toNonIndexed() : geo;
 }
 
-function buildCarGeo(t) {
+export function buildCarGeo(t) {
   const { w, h, l, tH, tW, tOff } = t;
   const parts = [];
 

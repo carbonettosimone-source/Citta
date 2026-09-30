@@ -13,11 +13,12 @@ import { createOrthoHR } from './ortho-hr.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
 import { buildBackground } from './background.js';
-import { createSky, applyTime, romeHourNow, NIGHT } from './daylight.js';
+import { createSky, applyTime, NIGHT } from './daylight.js';
 import { createIntro } from './intro.js';
 import { createPost } from './post.js';
 import { createTraffic } from './traffic.js';
 import { createNPCs } from './npcs.js';
+import { createGame } from './game/index.js';
 import { createCharacter, SKIN_OPTS, HAIR_OPTS, SHIRT_OPTS, PANT_OPTS, HAT_OPTS, GLASS_OPTS, loadChar } from './character.js';
 
 const $ = (id) => document.getElementById(id);
@@ -133,13 +134,11 @@ async function load() {
   const trees = buildTrees(model.trees || []);
   scene.add(trees.group);
 
-  const nLidar = model.buildings.filter((b) => b.src === 'lidar').length;
-  $('sub').textContent = `${model.buildings.length} edifici reali · ${nLidar} con altezza LiDAR`;
   const hr = hrMeta ? createOrthoHR(hrMeta, model.origin, renderer) : { update() {} };
-  return { model, heightAt, grade, collider, trees, streets, hr, water, farSea, farLabels: bg.labels };
+  return { model, heightAt, grade, collider, trees, streets, hr, water, farSea };
 }
 
-const { model, heightAt, grade, collider, trees, streets, hr, water, farSea, farLabels } = await load();
+const { model, heightAt, grade, collider, trees, streets, hr, water, farSea } = await load();
 $('loader').classList.add('hide');
 
 // ---------- traffico + pedoni
@@ -148,42 +147,10 @@ const npcs    = createNPCs(streets.roads, heightAt);
 scene.add(traffic.group, npcs.group);
 
 // ---------- personaggio giocatore + schermata creazione
-const character = createCharacter(scene, heightAt);
+// sul terrazzo di Piazza Vittorio Emanuele III si cammina sul pavimento, non sul terreno
+const floorAt = (x, z) => ve3Floor(x, z, heightAt(x, z));
+const character = createCharacter(scene, (x, z) => floorAt(x, z) + 0.22);
 setupCharScreen(character);
-
-// ---------- etichette dei luoghi (nomi OSM)
-const labels = model.pois.map((p) => {
-  const el = document.createElement('div');
-  el.className = 'lbl'; el.textContent = p.name;
-  $('labels').appendChild(el);
-  return { el, v: new THREE.Vector3(p.x, p.y + 14, p.z) };
-});
-// isole e paesi lontani: etichette sempre visibili, alla quota della cima meno la curvatura terrestre
-for (const p of farLabels) {
-  const el = document.createElement('div');
-  el.className = 'lbl far'; el.textContent = p.name;
-  $('labels').appendChild(el);
-  labels.push({ el, far: true, v: new THREE.Vector3(p.x, p.y, p.z), top: p.y });
-}
-const tmp = new THREE.Vector3();
-function updateLabels() {
-  if (!settings.names) { for (const l of labels) l.el.style.display = 'none'; return; }
-  // le più vicine per prime; una etichetta che si sovrappone a una già messa non si mostra
-  const maxD = walker.on ? 260 : 900;
-  const placed = [];
-  const order = labels.map((l) => ({ l, d: camera.position.distanceTo(l.v) })).sort((a, b) => a.d - b.d);
-  for (const { l, d } of order) {
-    if (l.far) { const dx = l.v.x - camera.position.x, dz = l.v.z - camera.position.z; l.v.y = l.top + 120 - (dx * dx + dz * dz) / 1.465e7; }
-    // i lontani si proiettano con la camera dello sfondo (il paese ha il far a 12 km)
-    tmp.copy(l.v).project(l.far ? bgCamera : camera);
-    let show = tmp.z < 1 && Math.abs(tmp.x) < 1.05 && Math.abs(tmp.y) < 1.05 && (l.far ? d > 3000 : d < maxD);
-    const x = (tmp.x * 0.5 + 0.5) * innerWidth, y = (-tmp.y * 0.5 + 0.5) * innerHeight;
-    const w = l.el.textContent.length * 7 + 16;
-    if (show && placed.some((p) => Math.abs(p.x - x) < (p.w + w) / 2 && Math.abs(p.y - y) < 24)) show = false;
-    l.el.style.display = show ? '' : 'none';
-    if (show) { placed.push({ x, y, w }); l.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`; }
-  }
-}
 
 // ---------- drone (orbita) — parte sopra Piazza Vittorio Emanuele III e il Municipio
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -195,75 +162,10 @@ controls.target.set(-60, g0, -20);
 camera.position.set(-10, g0 + 90, 190);
 controls.update();
 
-// ---------- a piedi
-const walker = { on: false, pos: new THREE.Vector3(), yaw: 0, pitch: 0, keys: {}, joy: { x: 0, y: 0 } };
-addEventListener('keydown', (e) => { walker.keys[e.code] = true; });
-addEventListener('keyup', (e) => { walker.keys[e.code] = false; });
-let drag = null;
-renderer.domElement.addEventListener('pointerdown', (e) => { if (walker.on) drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
-addEventListener('pointerup', (e) => { if (drag?.id === e.pointerId) drag = null; });
-addEventListener('pointermove', (e) => {
-  if (!walker.on || !drag || drag.id !== e.pointerId) return;
-  walker.yaw -= (e.clientX - drag.x) * 0.004; walker.pitch = Math.max(-1.2, Math.min(1.2, walker.pitch - (e.clientY - drag.y) * 0.004));
-  drag.x = e.clientX; drag.y = e.clientY;
-});
-const joy = $('joy'), knob = joy.querySelector('i');
-joy.addEventListener('pointerdown', (e) => { joy.setPointerCapture(e.pointerId); moveJoy(e); e.stopPropagation(); });
-joy.addEventListener('pointermove', (e) => { if (joy.hasPointerCapture(e.pointerId)) moveJoy(e); });
-joy.addEventListener('pointerup', () => { walker.joy.x = walker.joy.y = 0; knob.style.transform = ''; });
-function moveJoy(e) {
-  const r = joy.getBoundingClientRect();
-  let x = (e.clientX - r.left) / r.width * 2 - 1, y = (e.clientY - r.top) / r.height * 2 - 1;
-  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
-  walker.joy.x = x; walker.joy.y = y;
-  knob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
-}
-
-// ---------- drone joystick (pan in piano, solo touch)
-const droneJoy = $('droneJoy'), droneKnob = droneJoy.querySelector('i');
-const droneMove = { x: 0, y: 0 };
-droneJoy.addEventListener('pointerdown', (e) => { droneJoy.setPointerCapture(e.pointerId); moveDroneJoy(e); e.stopPropagation(); });
-droneJoy.addEventListener('pointermove', (e) => { if (droneJoy.hasPointerCapture(e.pointerId)) moveDroneJoy(e); });
-droneJoy.addEventListener('pointerup', () => { droneMove.x = droneMove.y = 0; droneKnob.style.transform = ''; });
-function moveDroneJoy(e) {
-  const r = droneJoy.getBoundingClientRect();
-  let x = (e.clientX - r.left) / r.width * 2 - 1, y = (e.clientY - r.top) / r.height * 2 - 1;
-  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
-  droneMove.x = x; droneMove.y = y;
-  droneKnob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
-}
-
-function setMode(walk) {
-  walker.on = walk;
-  document.body.classList.toggle('walk', walk);
-  $('bWalk').classList.toggle('on', walk); $('bDrone').classList.toggle('on', !walk);
-  controls.enabled = !walk;
-  if (walk) {
-    // si scende dove guarda il drone, in mezzo alla via più vicina, rivolti lungo la strada
-    const t = controls.target.clone();
-    let best = null;
-    for (const rd of streets.roads) for (let i = 0; i + 3 < rd.p.length; i += 2) {
-      const d = Math.hypot(rd.p[i] - t.x, rd.p[i + 1] - t.z);
-      if (!best || d < best.d) best = { d, x: rd.p[i], z: rd.p[i + 1], dx: rd.p[i + 2] - rd.p[i], dz: rd.p[i + 3] - rd.p[i + 1] };
-    }
-    const { x, z } = best || { x: t.x, z: t.z };
-    walker.pos.set(x, heightAt(x, z), z);
-    walker.yaw = best ? Math.atan2(-best.dx, -best.dz) : 0;
-    walker.pitch = 0;
-    camera.fov = 70; camera.updateProjectionMatrix();
-  } else if (walker.pos.lengthSq() > 0) {
-    // ritorno dal pedone: il drone riparte sopra il punto dove si stava camminando
-    controls.target.copy(walker.pos);
-    camera.position.set(walker.pos.x - 60, walker.pos.y + 70, walker.pos.z + 90);
-    camera.fov = 55; camera.updateProjectionMatrix();
-  }
-  $('hint').textContent = walk
-    ? (touch ? 'joystick: cammina · trascina: guarda' : 'WASD / frecce: cammina · Shift: corri · trascina: guarda')
-    : (touch ? 'joystick: sposta · trascina: ruota · pizzica: zoom' : 'trascina: ruota · rotella: zoom · tasto destro: sposta');
-}
-$('bWalk').onclick = () => setMode(true);
-$('bDrone').onclick = () => setMode(false);
-setMode(false);
+// ---------- vista sempre dall'alto: niente prima persona, la camera drone segue il personaggio
+controls.minDistance = 22; controls.maxDistance = 1400;
+controls.maxPolarAngle = 1.12; // mai sotto i ~25° sull'orizzonte
+controls.screenSpacePanning = false;
 
 // ---------- impostazioni: nomi dei luoghi, ora del giorno, luci notturne (ricordate nel browser)
 const settings = { names: false, hour: 11, lights: true, sharp: true, ortho: false };
@@ -276,31 +178,24 @@ const lamps = scene.getObjectByName('lamps');
 const plazaProps = scene.getObjectByName('plaza-props');
 const ve3 = scene.getObjectByName('piazza-ve3');
 const dayCtx = { sky, sun, hemi, moonLight, fog: scene.fog, bgScene, basics: [...basics], waters: [water.uniforms, farSea.uniforms], lights: true, sunDir: new THREE.Vector3(0, 1, 0) };
-const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 /** applica un'ora senza salvarla (l'intro ha le sue ore) */
+let curHour = 9;
 function applyHour(h) {
+  curHour = h;
   dayCtx.lights = settings.lights;
-  const { sun: S, moon: M } = applyTime(h, dayCtx);
+  applyTime(h, dayCtx);
   lamps?.userData.night?.(NIGHT.value);
   plazaProps?.userData.night?.(NIGHT.value);
   ve3?.userData.night?.(NIGHT.value);
-  $('optTime').value = h; $('timeOut').textContent = hhmm(h);
-  const moonTxt = M.alt > 0 ? `luna ${Math.round(M.lit * 100)}% alta ${Math.round(M.alt * 57.3)}°` : 'luna sotto l\'orizzonte';
-  $('sunInfo').textContent = `sole ${Math.round(S.alt * 57.3)}° · ${moonTxt}`;
 }
-function setHour(h) { settings.hour = h; applyHour(h); saveSettings(); }
-$('optNames').checked = settings.names;
 $('optLights').checked = settings.lights;
-$('optNames').onchange = (e) => { settings.names = e.target.checked; saveSettings(); };
-$('optLights').onchange = (e) => { settings.lights = e.target.checked; setHour(settings.hour); };
+$('optLights').onchange = (e) => { settings.lights = e.target.checked; saveSettings(); applyHour(curHour); };
 $('optSharp').checked = settings.sharp;
 $('optSharp').onchange = (e) => { settings.sharp = e.target.checked; saveSettings(); };
 $('optOrtho').checked = settings.ortho;
 $('optOrtho').onchange = (e) => { settings.ortho = e.target.checked; saveSettings(); };
-$('optTime').oninput = (e) => setHour(+e.target.value);
-$('bNow').onclick = () => setHour(Math.round(romeHourNow() * 4) / 4);
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
-setHour(settings.hour);
+applyHour(9);
 try { localStorage.removeItem('acq-gkey'); } catch { /* niente da togliere */ }
 
 // ---------- schermata creazione personaggio
@@ -378,18 +273,15 @@ function setupCharScreen(char) {
     draft.slim  = $('charSlim').checked;
     char.applyData(draft);
     $('charScreen').hidden = true;
-    if (!walker.on) setMode(true);
+    const cb = char.onConfirm; char.onConfirm = null; cb?.();
   };
 
   $('charConfirm').onclick = confirmScreen;
   $('charName').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmScreen(); });
   $('charSlim').onchange = (e) => { draft.slim = e.target.checked; };
   $('bChar').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); openScreen(); };
+  char.open = (onConfirm) => { char.onConfirm = onConfirm; openScreen(); };
 
-  // apri solo la prima volta (se il personaggio non è mai stato salvato)
-  if (!localStorage.getItem('acq-char')) {
-    char._pendingOpen = openScreen;
-  }
 
   return { openScreen };
 }
@@ -398,53 +290,30 @@ function setupCharScreen(char) {
 const intro = createIntro({
   camera, controls, heightAt, setTime: applyHour,
   onEnd() {
-    applyHour(settings.hour);
+    applyHour(9);
     controls.target.set(-60, g0, -20); camera.position.set(-10, g0 + 90, 190); controls.update();
-    if (character._pendingOpen) { character._pendingOpen(); character._pendingOpen = null; }
+    game.titleScreen();
   },
 });
-$('bIntro').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); if (walker.on) setMode(false); intro.start(); };
+$('bIntro').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); intro.start(); };
+
+// ---------- il gioco: Sweetwaters — Road to Leadership (src/game/)
+const game = createGame({
+  scene, camera, controls, canvas: renderer.domElement, groundAt: floorAt, streets, character, applyHour,
+  getCamera: () => (settings.ortho && !intro.active ? orthoCamera : camera),
+  openCharScreen: (then) => character.open(then),
+});
+$('bNewGame').onclick = () => { $('settings').hidden = true; $('bSet').classList.remove('on'); game.titleScreen(); };
 intro.start();
 
 const clock = new THREE.Clock();
-function stepWalk(dt) {
-  const k = walker.keys;
-  let f = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) - walker.joy.y;
-  let s = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0) + walker.joy.x;
-  const len = Math.hypot(f, s);
-  if (len > 0.05) {
-    const sp = (k.ShiftLeft || k.ShiftRight ? 9 : 3.2) * dt / Math.max(1, len);
-    const fx = -Math.sin(walker.yaw), fz = -Math.cos(walker.yaw);
-    const dx = (fx * f - fz * s) * sp, dz = (fz * f + fx * s) * sp;
-    // un asse alla volta: contro un muro si scivola lungo di esso
-    if (!collider(walker.pos.x + dx, walker.pos.z)) walker.pos.x += dx;
-    if (!collider(walker.pos.x, walker.pos.z + dz)) walker.pos.z += dz;
-  }
-  walker.pos.y = ve3Floor(walker.pos.x, walker.pos.z, heightAt(walker.pos.x, walker.pos.z));
-  camera.position.set(walker.pos.x, walker.pos.y + 1.7, walker.pos.z);
-  camera.rotation.set(walker.pitch, walker.yaw, 0, 'YXZ');
-}
-
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
-  if (intro.active) intro.update(dt); else if (walker.on) stepWalk(dt); else controls.update();
-
-  // drone joystick: pan orizzontale proporzionale all'altezza sul target
-  if (!walker.on && !intro.active && (droneMove.x !== 0 || droneMove.y !== 0)) {
-    const dist = Math.max(10, camera.position.distanceTo(controls.target));
-    const speed = dist * 0.35 * dt;
-    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;
-    if (fwd.lengthSq() < 0.001) fwd.set(0, 0, -1); else fwd.normalize();
-    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
-    const dx = (right.x * droneMove.x - fwd.x * droneMove.y) * speed;
-    const dz = (right.z * droneMove.x - fwd.z * droneMove.y) * speed;
-    controls.target.x += dx; controls.target.z += dz;
-    camera.position.x += dx; camera.position.z += dz;
-  }
+  if (intro.active) intro.update(dt); else { controls.update(); game.update(dt, clock.elapsedTime); }
 
   // l'ombra segue ciò che si guarda
-  const focus = walker.on ? walker.pos : controls.target;
+  const focus = controls.target;
   const sd = dayCtx.sunDir.y > 0.02 ? dayCtx.sunDir : new THREE.Vector3(0.4, 0.6, 0.45).normalize();
   sun.position.set(focus.x + sd.x * 800, focus.y + sd.y * 800, focus.z + sd.z * 800);
   sun.target.position.copy(focus);
@@ -455,13 +324,11 @@ function frame() {
   farSea.update(clock.elapsedTime, camera);
   traffic.update(dt, camera);
   npcs.update(dt, camera);
-  character.update(dt, walker);
   bgCamera.position.copy(camera.position); bgCamera.quaternion.copy(camera.quaternion);
   if (bgCamera.fov !== camera.fov || bgCamera.aspect !== camera.aspect) { bgCamera.fov = camera.fov; bgCamera.aspect = camera.aspect; bgCamera.updateProjectionMatrix(); }
-  updateLabels();
 
   // camera attiva: ortografica (drone, se abilitato) o prospettica
-  const useOrtho = settings.ortho && !walker.on && !intro.active;
+  const useOrtho = settings.ortho && !intro.active;
   if (useOrtho) {
     const dist = Math.max(1, camera.position.distanceTo(controls.target));
     const halfH = dist * Math.tan(camera.fov * Math.PI / 360);
@@ -488,4 +355,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, walker, heightAt, grade, setMode, scene, renderer, bgScene, bgCamera, setHour, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
+window.__acq = { camera, controls, game, heightAt, grade, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };

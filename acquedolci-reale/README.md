@@ -1,6 +1,20 @@
-# The Lord of the Sweetwater (Acquedolci)
+# Sweetwaters — Road to Leadership
 
-Gioco satirico sulla politica di paese in vista delle comunali 2027: si vincono le elezioni come le vince il politico di paese, a colpi di favori e di alleanze fra famiglie. Il paese è Acquedolci ricostruito dai dati reali (sotto).
+Gioco satirico sulla politica di paese. Sei ad Acquedolci, 30 giorni prima delle elezioni comunali: tre candidati, uno sei tu. Il paese (sotto) è ricostruito dai dati reali; persone, liste e fatti del gioco sono inventati, senza nomi reali.
+
+**Come si gioca** (`src/game/`)
+
+- Vista sempre dall'alto (camera drone: trascina per ruotare, pizzica per lo zoom). Il personaggio ha una freccia gialla sopra; **tocca la mappa** e ci va da solo lungo le strade (A* sul grafo stradale, `nav.js`), a piedi o in auto.
+- **La lista**: nome e 4 assessori su 10, ognuno con stelle 1–5 in Popolarità, Ricchezza, Fama (1 criminale · 5 brav'uomo), Carisma, Rete. Le medie pesano sulle regole (`state.js`).
+- **Relitti** dell'amministrazione uscente (icone ?): si scoprono passandoci accanto e finiscono nel taccuino.
+- **Ritrovi** (bar, pub, circolo, farmacia, barbiere, sagrato): una visita al giorno, si ascoltano voci sugli avversari.
+- **Comizi** nelle piazze (📣), uno al giorno: si scelgono fino a 3 argomenti dal taccuino.
+- **Campagna** (📢): pubblicità a pagamento. Budget illimitato, ma il contatore delle spese pesa sul punteggio finale.
+- **Autosalone** (🚗): auto più belle = più apparenza e più velocità.
+- **Proposte improvvise**: villa abusiva, posto al comune per il cugino, pacchetti di voti… accetti o rifiuti; fedina e rischio scandalo ne tengono conto.
+- A fine giornata gli avversari fanno campagna; al trentesimo giorno si vota. Punteggio: voti + vittoria + fedina − spese.
+
+Contenuti in `src/game/data.js`, regole in `src/game/state.js`, interfaccia in `src/game/index.js`. La partita si salva nel browser.
 
 **Intro** (`src/intro.js`): quattro inquadrature in movimento, ognuna con la sua ora del giorno, bande nere, dissolvenze e didascalie:
 

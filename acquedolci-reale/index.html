@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>The Lord of the Sweetwater</title>
+  <title>Sweetwaters — Road to Leadership</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap" />
@@ -11,30 +11,35 @@
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div id="labels"></div>
+  <div id="icons"></div>
   <header id="hud">
-    <h1>Acquedolci</h1>
-    <p id="sub">ricostruita da dati reali</p>
+    <div class="brand"><b>Sweetwaters</b><span>Road to Leadership</span></div>
+    <div class="meta"><span id="gDay">Giorno 1/30</span> · <span id="gClock">08:00</span></div>
+    <div id="gPoll"></div>
+    <div class="spent">Spese <b id="gSpent">€ 0</b></div>
   </header>
   <div id="modes">
-    <button id="bDrone" class="on" type="button">Drone</button>
-    <button id="bWalk" type="button">A piedi</button>
     <button id="bSet" type="button" aria-label="Impostazioni" aria-expanded="false" aria-controls="settings">⚙︎</button>
   </div>
+  <nav id="gbar" aria-label="Azioni">
+    <button id="bNotes" type="button" title="Taccuino">📒<small>Taccuino</small></button>
+    <button id="bAds" type="button" title="Campagna">📢<small>Campagna</small></button>
+    <button id="bList" type="button" title="Lista">👥<small>Lista</small></button>
+    <button id="bCar" type="button" title="Auto">🚗<small>Auto</small></button>
+    <button id="bCenter" type="button" title="Centra">🎯<small>Centra</small></button>
+  </nav>
+  <div id="toast" role="status" aria-live="polite"></div>
   <section id="settings" hidden aria-label="Impostazioni">
-    <label class="row"><span>Nomi dei luoghi</span><input type="checkbox" id="optNames" /></label>
-    <div class="row"><span>Ora del giorno</span><output id="timeOut" for="optTime">11:00</output></div>
-    <input type="range" id="optTime" min="0" max="24" step="0.25" value="11" aria-label="Ora del giorno" />
-    <div class="row"><button id="bNow" type="button">Adesso</button><small id="sunInfo"></small></div>
     <label class="row"><span>Luci notturne</span><input type="checkbox" id="optLights" checked /></label>
     <label class="row"><span>Nitidezza</span><input type="checkbox" id="optSharp" checked /></label>
     <label class="row"><span>Vista miniatura</span><input type="checkbox" id="optOrtho" /></label>
     <p class="note">Lo studio di riferimento non è nel gioco. In locale, con <code>VITE_GOOGLE_MAPS_API_KEY</code> solo nella shell: <code>node scripts/reference-studio.mjs</code>. La chiave non va in git. Vedi il README.</p>
     <button id="bIntro" type="button">Rivedi l'intro</button>
     <button id="bChar" type="button">Modifica personaggio</button>
+    <button id="bNewGame" type="button">Nuova partita</button>
+    <p class="credits">Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
+    Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)</p>
   </section>
-  <div id="joy"><i></i></div>
-  <div id="droneJoy"><i></i></div>
   <!-- creazione personaggio -->
   <div id="charScreen" hidden>
     <div id="charBox">
@@ -64,19 +69,19 @@
           </div>
         </div>
       </div>
-      <button id="charConfirm" type="button">Entra in città →</button>
+      <button id="charConfirm" type="button">Avanti: la lista →</button>
     </div>
   </div>
-  <p id="hint"></p>
+  <p id="hint">tocca la mappa: vai · trascina: ruota · pizzica: zoom</p>
   <footer id="credits">
     Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
     Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)
   </footer>
   <div id="intro" hidden>
     <div id="introFade"></div>
-    <div id="introTitle"><h2>the lord of the sweetwater</h2></div>
+    <div id="introTitle"><h2>Sweetwaters</h2><p>Road to Leadership</p></div>
   </div>
-  <div id="loader"><div><b>Costruisco Acquedolci…</b><span id="lmsg">dati</span></div></div>
+  <div id="loader"><div><b>Sweetwaters</b><em>Road to Leadership</em><span class="sp">Costruisco Acquedolci…</span><span id="lmsg">dati</span></div></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

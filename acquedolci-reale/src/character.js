@@ -307,14 +307,14 @@ export function createCharacter(scene, heightAt) {
     const groundY = heightAt(x, z);
     playerMesh.rotation.y = walker.yaw;
 
-    const moving = (
+    const moving = walker.moving ?? (
       walker.keys?.KeyW || walker.keys?.ArrowUp ||
       walker.keys?.KeyS || walker.keys?.ArrowDown ||
       Math.hypot(walker.joy?.x || 0, walker.joy?.y || 0) > 0.1
     );
 
     if (moving) {
-      walkPhase += dt * 5.5;
+      walkPhase += dt * (walker.stride || 5.5);
       animatePlayer(playerMesh, walkPhase);
       playerMesh.position.set(x, groundY + Math.abs(Math.sin(walkPhase)) * 0.014, z);
     } else {
