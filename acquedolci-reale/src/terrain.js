@@ -21,7 +21,7 @@ export function makeHeightSampler(meta, heights, origin) {
   };
 }
 
-const DEEP = -5; // m: sotto questa quota il fondale non si disegna (c'è il mare)
+const DEEP = -2.4; // m: sotto questa quota (~30 m dalla riva) il fondale non si disegna: l acqua lì è quasi opaca
 function gridMesh(tile, step, heightAt, origin, texture, drop = 0, bounds = null, refine = null) {
   const [OX, OY] = origin;
   // la tessera dell'ortofoto può uscire dal MDT: lì il terreno si ferma e comanda lo sfondo

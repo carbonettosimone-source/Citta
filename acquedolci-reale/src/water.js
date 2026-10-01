@@ -112,7 +112,7 @@ export function buildWater(sunDir, { far = false } = {}) {
         ${far ? '' : `
         // il mare del paese sfuma sui bordi del riquadro: oltre c'è il mare dello sfondo, senza stacchi
         vec2 ee = min(vW.xz - lcRect.xy, lcRect.xy + lcRect.zw - vW.xz);
-        alpha *= smoothstep(0.0, 400.0, min(ee.x, ee.y));`}
+        alpha *= smoothstep(0.0, 600.0, min(ee.x, ee.y));`}
         alpha = max(alpha, foam * 0.9);
         alpha = mix(alpha, 1.0, fres * 0.5);
         gl_FragColor = vec4(col, alpha);
