@@ -65,13 +65,13 @@ const C = (h) => new THREE.Color(h);
  */
 const KEYS = [
   //  el    H           M           Z           W           X          glow
-  [-18, [0x0b1226, 0x070d1e, 0x02050c, 0x1a2244, 0x0b1226, 0.0]],
-  [-10, [0x1c2250, 0x131a3e, 0x060a1c, 0x3a2f78, 0x2a2a66, 0.5]],
-  [-6,  [0x5a3a86, 0x3c3a88, 0x121a44, 0xb04a9c, 0x6a4a98, 0.9]],
-  [-2,  [0xf05a8e, 0xb04a9c, 0x2e3c82, 0xff6a50, 0xa65aa8, 1.0]],
-  [1,   [0xff8a4a, 0xf0618e, 0x3a5aa4, 0xffa24a, 0xc86aa2, 1.0]],
-  [4,   [0xffb066, 0xf59a8a, 0x4a7ab8, 0xffbe6a, 0xc8a2c2, 0.85]],
-  [9,   [0xf6d2a2, 0xc8d2dc, 0x4a86c4, 0xffe0aa, 0xb8d0e6, 0.45]],
+  [-18, [0x0b1226, 0x070d1e, 0x02050c, 0x151c38, 0x0b1226, 0.0]],
+  [-11, [0x26335a, 0x182444, 0x070c20, 0x4c4470, 0x222f58, 0.35]],
+  [-7,  [0x8a6a78, 0x44507c, 0x142450, 0xc9704c, 0x56608e, 0.75]],  // crepuscolo: banda arancio-salmone bassa, blu sopra
+  [-3,  [0xe8744a, 0xb87c82, 0x2c4a86, 0xff8450, 0x9a86a2, 1.0]],   // appena dopo il tramonto: arancio, rosa polvere
+  [0.5, [0xff9648, 0xea9a74, 0x4470ae, 0xffa850, 0xd2a496, 1.0]],   // sole all'orizzonte: oro-arancio
+  [4,   [0xffbc6e, 0xf2b690, 0x5684bc, 0xffcb82, 0xdcc4b8, 0.85]],
+  [9,   [0xf6dcb0, 0xcfd6dc, 0x4a86c4, 0xffe6b8, 0xc6d6e6, 0.45]],
   [18,  [0xd3e0ea, 0x8fb4d8, 0x3f7fc0, 0xfff0d2, 0xcfe0ee, 0.12]],
   [90,  [0xd3e0ea, 0x8fb4d8, 0x3f7fc0, 0xfff0d2, 0xcfe0ee, 0.1]],
 ].map(([el, v]) => ({ el, c: v.slice(0, 5).map(C), glow: v[5] }));
@@ -115,7 +115,7 @@ export function createSky(bgScene) {
         c = mix(c, uW, clamp(uGlow * (pow(sdp, 4.0) * 0.55 + pow(sdp, 14.0) * 0.5) * (0.3 + 0.7 * low), 0.0, 1.0));
         // dalla parte opposta: banda rosa-viola sopra l'ombra della terra
         float anti = pow(max(-sd, 0.0), 1.3);
-        c = mix(c, uX, clamp(uGlow * 0.7 * anti * exp(-hp * 3.2), 0.0, 1.0));
+        c = mix(c, uX, clamp(uGlow * 0.5 * anti * exp(-hp * 3.2), 0.0, 1.0));
         // disco e alone
         c += vec3(1.0, 0.86, 0.66) * (pow(sdp, 48.0) * 0.5 + pow(sdp, 2400.0) * 5.0) * uSunVis;
         // nuvole: strato basso volumetrico + cirri alti, illuminati dal sole (bordi luminosi, ventre rosa)
@@ -210,7 +210,7 @@ export function applyTime(hour, ctx) {
   su.uSun.value.copy(S.dir); su.uSunVis.value = sstep(-4, 0.5, el);
   su.uMoon.value.copy(Mo.dir); su.uMoonVis.value = moonUp * (1 - day) * Mo.lit;
   // nuvole: bianche di giorno, oro/arancio al tramonto, viola dopo; il ventre prende il colore dell'ombra del cielo
-  su.uCloudLit.value.set(0xffffff).lerp(W, gold * 0.85).lerp(C(0x6a5aa0), sstep(-3, -9, el) * 0.75).multiplyScalar(0.35 + 0.65 * sstep(-12, 4, el));
+  su.uCloudLit.value.set(0xffffff).lerp(W, gold * 0.85).lerp(C(0x8a7aa8), sstep(-4, -10, el) * 0.45).multiplyScalar(0.35 + 0.65 * sstep(-12, 4, el));
   su.uCloudShade.value.copy(Z).lerp(M, 0.55).lerp(C(0xffffff), 0.25 * day).multiplyScalar(0.7 + 0.3 * day);
   ctx.sky.starMat.opacity = (1 - sstep(-14, -4, el)) * 0.95;
   ctx.sky.moonU.uSunDir.value.copy(S.dir);
@@ -221,19 +221,19 @@ export function applyTime(hour, ctx) {
   FOG.sun.value.copy(S.dir); FOG.warm.value.copy(W); FOG.cool.value.copy(X);
   FOG.amt.value = pal.glow;
   // luce diretta: sole (caldo, poi rosato al tramonto), poi luna azzurrina
-  ctx.sun.intensity = 2.1 * sstep(-1.5, 8, el) * (1 - 0.25 * gold);
-  ctx.sun.color.set(0xfff2dc).lerp(C(0xff9a5a), gold * sstep(-2, 2, el)).lerp(C(0xff6a7a), sstep(1.5, -1.5, el) * 0.5 * gold);
+  ctx.sun.intensity = 2.1 * (0.5 + 0.5 * sstep(0, 14, el)) * sstep(-3.5, 0.2, el);
+  ctx.sun.color.set(0xfff2dc).lerp(C(0xffa05a), gold * sstep(-2, 3, el)).lerp(C(0xff7a4a), sstep(2, -0.5, el) * 0.5 * gold);
   ctx.sun.castShadow = el > 0;
   ctx.sunDir = S.dir.clone();
   // di notte un po' di cielo e di rimbalzo: si legge la via, non è giorno. Al tramonto il cielo è viola/rosa
-  ctx.hemi.intensity = 1.25 * (0.42 + 0.58 * day);
-  ctx.hemi.color.set(0x6d82a4).lerp(C(0xdfeeff), day).lerp(X, gold * 0.35);
-  ctx.hemi.groundColor.set(0x4a453e).lerp(C(0x8a7a66), day).lerp(C(0x8a5a5a), gold * 0.3);
+  ctx.hemi.intensity = 1.25 * (0.42 + 0.58 * sstep(-9, 5, el));
+  ctx.hemi.color.set(0x6d82a4).lerp(C(0xdfeeff), day).lerp(C(0xf0b8a0), gold * 0.45);
+  ctx.hemi.groundColor.set(0x4a453e).lerp(C(0x8a7a66), day).lerp(C(0x96684c), gold * 0.35);
   ctx.moonLight.intensity = (1 - day) * Math.max(0.28, 0.62 * moonUp * (0.4 + 0.6 * Mo.lit));
   ctx.moonLight.position.copy(Mo.dir).multiplyScalar(1000);
   // superfici con la luce "cotta" (ortofoto, sfondo): tinta del momento — oro al tramonto, viola dopo
   _t.set(0x5c6e88).lerp(C(0xffffff), day);
-  _w.set(0xffffff).lerp(C(0xffb682), gold * 0.8).lerp(C(0xc89ae6), sstep(-1, -7, el) * 0.55);
+  _w.set(0xffffff).lerp(C(0xffbe8a), gold * 0.75).lerp(C(0xb9a4c8), sstep(-3, -9, el) * 0.3);
   _t.multiply(_w);
   for (const m of ctx.basics) m.color.copy(_t);
   const up = el > -2;
