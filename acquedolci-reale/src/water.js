@@ -86,7 +86,9 @@ export function buildWater(sunDir, { far = false } = {}) {
         vec3 sky = mix(uSkyH, uSkyZ, clamp(R.y * 1.6, 0.0, 1.0));
         // lo specchio del cielo ha lo stesso bagliore del cielo vero (sky shader): il mare non resta viola sotto un cielo rosa
         float srs = max(dot(R, uSun), 0.0);
-        sky = mix(sky, uSkyW, clamp(uGold * (pow(srs, 4.0) * 0.55 + pow(srs, 14.0) * 0.5) * (0.3 + 0.7 * exp(-max(R.y, 0.0) * 4.5)), 0.0, 1.0));
+        float skyLow = exp(-max(R.y, 0.0) * 3.0);
+        sky = mix(sky, uSkyW, clamp(uGold * (pow(srs, 2.5) * 0.7 + pow(srs, 12.0) * 0.5) * (0.35 + 0.65 * skyLow), 0.0, 1.0));
+        sky = mix(sky, uSkyH, uGold * 0.45 * skyLow);          // l'orizzonte caldo si specchia ovunque, non solo verso il sole
         // la riva serpeggia: schiuma, colore e profondità non corrono mai parallele a una retta
         float sm = (noise(vW.xz * 0.045) - 0.5) * 10.0 + (noise(vW.xz * 0.17 + vec2(0.0, uTime * 0.25)) - 0.5) * 4.0;
         float shoreW = max(shore + sm * (1.0 - smoothstep(12.0, 45.0, shore)), 0.0);
@@ -94,7 +96,7 @@ export function buildWater(sunDir, { far = false } = {}) {
         // banchi di sabbia e prati sommersi: il fondale chiaro affiora a strisce irregolari
         float bars = noise(vW.xz * vec2(0.03, 0.06) + 5.0) * 0.6 + noise(vW.xz * 0.11 + 2.0) * 0.4;
         depth = clamp(depth - (bars - 0.45) * 0.45 * (1.0 - smoothstep(35.0, 80.0, shore)), 0.0, 1.0);
-        vec3 body = mix(uShallow, uDeep, depth) * mix(vec3(1.0), uTint, 0.55);
+        vec3 body = mix(uShallow, uDeep, depth) * mix(vec3(1.0), uTint, 0.4);
         body *= 0.93 + 0.14 * noise(vW.xz * 0.02 + 40.0);
         // le pendenze delle onde, amplificate, modellano la luce sull'acqua (da sopra il rilievo si legge)
         vec3 Nd = normalize(vec3(-g.x * 5.0, 1.0, -g.y * 5.0));
