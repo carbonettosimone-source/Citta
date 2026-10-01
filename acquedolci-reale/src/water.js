@@ -72,7 +72,7 @@ export function buildWater(sunDir, { far = false } = {}) {
         g += sw2 * 0.05 * smoothstep(px * 2.0, px * 14.0, 30.0);
         vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
         // in ortografica la direzione di vista è una sola (asse della camera), non verso la sua posizione
-        vec3 V = projectionMatrix[3][3] > 0.5 ? normalize(vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2])) : normalize(cameraPosition - vW);
+        vec3 V = isOrthographic ? normalize(vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2])) : normalize(cameraPosition - vW);
         float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 R = reflect(-V, N);
         vec3 sky = mix(uSkyH, uSkyZ, clamp(R.y * 1.6, 0.0, 1.0));
