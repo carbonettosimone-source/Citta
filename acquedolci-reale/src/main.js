@@ -376,4 +376,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, game, heightAt, grade, HR, setHour: applyHour, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
+window.__acq = { camera, controls, game, heightAt, grade, HR, setHour: applyHour, getHour: () => curHour, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
