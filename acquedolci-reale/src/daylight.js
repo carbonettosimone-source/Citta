@@ -120,7 +120,7 @@ export function createSky(bgScene) {
         c += vec3(1.0, 0.86, 0.66) * (pow(sdp, 48.0) * 0.5 + pow(sdp, 2400.0) * 5.0) * uSunVis;
         // nuvole: strato basso volumetrico + cirri alti, illuminati dal sole (bordi luminosi, ventre rosa)
         if (h > 0.012 && uCloud > 0.0) {
-          vec2 P = vD.xz / (h + 0.16) * 1.15 + vec2(uTime * 0.004, uTime * 0.0015);
+          vec2 P = vD.xz / (h + 0.16) * 0.85 + vec2(uTime * 0.004, uTime * 0.0015);
           float d = dens(P, uCloud);
           if (d > 0.002) {
             // quanta nuvola c'è dalla parte del sole: sposta il punto verso il sole e ricampiona
@@ -206,7 +206,7 @@ export function applyTime(hour, ctx) {
   const pal = palette(el, PAL), [H, M, Z, W, X] = pal.c;
   const su = ctx.sky.u;
   su.uH.value.copy(H); su.uM.value.copy(M); su.uZ.value.copy(Z); su.uW.value.copy(W); su.uX.value.copy(X); su.uGlow.value = pal.glow;
-  su.uCloud.value = 0.5 + 0.1 * Math.sin(hour * 0.9);
+  su.uCloud.value = 0.62 + 0.1 * Math.sin(hour * 0.9);
   su.uSun.value.copy(S.dir); su.uSunVis.value = sstep(-4, 0.5, el);
   su.uMoon.value.copy(Mo.dir); su.uMoonVis.value = moonUp * (1 - day) * Mo.lit;
   // nuvole: bianche di giorno, oro/arancio al tramonto, viola dopo; il ventre prende il colore dell'ombra del cielo

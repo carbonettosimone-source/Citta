@@ -107,7 +107,9 @@ export function buildWater(sunDir, { far = false } = {}) {
         // riflesso del sole: striscia larga e luccichio stretto; al tramonto caldo (oro/rosa)
         float sr = max(dot(R, uSun), 0.0);
         vec3 sunC = mix(vec3(1.0, 0.95, 0.85), uSkyW, 0.55 + 0.4 * uGold);
-        col += sunC * (pow(sr, 3500.0) * 3.0 + pow(sr, 220.0) * 0.9 + pow(sr, 28.0) * 0.30 + pow(sr, 5.0) * 0.12 * (0.4 + uGold)) * uSpec;
+        col += sunC * (pow(sr, 3500.0) * 3.0 + pow(sr, 220.0) * 0.8 + pow(sr, 40.0) * 0.16 + pow(sr, 7.0) * 0.045 * (0.4 + uGold)) * uSpec;
+        // morbida: i riflessi forti non bruciano in bianco
+        col = col / (1.0 + max(col - vec3(0.85), 0.0) * 0.9);
         // il cielo caldo dell'orizzonte si specchia in lontananza
         col *= 1.06;
         // battigia: fasce di schiuma che corrono verso riva e si rompono col rumore
