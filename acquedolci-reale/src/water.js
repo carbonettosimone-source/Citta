@@ -62,11 +62,14 @@ export function buildWater(sunDir, { far = false } = {}) {
         vec2 g = vec2(0.0);
         px = length(fwidth(vW.xz));
         float fade = 1.0;
-        wave(vW.xz, normalize(vec2(0.35, 1.0)), 23.0, 0.20, g);
-        wave(vW.xz, normalize(vec2(-0.2, 1.0)), 11.0, 0.09, g);
-        wave(vW.xz, normalize(vec2(0.8, 0.6)), 6.3, 0.05 * fade, g);
-        wave(vW.xz, normalize(vec2(-0.7, 0.7)), 3.1, 0.025 * fade, g);
-        wave(vW.xz, normalize(vec2(0.1, -1.0)), 1.7, 0.012 * fade, g);
+        // il fronte d'onda non è una retta: il piano si deforma con rumore a grande scala (onde che serpeggiano)
+        vec2 wp = vW.xz + 9.0 * (vec2(noise(vW.xz * 0.018), noise(vW.xz * 0.018 + 31.0)) - 0.5);
+        wave(wp, normalize(vec2(0.35, 1.0)), 23.0, 0.12, g);
+        wave(wp, normalize(vec2(-0.2, 1.0)), 11.0, 0.06, g);
+        wave(wp, normalize(vec2(0.8, 0.6)), 6.3, 0.05 * fade, g);
+        wave(wp, normalize(vec2(-0.7, 0.7)), 3.1, 0.03 * fade, g);
+        wave(wp, normalize(vec2(0.1, -1.0)), 1.7, 0.016 * fade, g);
+        wave(wp, normalize(vec2(-0.9, -0.3)), 4.4, 0.035 * fade, g);
         // onda lunga che increspa la superficie a chiazze larghe: da sopra il mare non è mai uniforme
         vec2 sw2 = vec2(noise(vW.xz * 0.035 + vec2(uTime * 0.05, 0.0)), noise(vW.xz * 0.035 + 17.0 - vec2(0.0, uTime * 0.04))) - 0.5;
         g += sw2 * 0.05 * smoothstep(px * 2.0, px * 14.0, 30.0);
@@ -98,7 +101,8 @@ export function buildWater(sunDir, { far = false } = {}) {
         float brk = 13.0 + (noise(vW.xz * 0.05) - 0.5) * 8.0;
         float breaker = exp(-pow((shoreW - brk) / 2.2, 2.0)) * smoothstep(0.52, 0.8, noise(vW.xz * vec2(0.22, 0.4) + vec2(uTime * 0.12, 0.0))) * 0.75;
         // creste al largo: poche, sparse
-        float caps = smoothstep(0.80, 0.93, noise(vW.xz * 0.16 + vec2(uTime * 0.35, uTime * 0.12))) * smoothstep(20.0, 60.0, shore) * 0.35;
+        // sottili e allungate nel verso delle onde, non chiazze
+        float caps = smoothstep(0.86, 0.97, noise(vec2(vW.x * 0.5, vW.z * 0.2) + vec2(uTime * 0.4, uTime * 0.15))) * smoothstep(20.0, 60.0, shore) * 0.28 * (1.0 - smoothstep(60.0, 400.0, dist));
         foam = max(foam, max(breaker, caps));
         col = mix(col, vec3(0.93, 0.95, 0.95) * uTint, clamp(foam, 0.0, 1.0));
         // trasparenza: a riva si vede il fondale (ortofoto), al largo l'acqua è piena

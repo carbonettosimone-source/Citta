@@ -165,7 +165,7 @@ controls.update();
 
 // ---------- vista sempre dall'alto: niente prima persona, la camera drone segue il personaggio
 controls.minDistance = 7; controls.maxDistance = 1400;
-controls.maxPolarAngle = 1.12; // mai sotto i ~25° sull'orizzonte
+controls.maxPolarAngle = 1.25; // mai sotto i ~18° sull'orizzonte: l'orizzonte e le Eolie si vedono, ma resta una vista dall'alto
 controls.screenSpacePanning = false;
 
 // ---------- impostazioni: nomi dei luoghi, ora del giorno, luci notturne (ricordate nel browser)
