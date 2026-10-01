@@ -21,6 +21,7 @@ export function makeHeightSampler(meta, heights, origin) {
   };
 }
 
+const DEEP = -2.4; // m: sotto questa quota (~30 m dalla riva) il fondale non si disegna: l acqua lì è quasi opaca
 function gridMesh(tile, step, heightAt, origin, texture, drop = 0, bounds = null, refine = null) {
   const [OX, OY] = origin;
   // la tessera dell'ortofoto può uscire dal MDT: lì il terreno si ferma e comanda lo sfondo
@@ -59,6 +60,9 @@ function gridMesh(tile, step, heightAt, origin, texture, drop = 0, bounds = null
   for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
     const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
     if (!isFine(i, j)) {
+      // fondale profondo (oltre ~70 m dalla riva): non si disegna, lì c'è solo il mare. Senza, il bordo
+      // del riquadro del paese si vedeva da lontano come un poligono scuro nel mare
+      if (pos[a * 3 + 1] < DEEP && pos[b * 3 + 1] < DEEP && pos[c * 3 + 1] < DEEP && pos[d * 3 + 1] < DEEP) continue;
       // visti dall'alto (+Y): Z cresce verso sud, y verso nord — ordine scelto per la faccia in su
       idx.push(a, b, c, b, d, c);
       continue;
@@ -79,6 +83,7 @@ function gridMesh(tile, step, heightAt, origin, texture, drop = 0, bounds = null
     }
     for (let q = 0; q < SUB; q++) for (let p = 0; p < SUB; p++) {
       const A = V[q * (SUB + 1) + p], B = V[q * (SUB + 1) + p + 1], C = V[(q + 1) * (SUB + 1) + p], D = V[(q + 1) * (SUB + 1) + p + 1];
+      if (pos[A * 3 + 1] < DEEP && pos[B * 3 + 1] < DEEP && pos[C * 3 + 1] < DEEP && pos[D * 3 + 1] < DEEP) continue;
       idx.push(A, B, C, B, D, C);
     }
   }

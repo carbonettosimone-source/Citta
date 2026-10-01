@@ -109,6 +109,10 @@ export function buildWater(sunDir, { far = false } = {}) {
         col = mix(col, vec3(0.93, 0.95, 0.95) * uTint, clamp(foam, 0.0, 1.0));
         // trasparenza: a riva si vede il fondale (ortofoto), al largo l'acqua è piena
         float alpha = mix(0.35, 0.96, smoothstep(0.0, 25.0, shoreW));
+        ${far ? '' : `
+        // il mare del paese sfuma sui bordi del riquadro: oltre c'è il mare dello sfondo, senza stacchi
+        vec2 ee = min(vW.xz - lcRect.xy, lcRect.xy + lcRect.zw - vW.xz);
+        alpha *= smoothstep(0.0, 600.0, min(ee.x, ee.y));`}
         alpha = max(alpha, foam * 0.9);
         alpha = mix(alpha, 1.0, fres * 0.5);
         gl_FragColor = vec4(col, alpha);

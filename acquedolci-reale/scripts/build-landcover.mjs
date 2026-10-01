@@ -205,8 +205,8 @@ const signed = (k) => sField[k];
 const out = Float32Array.from(dtm);
 for (let r = 0; r < dtmMeta.height; r++) for (let c = 0; c < dtmMeta.width; c++) {
   const x = dtmMeta.xmin + c * dtmMeta.step, y = dtmMeta.ymax - r * dtmMeta.step;
-  const cx = Math.round((x - X0) / STEP), cy = Math.round((Y1 - y) / STEP);
-  if (cx < 1 || cy < 1 || cx >= W || cy >= H) continue;
+  // anche i vertici sul bordo del MDT (la cella cade fuori di mezza cella): si prende la più vicina
+  const cx = Math.min(W - 1, Math.max(1, Math.round((x - X0) / STEP))), cy = Math.min(H - 1, Math.max(1, Math.round((Y1 - y) / STEP)));
   // il vertice sta all'incrocio di quattro celle da 2 m: media della distanza con segno
   const s = (signed(cy * W + cx) + signed(cy * W + cx - 1) + signed((cy - 1) * W + cx) + signed((cy - 1) * W + cx - 1)) / 4;
   const i = r * dtmMeta.width + c;

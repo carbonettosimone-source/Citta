@@ -11,9 +11,11 @@ import { fromArrayBuffer } from 'geotiff';
 import { toUtm33 } from './geo.mjs';
 
 const S = 'https://map.sitr.regione.sicilia.it/gis/rest/services';
-// nome, [ovest, sud, est, nord], passo MDT (m), passo foto (m)
+// nome, [ovest, sud, est, nord], passo MDT (m), passo foto (m)[, riquadro UTM [x0, y0, x1, y1] al posto dei gradi]
 const REGIONS = [
   ['litorale', [13.98, 37.86, 14.84, 38.21], 100, 25],
+  // anello attorno al paese (14 × 14 km): sopra il litorale grosso, sotto il nucleo a 4 m e 0,5 m
+  ['costa', null, 40, 5, [456880, 4204480, 470920, 4218520]],
   ['alicudi', [14.315, 38.515, 14.385, 38.565], 40, 12],
   ['filicudi', [14.52, 38.54, 14.62, 38.605], 40, 12],
   ['salina', [14.78, 38.51, 14.90, 38.605], 40, 12],
@@ -32,11 +34,18 @@ async function get(url, check) {
     await new Promise((res) => setTimeout(res, 2000));
   }
 }
-for (const [name, [w, s, e, n], step, px] of REGIONS) {
+const only = process.argv[2];
+for (const [name, ll, step, px, utm] of REGIONS) {
+  if (only && name !== only) continue;
   // bbox UTM che contiene il rettangolo geografico, allineato al passo del MDT
-  const c = [toUtm33(w, s), toUtm33(e, s), toUtm33(w, n), toUtm33(e, n)];
-  const x0 = Math.floor(Math.min(...c.map((p) => p[0])) / step) * step, x1 = Math.ceil(Math.max(...c.map((p) => p[0])) / step) * step;
-  const y0 = Math.floor(Math.min(...c.map((p) => p[1])) / step) * step, y1 = Math.ceil(Math.max(...c.map((p) => p[1])) / step) * step;
+  let x0, x1, y0, y1;
+  if (utm) [x0, y0, x1, y1] = utm;
+  else {
+    const [w, s, e, n] = ll;
+    const c = [toUtm33(w, s), toUtm33(e, s), toUtm33(w, n), toUtm33(e, n)];
+    x0 = Math.floor(Math.min(...c.map((p) => p[0])) / step) * step; x1 = Math.ceil(Math.max(...c.map((p) => p[0])) / step) * step;
+    y0 = Math.floor(Math.min(...c.map((p) => p[1])) / step) * step; y1 = Math.ceil(Math.max(...c.map((p) => p[1])) / step) * step;
+  }
   const W = (x1 - x0) / step + 1, H = (y1 - y0) / step + 1; // vertici della maglia (celle centrate sui nodi)
   const bbox = `${x0 - step / 2},${y0 - step / 2},${x1 + step / 2},${y1 + step / 2}`;
   const tif = await get(`${S}/modelli_digitali/mdt_2013/ImageServer/exportImage?${new URLSearchParams({ bbox, bboxSR: '25833', imageSR: '25833', size: `${W},${H}`, format: 'tiff', pixelType: 'F32', noData: '-9999', interpolation: 'RSP_BilinearInterpolation', f: 'image' })}`, (b) => b[0] === 0x49 || b[0] === 0x4d);
