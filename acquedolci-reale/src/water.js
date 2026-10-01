@@ -48,6 +48,8 @@ export function buildWater(sunDir, { far = false } = {}) {
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+      // due ottave ruotate: niente celle quadrate nella schiuma
+      float fbm(vec2 p) { return 0.62 * noise(p) + 0.38 * noise(mat2(0.8, -0.6, 0.6, 0.8) * p * 2.1 + 5.3); }
       void main() {
         float shore = 80.0; // distanza da riva in m (80 = mare aperto)
         ${far ? '' : `
@@ -96,13 +98,13 @@ export function buildWater(sunDir, { far = false } = {}) {
         col += vec3(1.0, 0.95, 0.85) * pow(max(dot(R, uSun), 0.0), 350.0) * uSpec;
         // battigia: fasce di schiuma che corrono verso riva e si rompono col rumore
         float band = sin(shoreW * 0.9 + uTime * 1.3) * 0.5 + 0.5;
-        float foam = (1.0 - smoothstep(0.5, 7.0, shoreW)) * smoothstep(0.55, 0.95, band * noise(vW.xz * 0.7 + uTime * 0.2) + 0.35 * (1.0 - smoothstep(0.0, 2.0, shoreW)));
+        float foam = (1.0 - smoothstep(0.5, 7.0, shoreW)) * smoothstep(0.5, 0.9, band * fbm(vW.xz * 0.55 + uTime * 0.2) * 1.25 + 0.35 * (1.0 - smoothstep(0.0, 2.0, shoreW)));
         // frangente: la linea dove l'onda si rompe, discontinua, a 10-18 m da riva
         float brk = 13.0 + (noise(vW.xz * 0.05) - 0.5) * 8.0;
-        float breaker = exp(-pow((shoreW - brk) / 2.2, 2.0)) * smoothstep(0.52, 0.8, noise(vW.xz * vec2(0.22, 0.4) + vec2(uTime * 0.12, 0.0))) * 0.75;
+        float breaker = exp(-pow((shoreW - brk) / 2.2, 2.0)) * smoothstep(0.5, 0.78, fbm(vW.xz * vec2(0.18, 0.3) + vec2(uTime * 0.12, 0.0))) * 0.7;
         // creste al largo: poche, sparse
-        // sottili e allungate nel verso delle onde, non chiazze
-        float caps = smoothstep(0.86, 0.97, noise(vec2(vW.x * 0.5, vW.z * 0.2) + vec2(uTime * 0.4, uTime * 0.15))) * smoothstep(20.0, 60.0, shore) * 0.28 * (1.0 - smoothstep(60.0, 400.0, dist));
+        // piccole e sparse, non chiazze
+        float caps = smoothstep(0.78, 0.95, fbm(vW.xz * 0.3 + vec2(uTime * 0.4, uTime * 0.15))) * smoothstep(20.0, 60.0, shore) * 0.22 * (1.0 - smoothstep(60.0, 400.0, dist));
         foam = max(foam, max(breaker, caps));
         col = mix(col, vec3(0.93, 0.95, 0.95) * uTint, clamp(foam, 0.0, 1.0));
         // trasparenza: a riva si vede il fondale (ortofoto), al largo l'acqua è piena
