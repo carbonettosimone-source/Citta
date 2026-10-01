@@ -226,13 +226,13 @@ export function applyTime(hour, ctx) {
   ctx.sun.castShadow = el > 0;
   ctx.sunDir = S.dir.clone();
   // di notte un po' di cielo e di rimbalzo: si legge la via, non è giorno. Al tramonto il cielo è viola/rosa
-  ctx.hemi.intensity = 1.25 * (0.42 + 0.58 * sstep(-9, 5, el));
+  ctx.hemi.intensity = 1.25 * (0.42 + 0.58 * sstep(-9, 5, el)) * (1 + 0.35 * gold);   // al tramonto la città è ancora leggibile
   ctx.hemi.color.set(0x6d82a4).lerp(C(0xdfeeff), day).lerp(C(0xf0b8a0), gold * 0.45);
   ctx.hemi.groundColor.set(0x4a453e).lerp(C(0x8a7a66), day).lerp(C(0x96684c), gold * 0.35);
-  ctx.moonLight.intensity = (1 - day) * Math.max(0.28, 0.62 * moonUp * (0.4 + 0.6 * Mo.lit));
+  ctx.moonLight.intensity = (1 - day) * Math.max(0.28, 0.62 * moonUp * (0.4 + 0.6 * Mo.lit)) + 0.25 * gold * (1 - day);
   ctx.moonLight.position.copy(Mo.dir).multiplyScalar(1000);
   // superfici con la luce "cotta" (ortofoto, sfondo): tinta del momento — oro al tramonto, viola dopo
-  _t.set(0x5c6e88).lerp(C(0xffffff), day);
+  _t.set(0x6a7c98).lerp(C(0xffffff), sstep(-9, 4, el));
   _w.set(0xffffff).lerp(C(0xffbe8a), gold * 0.75).lerp(C(0xb9a4c8), sstep(-3, -9, el) * 0.3);
   _t.multiply(_w);
   for (const m of ctx.basics) m.color.copy(_t);
