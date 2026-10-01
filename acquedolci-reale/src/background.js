@@ -154,7 +154,8 @@ export async function buildBackground(origin, inner) {
       const idx = [];
       for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
         const a = r * W + c, b = a + 1, d = a + W, e = d + 1;
-        if (h[a] < 0 && h[b] < 0 && h[d] < 0 && h[e] < 0) continue;
+        // sotto ~-2,4 m (ormai >8 m dalla riva) l'acqua è opaca: la foto del fondale a gradini di cella non serve
+        if (h[a] < -2.4 && h[b] < -2.4 && h[d] < -2.4 && h[e] < -2.4) continue;
         const ia = (r - r0) * cols + (c - c0), ib = ia + 1, id = ia + cols, ie = id + 1;
         idx.push(ia, id, ib, ib, id, ie);
       }
