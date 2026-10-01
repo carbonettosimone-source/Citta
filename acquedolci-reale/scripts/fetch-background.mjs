@@ -16,6 +16,8 @@ const REGIONS = [
   ['litorale', [13.98, 37.86, 14.84, 38.21], 100, 25],
   // anello attorno al paese (14 × 14 km): sopra il litorale grosso, sotto il nucleo a 4 m e 0,5 m
   ['costa', null, 40, 5, [456880, 4204480, 470920, 4218520]],
+  // anello vicino (8 × 8 km) in 4 tessere da 4 km: quote ogni 20 m, foto a 2,5 m come la base del paese
+  ...[[459880, 4206520], [463880, 4206520], [459880, 4210520], [463880, 4210520]].map(([x, y], i) => [`vicino${i}`, null, 20, 2.5, [x, y, x + 4000, y + 4000], 84]),
   ['alicudi', [14.315, 38.515, 14.385, 38.565], 40, 12],
   ['filicudi', [14.52, 38.54, 14.62, 38.605], 40, 12],
   ['salina', [14.78, 38.51, 14.90, 38.605], 40, 12],
@@ -35,8 +37,8 @@ async function get(url, check) {
   }
 }
 const only = process.argv[2];
-for (const [name, ll, step, px, utm] of REGIONS) {
-  if (only && name !== only) continue;
+for (const [name, ll, step, px, utm, quality = 72] of REGIONS) {
+  if (only && !name.startsWith(only)) continue;
   // bbox UTM che contiene il rettangolo geografico, allineato al passo del MDT
   let x0, x1, y0, y1;
   if (utm) [x0, y0, x1, y1] = utm;
@@ -54,7 +56,7 @@ for (const [name, ll, step, px, utm] of REGIONS) {
   const h = new Int16Array(W * H); let max = 0, land = 0;
   for (let i = 0; i < h.length; i++) { const v = band[i]; if (v > 0.5) { h[i] = Math.round(v); max = Math.max(max, v); land++; } else h[i] = -30; }
   const PW = Math.round((x1 - x0 + step) / px), PH = Math.round((y1 - y0 + step) / px);
-  const jpg = await get(`${S}/ortofoto/ortofoto_2022_20cm_sicilia/ImageServer/exportImage?${new URLSearchParams({ bbox, bboxSR: '25833', imageSR: '25833', size: `${PW},${PH}`, format: 'jpg', compressionQuality: '72', interpolation: 'RSP_BilinearInterpolation', f: 'image' })}`, (b) => b[0] === 0xff && b[1] === 0xd8);
+  const jpg = await get(`${S}/ortofoto/ortofoto_2022_20cm_sicilia/ImageServer/exportImage?${new URLSearchParams({ bbox, bboxSR: '25833', imageSR: '25833', size: `${PW},${PH}`, format: 'jpg', compressionQuality: String(quality), interpolation: 'RSP_BilinearInterpolation', f: 'image' })}`, (b) => b[0] === 0xff && b[1] === 0xd8);
   writeFileSync(new URL(`${name}.jpg`, dir), jpg);
   writeFileSync(new URL(`${name}.json`, dir), JSON.stringify({
     name, source: 'MDT 2013 e ortofoto 2022 — SITR Regione Siciliana (CC BY 4.0)', epsg: 25833, step,

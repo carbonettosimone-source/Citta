@@ -16,7 +16,7 @@ import * as THREE from 'three';
 // sceglie se il fragment del telefono non ha highp — d² in metri supera 65504 già a ~250 m e
 // diventa +inf, quindi lo sfondo finisce sotto il mondo e resta solo il cielo.
 export const CURVE_GLSL = 'vec2 cd = (wp.xz - cameraPosition.xz) * 0.001; wp.y -= dot(cd, cd) * 0.0682594;';
-const REGIONS = ['litorale', 'costa', 'alicudi', 'filicudi', 'salina', 'lipari', 'vulcano', 'panarea', 'stromboli'];
+const REGIONS = ['litorale', 'costa', 'vicino0', 'vicino1', 'vicino2', 'vicino3', 'alicudi', 'filicudi', 'salina', 'lipari', 'vulcano', 'panarea', 'stromboli'];
 const NAMES = { alicudi: 'Alicudi', filicudi: 'Filicudi', salina: 'Salina', lipari: 'Lipari', vulcano: 'Vulcano', panarea: 'Panarea', stromboli: 'Stromboli' };
 // paesi del litorale (UTM 33N): etichette da lontano
 const TOWNS = [['Cefalù', 414231, 4210537, 150], ["Capo d'Orlando", 477712, 4223254, 60]];
@@ -24,7 +24,7 @@ const TOWNS = [['Cefalù', 414231, 4210537, 150], ["Capo d'Orlando", 477712, 422
 // (WebGL1 senza OES_element_index_uint non disegna il litorale intero, 300 mila vertici)
 const CHUNK = 160;
 // il litorale e l'anello attorno al paese hanno il rilievo ombreggiato; le isole restano come sono
-const HILLSHADE = new Set(['litorale', 'costa']);
+const HILLSHADE = new Set(['litorale', 'costa', 'vicino0', 'vicino1', 'vicino2', 'vicino3']);
 const SUN = new THREE.Vector3(0.34, 0.62, 0.7).normalize(); // sud-est, come la luce dell'ortofoto (x est, y su, z sud)
 
 /** three abbassa anche il vertex shader a mediump se manca highp nel fragment. Il vertice lo ha sempre. */
@@ -107,27 +107,38 @@ export async function buildBackground(origin, inner) {
   const regions = new Map(loaded.filter(Boolean).map((r) => [r.name, r]));
   for (const r of regions.values()) r.h = shapeHeights(r.raw, r.meta.width, r.meta.height, r.meta.step);
 
-  // anello fine attorno al paese: rettangolo in coordinate locali, e il litorale grosso che gli passa sotto
-  const ring = regions.get('costa');
-  const rect = ring && {
-    x0: ring.meta.xmin - OX, x1: ring.meta.xmin + (ring.meta.width - 1) * ring.meta.step - OX,
-    z0: OY - ring.meta.ymax, z1: OY - ring.meta.ymax + (ring.meta.height - 1) * ring.meta.step,
+  // Tre livelli che si sovrappongono: litorale (100 m) ⊃ costa (40 m) ⊃ vicino (20 m, 4 tessere).
+  // Il livello più fine, sui suoi bordi, torna alla quota di quello sotto (niente gradino); quello sotto
+  // si abbassa dentro il rettangolo del fine, così in mezzo non c'è z-fighting e non si disegna doppio.
+  const rectOf = (names) => {
+    const rs = names.map((n) => regions.get(n)).filter(Boolean);
+    if (!rs.length) return null;
+    const x0 = Math.min(...rs.map((r) => r.meta.xmin)), x1 = Math.max(...rs.map((r) => r.meta.xmin + (r.meta.width - 1) * r.meta.step));
+    const yT = Math.max(...rs.map((r) => r.meta.ymax)), yB = Math.min(...rs.map((r) => r.meta.ymax - (r.meta.height - 1) * r.meta.step));
+    return { x0: x0 - OX, x1: x1 - OX, z0: OY - yT, z1: OY - yB };
   };
-  const base = regions.get('litorale');
-  /** quota del litorale grosso (bilineare) in coordinate locali: l'anello si raccorda ad essa sui bordi */
-  const baseAt = (X, Z) => {
-    const { width: W, height: H, step, xmin, ymax } = base.meta;
+  const VIC = ['vicino0', 'vicino1', 'vicino2', 'vicino3'];
+  const rects = { costa: rectOf(['costa']), vicino: rectOf(VIC) };
+  const bilin = (reg) => (X, Z) => {
+    const { width: W, height: H, step, xmin, ymax } = reg.meta;
     const c = (X + OX - xmin) / step, r = (ymax - (OY - Z)) / step;
     const c0 = Math.max(0, Math.min(W - 2, Math.floor(c))), r0 = Math.max(0, Math.min(H - 2, Math.floor(r)));
-    const fx = Math.min(1, Math.max(0, c - c0)), fy = Math.min(1, Math.max(0, r - r0)), i = r0 * W + c0, h = base.h;
+    const fx = Math.min(1, Math.max(0, c - c0)), fy = Math.min(1, Math.max(0, r - r0)), i = r0 * W + c0, h = reg.h;
     return h[i] * (1 - fx) * (1 - fy) + h[i + 1] * fx * (1 - fy) + h[i + W] * (1 - fx) * fy + h[i + W + 1] * fx * fy;
   };
-  const EDGE = 240; // m: fascia in cui l'anello sfuma verso la quota del litorale grosso
+  const baseAt = regions.get('litorale') && bilin(regions.get('litorale'));
+  const costaAt = regions.get('costa') && bilin(regions.get('costa'));
+  const EDGE = 240; // m: fascia in cui il livello fine sfuma verso la quota di quello sotto
+  const inside = (rc, X, Z) => (rc ? Math.min(X - rc.x0, rc.x1 - X, Z - rc.z0, rc.z1 - Z) : -1);
+  const sm = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 
   for (const { name, meta, tex, h } of regions.values()) {
     const { width: W, height: H, step } = meta;
-    const shade = HILLSHADE.has(name) ? hillshade(h, W, H, step, name === 'costa' ? 0.55 : 0.45) : null;
+    const shade = HILLSHADE.has(name) ? hillshade(h, W, H, step, name === 'litorale' ? 0.45 : 0.55) : null;
     const mat = curvedBasic(tex, !!shade);
+    // il livello fine vince sul sottostante dove si sovrappongono (e se la cella ha lo stesso z, vince lui)
+    if (name.startsWith('vicino')) { mat.polygonOffset = true; mat.polygonOffsetFactor = -3; mat.polygonOffsetUnits = -3; }
+    const cullRect = name === 'costa' ? rects.vicino : name === 'litorale' ? rects.costa : null;
     let peak = { v: -1 };
     for (let r0 = 0; r0 < H - 1; r0 += CHUNK) for (let c0 = 0; c0 < W - 1; c0 += CHUNK) {
       const r1 = Math.min(H - 1, r0 + CHUNK), c1 = Math.min(W - 1, c0 + CHUNK);
@@ -138,11 +149,16 @@ export async function buildBackground(origin, inner) {
         const X = meta.xmin + c * step - OX, Z = OY - (meta.ymax - r * step);
         let y = h[k];
         if (name === 'costa') {
-          // sui bordi l'anello torna alla quota del litorale grosso: niente gradino fra i due
-          const e = Math.min(X - rect.x0, rect.x1 - X, Z - rect.z0, rect.z1 - Z);
-          if (e < EDGE) { const t = Math.max(0, e) / EDGE, w = t * t * (3 - 2 * t); y = baseAt(X, Z) * (1 - w) + y * w; }
-        } else if (name === 'litorale' && rect && X > rect.x0 + 100 && X < rect.x1 - 100 && Z > rect.z0 + 100 && Z < rect.z1 - 100) {
-          y -= 90; // sotto l'anello: lì comanda lui
+          const e = inside(rects.costa, X, Z);
+          if (e < EDGE) y = baseAt(X, Z) * (1 - sm(e / EDGE)) + y * sm(e / EDGE);
+          const ev = inside(rects.vicino, X, Z);
+          if (ev > 0) y -= 90 * sm(ev / 40);
+        } else if (name.startsWith('vicino')) {
+          const e = inside(rects.vicino, X, Z);
+          if (e < EDGE) y = costaAt(X, Z) * (1 - sm(e / EDGE)) + y * sm(e / EDGE);
+        } else if (name === 'litorale') {
+          const e = inside(rects.costa, X, Z);
+          if (e > 0) y -= 90 * sm(e / 100);
         }
         if (X > inner.x0 + 30 && X < inner.x1 - 30 && Z > inner.z0 + 30 && Z < inner.z1 - 30) y -= 60;
         pos[i * 3] = X; pos[i * 3 + 1] = y; pos[i * 3 + 2] = Z;
@@ -156,6 +172,10 @@ export async function buildBackground(origin, inner) {
         const a = r * W + c, b = a + 1, d = a + W, e = d + 1;
         // sotto ~-2,4 m (ormai >8 m dalla riva) l'acqua è opaca: la foto del fondale a gradini di cella non serve
         if (h[a] < -2.4 && h[b] < -2.4 && h[d] < -2.4 && h[e] < -2.4) continue;
+        if (cullRect) { // la cella sta tutta sotto il livello più fine: non si disegna
+          const xa = meta.xmin + c * step - OX, za = OY - (meta.ymax - r * step);
+          if (xa > cullRect.x0 + 80 && xa + step < cullRect.x1 - 80 && za > cullRect.z0 + 80 && za + step < cullRect.z1 - 80) continue;
+        }
         const ia = (r - r0) * cols + (c - c0), ib = ia + 1, id = ia + cols, ie = id + 1;
         idx.push(ia, id, ib, ib, id, ie);
       }
