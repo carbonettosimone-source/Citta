@@ -19,7 +19,7 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
   let running = false;    // il tempo scorre
   let follow = true;      // la camera segue il personaggio
   let pending = null;     // interazione da fare all'arrivo
-  let lastHour = -1;
+  let viewHour = -1, appliedHour = -99, titleHour = 20.1; // l'ora del cielo scorre in continuo, non a scatti
 
   // ---------------------------------------------------------------- icone sulla mappa
   const layer = $('icons');
@@ -326,7 +326,7 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
     controls.target.copy(player.state.pos);
     camera.position.set(player.state.pos.x + 35, player.state.pos.y + 95, player.state.pos.z + 70);
     controls.update();
-    follow = true; running = true; lastHour = -1;
+    follow = true; running = true; viewHour = -1; // il cielo parte dal titolo e arriva all'alba
     refresh();
     $('hint').classList.add('show'); setTimeout(() => $('hint').classList.remove('show'), 7000);
   }
@@ -391,8 +391,24 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
 
   // ---------------------------------------------------------------- ciclo
   let acc = 0;
+  /**
+   * Cielo continuo: l'ora mostrata insegue quella di gioco ogni frame. A fine giornata (o dal titolo, che sta
+   * al tramonto) il cielo attraversa la notte fino all'alba (6 ore al secondo) invece di scattare.
+   */
+  function skyUpdate(dt) {
+    if (!s) return;
+    let target = G.hourOf(s);
+    if (viewHour < 0) viewHour = titleHour;
+    if (viewHour >= 24 && target < 24 && viewHour - 24 > target) viewHour -= 24;
+    if (viewHour > target + 1.2) target += 24;                     // il giorno dopo: si attraversa la notte
+    const diff = target - viewHour;
+    if (diff > 0.15) viewHour += Math.min(diff, dt * 6); else viewHour = target;
+    if (viewHour >= 24 && target >= 24 && viewHour >= target - 1e-3) viewHour -= 24;
+    if (Math.abs(viewHour - appliedHour) > 0.002) { appliedHour = viewHour; applyHour(viewHour); }
+  }
   function update(dt, t) {
     player.update(dt, camera, t);
+    skyUpdate(dt);
     // la camera segue: sposta bersaglio e camera insieme, senza cambiare l'inquadratura
     if (follow && s) {
       const p = player.state.pos, tg = controls.target;
@@ -410,14 +426,12 @@ export function createGame({ scene, camera, controls, getCamera, groundAt, stree
     if (G.tick(s, dt)) { endOfDay(); return; }
     if (s.nextQuest <= 0) { s.nextQuest = 70 + Math.random() * 80; const q = G.pickQuest(s); if (q) { questUI(q); return; } }
     acc += dt;
-    if (acc > 1) {
+    if (acc > 0.5) {
       acc = 0;
       $('gClock').textContent = clockText();
-      const h = Math.round(G.hourOf(s) * 4) / 4;
-      if (h !== lastHour) { lastHour = h; applyHour(h); }
-      if (Math.random() < 0.1) G.save(s);
+      if (Math.random() < 0.05) G.save(s);
     }
   }
 
-  return { titleScreen, update, get state() { return s; }, player, nav, goTo };
+  return { titleScreen, update, get state() { return s; }, player, nav, goTo, setTitleHour(h) { titleHour = h; } };
 }
