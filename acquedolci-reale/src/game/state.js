@@ -202,8 +202,13 @@ export function tick(s, dt) {
   s.nextQuest -= dt;
   return s.clock >= DAY_SECONDS;
 }
-/** ora del giorno mostrata (8:00 → 21:00) */
-export const hourOf = (s) => 8 + 13 * Math.min(1, s.clock / DAY_SECONDS);
+/** ora del giorno mostrata (7:30 → 21:00) */
+export function hourOf(s) {
+  // 7:30 → 21:00. Il giorno scorre in fretta, ma l'ora dorata del tramonto (19:20 → 21:00) dura il 30% della
+  // giornata di gioco: i tramonti d'Acquedolci vanno guardati
+  const f = Math.min(1, s.clock / DAY_SECONDS);
+  return f <= 0.7 ? 7.5 + 11.8 * (f / 0.7) : 19.3 + 1.7 * ((f - 0.7) / 0.3);
+}
 
 /** il voto: le intenzioni con un po' di rumore, gli indecisi si spartiscono in proporzione */
 export function election(s) {

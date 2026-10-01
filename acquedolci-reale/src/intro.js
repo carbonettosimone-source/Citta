@@ -14,7 +14,7 @@ const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 const SHOTS = [
   { // dolly serale lento: si apre il paese, compare il titolo (in alto, così il Municipio resta libero)
-    hour: 18.2, dur: 7, fov: 46, final: true,
+    hour: 19.75, hourTo: 20.3, dur: 8, fov: 46, final: true,
     from: { cam: [-55, 68, -270], look: [-8, 14, -28] },
     to: { cam: [-22, 112, -370], look: [-6, 20, -36] },
   },
@@ -97,6 +97,7 @@ export function createIntro({ camera, controls, heightAt, setTime, onEnd }) {
     t += dt;
     const k = Math.min(1, t / s.dur);
     pose(s, k);
+    if (s.hourTo) setTime(s.hour + (s.hourTo - s.hour) * k); // il sole scende durante l'inquadratura
     const FADE = 0.9;
     const fade = s.final ? Math.max(0, 1 - t / 1.1) : Math.max(0, 1 - t / FADE, 1 - (s.dur - t) / FADE);
     $('introFade').style.opacity = fade.toFixed(3);

@@ -14,6 +14,8 @@ Gioco satirico sulla politica di paese. Sei ad Acquedolci, 30 giorni prima delle
 - **Proposte improvvise**: villa abusiva, posto al comune per il cugino, pacchetti di voti… accetti o rifiuti; fedina e rischio scandalo ne tengono conto.
 - A fine giornata gli avversari fanno campagna; al trentesimo giorno si vota. Punteggio: voti + vittoria + fedina − spese.
 
+**Atmosfera** (`daylight.js`, `fog.js`, `water.js`): sole e luna a posizione vera per il 20 maggio 2027 (si vota a fine primavera: tramonti verso nord-ovest, sul mare); palette del cielo per quota del sole (oro → arancio → rosa → magenta → viola → blu notte), bagliore solare e fascia viola opposta, nuvole volumetriche e cirri nello shader del cielo, foschia direzionale (calda verso il sole, viola dalla parte opposta) uguale al cielo sull'orizzonte, mare con riflesso del sole e del cielo. L'ora scorre in continuo ogni frame; l'ora dorata occupa il 30% della giornata di gioco e a fine giornata si attraversa la notte fino all'alba.
+
 Contenuti in `src/game/data.js`, regole in `src/game/state.js`, interfaccia in `src/game/index.js`. La partita si salva nel browser.
 
 **Intro** (`src/intro.js`): quattro inquadrature in movimento, ognuna con la sua ora del giorno, bande nere, dissolvenze e didascalie:

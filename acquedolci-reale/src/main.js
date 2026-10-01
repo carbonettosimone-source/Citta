@@ -14,7 +14,7 @@ import { HR } from './ortho.js';
 import { initGround } from './ground.js';
 import { buildWater } from './water.js';
 import { buildBackground } from './background.js';
-import { createSky, applyTime, NIGHT } from './daylight.js';
+import { createSky, applyTime, setSkyDate, NIGHT } from './daylight.js';
 import { createIntro } from './intro.js';
 import { createPost } from './post.js';
 import { createTraffic } from './traffic.js';
@@ -62,6 +62,7 @@ sun.shadow.bias = -0.0005;
 const moonLight = new THREE.DirectionalLight(0x9fb2d6, 0);
 scene.add(hemi, sun, sun.target, moonLight);
 const sky = createSky(bgScene);
+setSkyDate(2027, 5, 20); // si vota a fine primavera: tramonti tardi, verso nord-ovest, sul mare
 
 async function load() {
   say('modello degli edifici');
@@ -196,7 +197,7 @@ $('optSharp').onchange = (e) => { settings.sharp = e.target.checked; saveSetting
 $('optOrtho').checked = settings.ortho;
 $('optOrtho').onchange = (e) => { settings.ortho = e.target.checked; saveSettings(); };
 $('bSet').onclick = () => { const p = $('settings'); p.hidden = !p.hidden; $('bSet').setAttribute('aria-expanded', String(!p.hidden)); $('bSet').classList.toggle('on', !p.hidden); };
-applyHour(9);
+applyHour(20.1);
 try { localStorage.removeItem('acq-gkey'); } catch { /* niente da togliere */ }
 
 // ---------- schermata creazione personaggio
@@ -309,7 +310,8 @@ function setupCharScreen(char) {
 const intro = createIntro({
   camera, controls, heightAt, setTime: applyHour,
   onEnd() {
-    applyHour(9);
+    applyHour(20.1); // il titolo sta all'ora dorata, e l'alba della prima giornata parte da qui
+    game.setTitleHour(20.1);
     controls.target.set(-60, g0, -20); camera.position.set(-10, g0 + 90, 190); controls.update();
     game.titleScreen();
   },
@@ -337,7 +339,7 @@ function frame() {
   sun.position.set(focus.x + sd.x * 800, focus.y + sd.y * 800, focus.z + sd.z * 800);
   sun.target.position.copy(focus);
   trees.update(camera);
-  sky.follow(camera);
+  sky.follow(camera, clock.elapsedTime);
   hr.update(focus);
   water.update(clock.elapsedTime);
   farSea.update(clock.elapsedTime, camera);
@@ -374,4 +376,4 @@ function frame() {
 }
 frame();
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); post.resize(); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); bgCamera.aspect = innerWidth / innerHeight; bgCamera.updateProjectionMatrix(); });
-window.__acq = { camera, controls, game, heightAt, grade, HR, setHour: applyHour, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };
+window.__acq = { camera, controls, game, heightAt, grade, HR, setHour: applyHour, getHour: () => curHour, scene, renderer, bgScene, bgCamera, settings, intro, orthoCamera, bgOrthoCamera, traffic, npcs, character };

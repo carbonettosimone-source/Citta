@@ -13,8 +13,8 @@ import { CURVE_GLSL, forceHighpVertex } from './background.js';
 export function buildWater(sunDir, { far = false } = {}) {
   const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
     uTime: { value: 0 }, uSun: { value: sunDir.clone().normalize() },
-    uDeep: { value: new THREE.Color(0x0d4a66) }, uShallow: { value: new THREE.Color(0x2f9aa0) },
-    uSkyH: { value: new THREE.Color(0xc9dcea) }, uSkyZ: { value: new THREE.Color(0x5d93c4) },
+    uDeep: { value: new THREE.Color(0x0a5f9a) }, uShallow: { value: new THREE.Color(0x2fd0c4) },
+    uSkyH: { value: new THREE.Color(0xc9dcea) }, uSkyZ: { value: new THREE.Color(0x5d93c4) }, uSkyW: { value: new THREE.Color(0xfff0d2) }, uGold: { value: 0 },
     uTint: { value: new THREE.Color(1, 1, 1) }, uSpec: { value: 3 }, // luce del momento (daylight.js)
   }]);
   uniforms.lcMap = GROUND.lcMap; uniforms.lcRect = GROUND.lcRect;
@@ -32,7 +32,7 @@ export function buildWater(sunDir, { far = false } = {}) {
         #include <fog_vertex>
       }`,
     fragmentShader: `
-      uniform float uTime, uSpec; uniform vec3 uSun, uDeep, uShallow, uSkyH, uSkyZ, uTint;
+      uniform float uTime, uSpec, uGold; uniform vec3 uSun, uDeep, uShallow, uSkyH, uSkyZ, uSkyW, uTint;
       varying vec3 vW;
       ${LC_GLSL}
       #include <common>
@@ -40,7 +40,7 @@ export function buildWater(sunDir, { far = false } = {}) {
       // treno d'onda: direzione, lunghezza d'onda (m), ampiezza (m), velocità di fase ~ sqrt(g·L/2π)
       float px; // dimensione del pixel sul mare (m): le onde più corte di pochi pixel si spengono (niente moiré)
       void wave(vec2 p, vec2 dir, float L, float A, inout vec2 grad) {
-        A *= smoothstep(px * 3.0, px * 8.0, L);
+        A *= smoothstep(px * 6.0, px * 18.0, L);
         float k = 6.2831 / L, c = sqrt(9.81 / k);
         float ph = k * (dot(dir, p) - c * uTime);
         grad += dir * (A * k * cos(ph));
@@ -75,12 +75,18 @@ export function buildWater(sunDir, { far = false } = {}) {
         // onda lunga che increspa la superficie a chiazze larghe: da sopra il mare non è mai uniforme
         vec2 sw2 = vec2(noise(vW.xz * 0.035 + vec2(uTime * 0.05, 0.0)), noise(vW.xz * 0.035 + 17.0 - vec2(0.0, uTime * 0.04))) - 0.5;
         g += sw2 * 0.05 * smoothstep(px * 2.0, px * 14.0, 30.0);
+        // micro-increspature che fanno scintillare il sole (svaniscono con la distanza: niente moiré)
+        vec2 mw = vec2(noise(vW.xz * 1.7 + vec2(uTime * 0.9, 0.0)), noise(vW.xz * 1.7 + 37.0 - vec2(0.0, uTime * 0.7))) - 0.5;
+        g += mw * 0.16 * (1.0 - smoothstep(60.0, 700.0, dist)) * smoothstep(px * 1.5, px * 7.0, 1.2);
         vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
         // in ortografica la direzione di vista è una sola (asse della camera), non verso la sua posizione
         vec3 V = isOrthographic ? normalize(vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2])) : normalize(cameraPosition - vW);
         float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         vec3 R = reflect(-V, N);
         vec3 sky = mix(uSkyH, uSkyZ, clamp(R.y * 1.6, 0.0, 1.0));
+        // lo specchio del cielo ha lo stesso bagliore del cielo vero (sky shader): il mare non resta viola sotto un cielo rosa
+        float srs = max(dot(R, uSun), 0.0);
+        sky = mix(sky, uSkyW, clamp(uGold * (pow(srs, 4.0) * 0.55 + pow(srs, 14.0) * 0.5) * (0.3 + 0.7 * exp(-max(R.y, 0.0) * 4.5)), 0.0, 1.0));
         // la riva serpeggia: schiuma, colore e profondità non corrono mai parallele a una retta
         float sm = (noise(vW.xz * 0.045) - 0.5) * 10.0 + (noise(vW.xz * 0.17 + vec2(0.0, uTime * 0.25)) - 0.5) * 4.0;
         float shoreW = max(shore + sm * (1.0 - smoothstep(12.0, 45.0, shore)), 0.0);
@@ -88,14 +94,24 @@ export function buildWater(sunDir, { far = false } = {}) {
         // banchi di sabbia e prati sommersi: il fondale chiaro affiora a strisce irregolari
         float bars = noise(vW.xz * vec2(0.03, 0.06) + 5.0) * 0.6 + noise(vW.xz * 0.11 + 2.0) * 0.4;
         depth = clamp(depth - (bars - 0.45) * 0.45 * (1.0 - smoothstep(35.0, 80.0, shore)), 0.0, 1.0);
-        vec3 body = mix(uShallow, uDeep, depth) * uTint;
+        vec3 body = mix(uShallow, uDeep, depth) * mix(vec3(1.0), uTint, 0.55);
         body *= 0.93 + 0.14 * noise(vW.xz * 0.02 + 40.0);
         // le pendenze delle onde, amplificate, modellano la luce sull'acqua (da sopra il rilievo si legge)
         vec3 Nd = normalize(vec3(-g.x * 5.0, 1.0, -g.y * 5.0));
         // la luce media resta quella di prima (colore pieno): le onde aggiungono solo la variazione
         float sunDiff = clamp(max(dot(Nd, uSun), 0.0) / max(uSun.y, 0.25), 0.55, 1.45);
-        vec3 col = mix(body * (0.55 + 0.45 * sunDiff), sky, fres);
-        col += vec3(1.0, 0.95, 0.85) * pow(max(dot(R, uSun), 0.0), 350.0) * uSpec;
+        // acqua viva: più chiara e satura, con la luce che attraversa le creste (turchese)
+        float crest = clamp(length(g) * 5.0, 0.0, 1.0);
+        vec3 col = body * (0.78 + 0.5 * sunDiff) + uShallow * 0.22 * crest * (0.4 + 0.6 * sunDiff) * (1.0 - depth * 0.6);
+        col = mix(col, sky, fres);
+        // riflesso del sole: striscia larga e luccichio stretto; al tramonto caldo (oro/rosa)
+        float sr = max(dot(R, uSun), 0.0);
+        vec3 sunC = mix(vec3(1.0, 0.95, 0.85), uSkyW, 0.55 + 0.4 * uGold);
+        col += sunC * (pow(sr, 3500.0) * 3.0 + pow(sr, 220.0) * 0.8 + pow(sr, 40.0) * 0.16 + pow(sr, 7.0) * 0.045 * (0.4 + uGold)) * uSpec;
+        // morbida: i riflessi forti non bruciano in bianco
+        col = col / (1.0 + max(col - vec3(0.85), 0.0) * 0.9);
+        // il cielo caldo dell'orizzonte si specchia in lontananza
+        col *= 1.06;
         // battigia: fasce di schiuma che corrono verso riva e si rompono col rumore
         float band = sin(shoreW * 0.9 + uTime * 1.3) * 0.5 + 0.5;
         float foam = (1.0 - smoothstep(0.5, 7.0, shoreW)) * smoothstep(0.5, 0.9, band * fbm(vW.xz * 0.55 + uTime * 0.2) * 1.25 + 0.35 * (1.0 - smoothstep(0.0, 2.0, shoreW)));
