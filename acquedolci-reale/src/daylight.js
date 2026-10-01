@@ -115,7 +115,7 @@ export function createSky(bgScene) {
         c = mix(c, uW, clamp(uGlow * (pow(sdp, 4.0) * 0.55 + pow(sdp, 14.0) * 0.5) * (0.3 + 0.7 * low), 0.0, 1.0));
         // dalla parte opposta: banda rosa-viola sopra l'ombra della terra
         float anti = pow(max(-sd, 0.0), 1.3);
-        c = mix(c, uX, clamp(uGlow * 0.75 * anti * smoothstep(0.0, 0.05, hp) * exp(-hp * 3.2), 0.0, 1.0));
+        c = mix(c, uX, clamp(uGlow * 0.7 * anti * exp(-hp * 3.2), 0.0, 1.0));
         // disco e alone
         c += vec3(1.0, 0.86, 0.66) * (pow(sdp, 48.0) * 0.5 + pow(sdp, 2400.0) * 5.0) * uSunVis;
         // nuvole: strato basso volumetrico + cirri alti, illuminati dal sole (bordi luminosi, ventre rosa)
@@ -219,7 +219,7 @@ export function applyTime(hour, ctx) {
   ctx.fog.color.copy(H); ctx.bgScene.background.copy(H);
   ctx.fog.density = 2.6e-5 * (1 + 1.6 * gold);
   FOG.sun.value.copy(S.dir); FOG.warm.value.copy(W); FOG.cool.value.copy(X);
-  FOG.amt.value = pal.glow * (0.3 + 0.7 * gold) * (1 - sstep(-14, -8, el) * 0.7);
+  FOG.amt.value = pal.glow;
   // luce diretta: sole (caldo, poi rosato al tramonto), poi luna azzurrina
   ctx.sun.intensity = 2.1 * sstep(-1.5, 8, el) * (1 - 0.25 * gold);
   ctx.sun.color.set(0xfff2dc).lerp(C(0xff9a5a), gold * sstep(-2, 2, el)).lerp(C(0xff6a7a), sstep(1.5, -1.5, el) * 0.5 * gold);
@@ -243,7 +243,7 @@ export function applyTime(hour, ctx) {
     w.uTint.value.copy(_t);
     w.uSun.value.copy(up ? S.dir : Mo.dir);
     w.uSpec.value = up ? 3.2 * sstep(-3, 5, el) : 0.8 * moonUp * Mo.lit;
-    if (w.uGold) w.uGold.value = gold;
+    if (w.uGold) w.uGold.value = pal.glow;
   }
   NIGHT.value = ctx.lights ? 1 - sstep(-5, 3, el) : 0;
   return { sun: S, moon: Mo };

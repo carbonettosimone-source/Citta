@@ -25,10 +25,10 @@ if (!C.fog_pars_fragment.includes('vFogDirW')) {
   C.fog_pars_fragment = C.fog_pars_fragment.replace('varying float vFogDepth;', 'varying float vFogDepth;\n\tvarying vec3 vFogDirW;\n\tuniform vec3 uFogSun; uniform vec3 uFogWarm; uniform vec3 uFogCool; uniform float uFogAmt;');
   C.fog_fragment = C.fog_fragment.replace('gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );', `
 	vec3 fd = normalize(vFogDirW);
-	float fs = dot(fd, uFogSun);
-	float lowSky = 1.0 - smoothstep(0.0, 0.55, fd.y); // più forte vicino all'orizzonte
-	vec3 fogC = mix(fogColor, uFogWarm, uFogAmt * (0.55 * pow(max(fs, 0.0), 3.0) + 0.45 * pow(max(fs, 0.0), 14.0)) * (0.35 + 0.65 * lowSky));
-	fogC = mix(fogC, uFogCool, uFogAmt * 0.7 * pow(max(-fs, 0.0), 1.4) * lowSky);
+	float fs = dot(fd, uFogSun), fsp = max(fs, 0.0);
+	float low = exp(-max(fd.y, 0.0) * 4.5);          // stessa formula del cielo (daylight.js): all'orizzonte si fondono
+	vec3 fogC = mix(fogColor, uFogWarm, clamp(uFogAmt * (pow(fsp, 4.0) * 0.55 + pow(fsp, 14.0) * 0.5) * (0.3 + 0.7 * low), 0.0, 1.0));
+	fogC = mix(fogC, uFogCool, clamp(uFogAmt * 0.7 * pow(max(-fs, 0.0), 1.3) * exp(-max(fd.y, 0.0) * 3.2), 0.0, 1.0));
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogC, fogFactor );`);
 }
 
