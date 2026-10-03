@@ -21,6 +21,7 @@ import { createTraffic } from './traffic.js';
 import { createNPCs } from './npcs.js';
 import { createGame } from './game/index.js';
 import { createCharacter, buildPlayerMesh, animatePlayer, SKIN_OPTS, HAIR_OPTS, HSTYLE_OPTS, SHIRT_OPTS, PANT_OPTS, HAT_OPTS, GLASS_OPTS } from './character.js';
+import { buildStreetTreePositions } from './street-overrides.js';
 
 const $ = (id) => document.getElementById(id);
 const say = (m) => { $('lmsg').textContent = m; };
@@ -133,7 +134,10 @@ async function load() {
   say('luoghi d\'interesse');
   scene.add(buildLandmarks(model, heightAt));
   say('alberi');
-  const trees = buildTrees(model.trees || []);
+  // alberi dal modello + filari stradali degli override per via/segmento
+  const streetTreeFlat = buildStreetTreePositions(heightAt);
+  const allTrees = streetTreeFlat.length ? Float32Array.from([...(model.trees || []), ...streetTreeFlat]) : model.trees;
+  const trees = buildTrees(allTrees || []);
   scene.add(trees.group);
 
   const hr = hrMeta ? createOrthoHR(hrMeta, model.origin, renderer) : { update() {} };

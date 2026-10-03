@@ -3,11 +3,16 @@
  * è texturizzato con l'ortofoto 2022 proiettata dall'alto, quindi coppi, terrazze, pannelli solari
  * e cisterne sono quelli reali di QUEL tetto. Le facciate usano il modulo campata×piano (facade.js)
  * tinto col colore dell'edificio.
+ *
+ * Il sistema di override per strada (street-overrides.js) sovrascrive la selezione del materiale
+ * di facciata per gli edifici censiti lungo i segmenti stradali configurati: finestre più alte,
+ * piano terra con vetrina, balconi a densità superiore ecc.
  */
 import * as THREE from 'three';
-import { BAY, FLOOR } from './facade.js';
+import { BAY, FLOOR, MAT_IDX } from './facade.js';
 import { orthoMaterial } from './ortho.js';
 import { isPlazaBuilding } from './plaza-buildings.js';
+import { getSegmentOverride } from './street-overrides.js';
 
 const NO_WINDOWS = new Set(['B006', 'B007', 'B009', 'B010']); // baracca, tettoia, cabina, serra
 
@@ -38,7 +43,6 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   const group = new THREE.Group();
   group.name = 'buildings';
   const walls = facadeMats.map(() => new Buf());
-  const UPPER = facadeMats.length - 1; // l'ultimo materiale è il piano terra
   const plain = new Buf(); // baracche, tettoie, timpani: senza finestre
   const roofs = new Map(); // file ortofoto → Buf
   const core = orthoMeta.tiles.filter((t) => t.level === 'core');
@@ -47,6 +51,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   const footprints = [];
   const roofItems = [];
   const balconies = [];
+  const cornices = []; // { pts, y, col } - marcapiani decorativi per edifici con override
 
   /** tile di ortofoto che contiene il punto locale (X,Z) e la sua uv */
   function tileFor(X, Z) {
@@ -69,15 +74,46 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
     const foot = Math.min(b.b, b.g) - 0.4; // interrato di poco: niente fessure sui lotti in pendenza
     col.setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace);
     const windows = !NO_WINDOWS.has(b.t) && b.h >= 2.6;
-    const wbuf = windows ? walls[Math.floor(hash(b.id) * UPPER)] : plain;
-    const gbuf = windows ? walls[UPPER] : plain;
     let cx = 0, cz = 0; for (const [x, z] of pts) { cx += x; cz += z; } cx /= pts.length; cz /= pts.length;
     const tile = tileFor(cx, cz);
     const rb = roofBuf(tile);
     const isCanopy = b.t === 'B007';
+
+    // --- override per via/segmento ---
+    const ov = windows ? getSegmentOverride(b.id, cx, cz) : null;
+
+    // selezione materiale facciata superiore:
+    //   con override + windowStyle 'tall' → varianti con finestra alta (indici TALL_*)
+    //   altrimenti → variante standard scelta per hash
+    let wbufIdx;
+    if (ov?.windowStyle === 'tall') {
+      const shutHue = ov.shutterColor === 'green' ? MAT_IDX.TALL_GREEN : ov.shutterColor === 'brown' ? MAT_IDX.TALL_BROWN : MAT_IDX.TALL_GREY;
+      wbufIdx = shutHue;
+    } else {
+      // indici 0-3 (MAX = facadeMats.length - 5 per non sconfinare nel piano terra e nelle nuove varianti)
+      const baseUpper = 4; // quante varianti "standard" ci sono (0,1,2,3)
+      wbufIdx = Math.floor(hash(b.id) * baseUpper);
+    }
+    const wbuf = windows ? walls[wbufIdx] : plain;
+
+    // selezione materiale piano terra:
+    //   con override groundFloor 'shops' → vetrina (SHOP)
+    //   con override groundFloor 'mixed' → porta+vetrina (MIXED_GF)
+    //   altrimenti → saracinesca (GROUND)
+    let gbufIdx = MAT_IDX.GROUND;
+    if (ov?.groundFloor === 'shops') gbufIdx = MAT_IDX.SHOP;
+    else if (ov?.groundFloor === 'mixed') gbufIdx = MAT_IDX.MIXED_GF;
+    const gbuf = windows ? walls[gbufIdx] : plain;
+
     // stile dei balconi per edificio: 0 nessuno, 1 ogni campata, 2 a campate alterne
     const hb = hash(b.id * 3 + 1);
-    const balconyStyle = hb < 0.15 ? 0 : hb < 0.65 ? 1 : 2; // nelle foto quasi ogni palazzina ha balconi
+    let balconyStyle;
+    if (ov) {
+      // con override: la soglia per "nessun balcone" scende molto (quasi tutti ce l'hanno)
+      balconyStyle = hb < (1 - ov.balconyRate) ? 0 : hb < 0.6 ? 1 : 2;
+    } else {
+      balconyStyle = hb < 0.15 ? 0 : hb < 0.65 ? 1 : 2;
+    }
 
     // --- muri: una parete per lato, uv in campate e piani a partire dal suolo al centro
     let s = 0;
@@ -129,6 +165,14 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
       };
       quad(gbuf, foot, split);
       quad(wbuf, split, top);
+      // marcapiano decorativo: una fascia sporgente di 7 cm ogni piano, solo con override cornices
+      if (ov?.cornices && windows && open >= 0.4) {
+        for (let k = 1; k < b.f; k++) {
+          const y = b.g + k * FLOOR;
+          if (y >= top - 0.3) break;
+          cornices.push({ x0, z0, x1, z1, y, col: col.clone() });
+        }
+      }
     }
 
     // --- tetto
@@ -197,6 +241,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   }
   group.add(buildRoofItems(roofItems));
   group.add(buildBalconies(balconies));
+  if (cornices.length) group.add(buildCornices(cornices));
   return { group, footprints };
 }
 
@@ -281,24 +326,91 @@ function insideRing(pts, x, z) {
   return ins;
 }
 
-/** balcone: soletta in aggetto di 90 cm con ringhiera in ferro, davanti alla portafinestra */
+/**
+ * Marcapiani decorativi (cornices): fasce sporgenti di ~7 cm a ogni intersezione piano/parete.
+ * Costruite come geometry piatta (top + fronte della modanatura), colore leggermente più scuro
+ * rispetto all'intonaco dell'edificio per dare ombra e leggibilità alla sezione del palazzo.
+ */
+function buildCornices(list) {
+  const pos = [], colr = [];
+  const c = new THREE.Color();
+  for (const { x0, z0, x1, z1, y, col } of list) {
+    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz);
+    if (L < 0.05) continue;
+    const nx = -dz / L, nz = dx / L; // normale esterna
+    const T = 0.08, H = 0.10; // sporgenza e altezza della modanatura
+    // colore leggermente più scuro
+    c.set(col).multiplyScalar(0.88);
+    // piano superiore della modanatura (top)
+    const A = [x0, y, z0], B = [x1, y, z1], C = [x1 + nx * T, y, z1 + nz * T], D = [x0 + nx * T, y, z0 + nz * T];
+    // faccia frontale verticale
+    const E = [x0 + nx * T, y - H, z0 + nz * T], F = [x1 + nx * T, y - H, z1 + nz * T];
+    for (const tri of [[A, B, C, D], [C, D, E, F]].flatMap(([p0, p1, p2, p3]) => [[p0, p1, p2], [p0, p2, p3]])) {
+      for (const pt of tri) { pos.push(...pt); colr.push(c.r, c.g, c.b); }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.name = 'cornices';
+  return mesh;
+}
+
+/**
+ * Balcone siciliano: soletta in calcestruzzo con nervatura, ringhiera in ferro battuto con bacchette
+ * verticali ravvicinate e corrimano. La soletta sporge 90 cm dalla facciata (aggetto tipico per un
+ * balcone abitabile). Le bacchette sono più fitte di una ringhiera generica (ogni ~9 cm), con
+ * traverso orizzontale basso e corrimano a sezione rettangolare.
+ */
 function buildBalconies(list) {
   const g = new THREE.Group(); g.name = 'balconies';
   if (!list.length) return g;
-  const slab = new THREE.BoxGeometry(1.7, 0.12, 0.9); slab.translate(0, 0.06, 0);
-  const rail = new THREE.BoxGeometry(1.7, 0.95, 0.04); rail.translate(0, 0.6, 0.43);
-  const sideL = new THREE.BoxGeometry(0.04, 0.95, 0.9); sideL.translate(-0.83, 0.6, 0);
-  const sideR = sideL.clone(); sideR.translate(1.66, 0, 0);
-  const concrete = new THREE.MeshLambertMaterial({ color: 0xd6d2c8 });
-  // ringhiera a bacchette come nelle foto: corrimano, traverso basso e montanti ogni ~11 cm, il resto vuoto
-  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
-  const c2 = cv.getContext('2d'); c2.fillStyle = '#fff';
-  c2.fillRect(0, 0, 128, 6); c2.fillRect(0, 56, 128, 4);
-  for (let x = 1; x < 128; x += 8) c2.fillRect(x, 0, 2, 60);
+
+  // soletta: più spessa sul bordo frontale (nervatura), colorazione calcestruzzo chiaro
+  const slab = new THREE.BoxGeometry(1.8, 0.14, 0.95); slab.translate(0, 0.07, 0);
+  // nervatura frontale (fascia più spessa sul fronte)
+  const nerv = new THREE.BoxGeometry(1.8, 0.08, 0.08); nerv.translate(0, -0.04, 0.435);
+
+  // corrimano orizzontale
+  const handrail = new THREE.BoxGeometry(1.84, 0.06, 0.06); handrail.translate(0, 0.92, 0.44);
+  // traverso basso
+  const lowBar = new THREE.BoxGeometry(1.84, 0.04, 0.04); lowBar.translate(0, 0.14, 0.44);
+
+  const sideL = new THREE.BoxGeometry(0.04, 0.92, 0.96); sideL.translate(-0.9, 0.46, 0);
+  const sideR = sideL.clone(); sideR.translate(1.8, 0, 0);
+
+  const concrete = new THREE.MeshLambertMaterial({ color: 0xd2cec4 });
+  const nervMat  = new THREE.MeshLambertMaterial({ color: 0xc4c0b6 });
+  const handrailMat = new THREE.MeshLambertMaterial({ color: 0x2a2e2c });
+
+  // ringhiera a bacchette verticali ravvicinate: corrimano + traverso + montanti ogni ~9 cm
+  // il canvas è wide per la ripetizione lungo la larghezza del balcone
+  const cv = document.createElement('canvas'); cv.width = 192; cv.height = 80;
+  const c2 = cv.getContext('2d');
+  c2.clearRect(0, 0, 192, 80);
+  c2.fillStyle = '#fff';
+  // corrimano in cima
+  c2.fillRect(0, 0, 192, 7);
+  // traverso basso
+  c2.fillRect(0, 68, 192, 6);
+  // montanti verticali ogni ~9 px (scala: 192px = ~1.8 m → ~1 px/cm)
+  for (let x = 3; x < 192; x += 9) c2.fillRect(x, 0, 3, 74);
   const bars = new THREE.CanvasTexture(cv); bars.colorSpace = THREE.SRGBColorSpace;
-  const iron = new THREE.MeshLambertMaterial({ color: 0x3a3e3c, map: bars, alphaTest: 0.5, side: THREE.DoubleSide });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x2e3230, map: bars, alphaTest: 0.45, side: THREE.DoubleSide, transparent: true });
+
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-  for (const [geo, mat] of [[slab, concrete], [rail, iron], [sideL, iron], [sideR, iron]]) {
+
+  // ringhiera frontale: piano in ferro, tettoia del balcone
+  const railFront = new THREE.BoxGeometry(1.8, 0.78, 0.04); railFront.translate(0, 0.53, 0.44);
+
+  for (const [geo, mat] of [
+    [slab, concrete], [nerv, nervMat],
+    [handrail, handrailMat], [lowBar, handrailMat],
+    [sideL, iron], [sideR, iron], [railFront, iron],
+  ]) {
     const im = new THREE.InstancedMesh(geo, mat, list.length);
     list.forEach((b, i) => { q.setFromAxisAngle(up, b.ang); m.compose(p.set(b.x, b.y, b.z), q, s); im.setMatrixAt(i, m); });
     im.castShadow = true; im.receiveShadow = true;
