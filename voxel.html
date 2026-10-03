@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" href="/Citta/favicon.ico" />
+    <title>Acquedolci — motore voxel</title>
+    <script type="module" crossorigin src="/Citta/assets/voxel-B996TZ-N.js"></script>
+    <link rel="modulepreload" crossorigin href="/Citta/assets/atmosphere-2ys73ECJ.js">
+    <link rel="stylesheet" crossorigin href="/Citta/assets/atmosphere-Db8fvvHy.css">
+  </head>
+  <body>
+    <div id="app">
+      <div id="ui">
+        <header>
+          <div class="h-text">
+            <h1>Città voxel</h1>
+            <p class="subtitle">Caricamento…</p>
+          </div>
+        </header>
+        <div id="hint">
+          <span class="hint-desktop"><strong>PC:</strong> WASD · Shift corri · trascina orbita · rotella zoom</span>
+          <span class="hint-mobile"><strong>Mobile:</strong> joystick — cammina · trascina — guarda · ⚡ corri</span>
+        </div>
+        <div id="stats">Caricamento…</div>
+      </div>
+      <canvas id="c"></canvas>
+      <div id="loader"><div class="l-card"><h2>Costruisco la città…</h2><p id="loader-msg">Caricamento</p><div class="l-bar"><i></i></div></div></div>
+    </div>
+  </body>
+</html>

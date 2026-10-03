@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Sweetwaters — Road to Leadership</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap" />
+  <script type="module" crossorigin src="/Citta/acquedolci-reale/assets/index-DsLhlZAL.js"></script>
+  <link rel="stylesheet" crossorigin href="/Citta/acquedolci-reale/assets/index-r_dv-UaL.css">
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="icons"></div>
+  <header id="hud" title="Tocca per i dettagli">
+    <div class="top">
+      <div class="brand"><b>Sweetwaters</b><span>Road to Leadership</span></div>
+      <div class="meta"><span id="gDay">Giorno 1/30</span> · <span id="gClock">08:00</span></div>
+      <div class="spent">💶 <b id="gSpent">€ 0</b></div>
+    </div>
+    <div id="gPoll"></div>
+  </header>
+  <div id="modes">
+    <button id="bSet" type="button" aria-label="Impostazioni" aria-expanded="false" aria-controls="settings">⚙︎</button>
+  </div>
+  <nav id="gbar" aria-label="Azioni">
+    <button id="bNotes" type="button" title="Taccuino">📒<small>Taccuino</small></button>
+    <button id="bAds" type="button" title="Campagna">📢<small>Campagna</small></button>
+    <button id="bList" type="button" title="Lista">👥<small>Lista</small></button>
+    <button id="bCar" type="button" title="Auto">🚗<small>Auto</small></button>
+    <button id="bCenter" type="button" title="Centra">🎯<small>Centra</small></button>
+  </nav>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <section id="settings" hidden aria-label="Impostazioni">
+    <label class="row"><span>Luci notturne</span><input type="checkbox" id="optLights" checked /></label>
+    <label class="row"><span>Nitidezza</span><input type="checkbox" id="optSharp" checked /></label>
+    <label class="row"><span>Vista miniatura</span><input type="checkbox" id="optOrtho" /></label>
+    <p class="note">Lo studio di riferimento non è nel gioco. In locale, con <code>VITE_GOOGLE_MAPS_API_KEY</code> solo nella shell: <code>node scripts/reference-studio.mjs</code>. La chiave non va in git. Vedi il README.</p>
+    <button id="bIntro" type="button">Rivedi l'intro</button>
+    <button id="bChar" type="button">Modifica personaggio</button>
+    <button id="bNewGame" type="button">Nuova partita</button>
+    <p class="credits">Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
+    Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)</p>
+  </section>
+  <!-- creazione personaggio -->
+  <div id="charScreen" hidden>
+    <div id="charBox">
+      <h2>Il tuo personaggio</h2>
+      <div id="charPreview"><canvas id="charCanvas" width="260" height="300" aria-label="Anteprima del personaggio"></canvas></div>
+      <label class="charRow">
+        <span>Nome</span>
+        <input type="text" id="charName" maxlength="20" placeholder="Inserisci nome" autocomplete="off" />
+      </label>
+      <div class="charRow"><span>Carnagione</span><div id="skinPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Capelli</span><div id="hairPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Taglio</span><div id="hstylePicker" class="chips"></div></div>
+      <div class="charRow"><span>Maglia</span><div id="shirtPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Pantaloni</span><div id="pantPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Cappello</span><div id="hatPicker" class="swatches"></div></div>
+      <div class="charRow"><span>Occhiali</span><div id="glassPicker" class="swatches"></div></div>
+      <label class="charRow"><span>Corporatura snella</span><input type="checkbox" id="charSlim" /></label>
+      <button id="charConfirm" type="button">Avanti: la lista →</button>
+    </div>
+  </div>
+  <p id="hint">tocca la mappa: vai · trascina: ruota · pizzica: zoom</p>
+  <footer id="credits">
+    Edifici DBTR 2013, terreno MDT 2013, ortofoto 2022 © Regione Siciliana SITR (CC BY 4.0) ·
+    Altezze LiDAR © MASE Geoportale Nazionale · Nomi © OpenStreetMap · Alberi © Meta/WRI (CC BY 4.0) · Monumenti modellati da foto Wikimedia Commons di Episcopello, Subbass1 (CC BY-SA 4.0), Azotoliquido (CC BY-SA 3.0)
+  </footer>
+  <div id="intro" hidden>
+    <div id="introFade"></div>
+    <div id="introTitle"><h2>Sweetwaters</h2><p>Road to Leadership</p></div>
+  </div>
+  <div id="loader"><div><b>Sweetwaters</b><em>Road to Leadership</em><span class="sp">Costruisco Acquedolci…</span><span id="lmsg">dati</span></div></div>
+</body>
+</html>
