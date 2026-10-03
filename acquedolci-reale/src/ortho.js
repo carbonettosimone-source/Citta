@@ -77,10 +77,8 @@ vec3 coppi(vec3 sharp) {
   float prof = col > 0.5 ? 0.92 + 0.22 * sin(fu * 3.1416) : 0.74 + 0.1 * sin(fu * 3.1416);
   float course = 1.0 - 0.3 * smoothstep(0.8, 1.0, fract(cv + col * 0.5));
   float pat = prof * course * (0.88 + 0.24 * cHash(floor(vec2(cu, cv + col * 0.5))));
-  float ridge = 1.0 - 0.22 * smoothstep(0.02, 0.12, abs(fract(cv * 0.5 + col * 0.25) - 0.5));
+  float ridge = 1.0 - 0.18 * smoothstep(0.02, 0.12, abs(fract(cv * 0.5 + col * 0.25) - 0.5));
   pat *= ridge;
-  float chim = step(0.93, cHash(floor(vWPos.xz * 0.17))) * step(0.55, cHash(floor(vWPos.xz * 0.31 + 4.0)));
-  pat = mix(pat, pat * 0.72, chim * fade * 0.35);
   return low * mix(1.0, pat / 0.9, fade);
 }`;
 

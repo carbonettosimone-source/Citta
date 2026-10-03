@@ -18,32 +18,6 @@ function canvasTex(w, h, draw, repeat = true) {
 function rnd(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
 function polyOff(m) { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; }
 
-/** asfalto liscio (via principale): poche crepe, rappezzi chiari */
-const asphaltTexClean = () => canvasTex(512, 512, (g, w, h) => {
-  const r = rnd(3);
-  g.fillStyle = '#636568'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 8; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '70,70,72' : '118,118,114'},${0.03 + r() * 0.04})`; g.beginPath(); g.ellipse(r() * w, r() * h, 30 + r() * 50, 14 + r() * 28, r() * 2, 0, 7); g.fill(); }
-  for (let i = 0; i < 9000; i++) { const v = 58 + r() * 55; g.fillStyle = `rgba(${v},${v},${v - 3},0.35)`; g.fillRect(r() * w, r() * h, 1.2, 1.2); }
-  g.strokeStyle = 'rgba(30,30,30,0.18)'; g.lineWidth = 0.9;
-  for (let i = 0; i < 2; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (r() - 0.5) * 28; y += (r() - 0.5) * 28; g.lineTo(x, y); } g.stroke(); }
-});
-/** asfalto usurato (vie secondarie): crepe, rappezzi scuri, macchie */
-const asphaltTexWorn = () => canvasTex(512, 512, (g, w, h) => {
-  const r = rnd(7);
-  g.fillStyle = '#525456'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 28; i++) { g.fillStyle = `rgba(${r() < 0.45 ? '32,32,34' : '96,94,88'},${0.06 + r() * 0.09})`; g.beginPath(); g.ellipse(r() * w, r() * h, 24 + r() * 110, 12 + r() * 62, r() * 3.2, 0, 7); g.fill(); }
-  for (let i = 0; i < 14; i++) {
-    g.fillStyle = `rgba(${70 + r() * 40},${68 + r() * 38},${64 + r() * 36},${0.25 + r() * 0.2})`;
-    const px = r() * w, py = r() * h, pw = 40 + r() * 120, ph = 25 + r() * 70;
-    g.beginPath(); g.ellipse(px, py, pw, ph, r() * 0.5, 0, 7); g.fill();
-  }
-  for (let i = 0; i < 22000; i++) { const v = 42 + r() * 75; g.fillStyle = `rgba(${v},${v},${v - 5},0.55)`; g.fillRect(r() * w, r() * h, 1.6, 1.6); }
-  g.strokeStyle = 'rgba(12,12,12,0.42)'; g.lineWidth = 1.35;
-  for (let i = 0; i < 11; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let k = 0; k < 10; k++) { x += (r() - 0.5) * 48; y += (r() - 0.5) * 48; g.lineTo(x, y); } g.stroke(); }
-  g.strokeStyle = 'rgba(90,85,78,0.35)'; g.lineWidth = 2.2;
-  for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(r() * w, r() * h); g.lineTo(r() * w, r() * h); g.stroke(); }
-});
-
 /** Punti della Via Paolo Ricca Salerno (OSM 199743600) per shader di usura asfalto */
 function hubRoadSegments(roads) {
   const pts = [];
@@ -57,28 +31,18 @@ function hubRoadSegments(roads) {
 }
 
 const MAX_HUB_SEG = 96;
-function makeAsphaltMaterial(cleanMap, wornMap, roads) {
-  const raw = hubRoadSegments(roads);
-  const seg = new Float32Array(MAX_HUB_SEG * 4);
-  let n = 0;
-  for (let i = 0; i + 3 < raw.length && n < MAX_HUB_SEG; i += 4, n++) {
-    seg[n * 4] = raw[i]; seg[n * 4 + 1] = raw[i + 1]; seg[n * 4 + 2] = raw[i + 2]; seg[n * 4 + 3] = raw[i + 3];
-  }
-  const m = new THREE.MeshLambertMaterial({ map: cleanMap });
-  m.customProgramCacheKey = () => `asphalt-wear-${n}`;
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uWornMap = { value: wornMap };
-    sh.uniforms.uHubSeg = { value: seg };
-    sh.uniforms.uHubCount = { value: n };
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vAspPos;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\nvAspPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>
-varying vec3 vAspPos;
-uniform sampler2D uWornMap;
-uniform vec4 uHubSeg[${MAX_HUB_SEG}];
-uniform int uHubCount;
+const ASPHALT_GLSL = `
+float aHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float aNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(aHash(i), aHash(i + vec2(1,0)), f.x), mix(aHash(i + vec2(0,1)), aHash(i + vec2(1,1)), f.x), f.y);
+}
+float aFbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { v += a * aNoise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
 float distSeg(vec2 p, vec2 a, vec2 b) {
   vec2 ab = b - a, ap = p - a;
   float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
@@ -91,13 +55,67 @@ float hubWear(vec2 xz) {
     vec4 s = uHubSeg[i];
     d = min(d, distSeg(xz, s.xy, s.zw));
   }
-  return smoothstep(8.0, 34.0, d);
-}`)
-      .replace('#include <map_fragment>', `#include <map_fragment>
-      float wear = hubWear(vAspPos.xz);
-      vec4 worn = texture2D(uWornMap, vMapUv);
-      diffuseColor.rgb = mix(diffuseColor.rgb, worn.rgb, wear * 0.92);
-      diffuseColor.rgb *= mix(1.0, 0.88, wear * 0.35);`);
+  return smoothstep(7.0, 32.0, d);
+}
+vec3 proceduralAsphalt(vec2 xz, float wear) {
+  vec2 p = xz;
+  float g0 = aFbm(p * 0.035);
+  float g1 = aFbm(p * 0.11 + 17.0);
+  float g2 = aFbm(p * 0.28 + 41.0);
+  float micro = aNoise(p * 1.7) * 0.5 + aNoise(p * 4.2) * 0.25;
+  vec3 base = vec3(0.36, 0.37, 0.38);
+  base += (g0 - 0.5) * 0.06;
+  base += (g1 - 0.5) * 0.04;
+  float patch = smoothstep(0.42, 0.72, g1) * smoothstep(0.3, 0.8, g2);
+  base = mix(base, base * vec3(0.88, 0.86, 0.84), patch * (0.35 + wear * 0.55));
+  float seam = abs(sin(p.x * 0.19 + g0 * 2.0)) * abs(sin(p.y * 0.23 + g1 * 2.0));
+  base *= 1.0 - seam * 0.04 * (0.3 + wear);
+  float crack = aFbm(p * 0.55 + vec2(g2 * 3.0));
+  float crackLine = smoothstep(0.58, 0.64, crack) * smoothstep(0.72, 0.66, crack);
+  crackLine += smoothstep(0.48, 0.52, abs(sin(p.x * 0.08 + p.y * 0.11 + g0 * 5.0))) * 0.35;
+  base *= 1.0 - crackLine * (0.25 + wear * 0.45);
+  base += (micro - 0.5) * 0.03;
+  float hubClean = 1.0 - wear;
+  base = mix(base, base * vec3(1.06, 1.05, 1.04) + 0.02, hubClean * 0.55);
+  base = mix(base, base * 0.9, wear * 0.2);
+  return clamp(base, 0.0, 1.0);
+}`;
+
+function makeAsphaltMaterial(roads, skirtFade = false) {
+  const raw = hubRoadSegments(roads);
+  const seg = new Float32Array(MAX_HUB_SEG * 4);
+  let n = 0;
+  for (let i = 0; i + 3 < raw.length && n < MAX_HUB_SEG; i += 4, n++) {
+    seg[n * 4] = raw[i]; seg[n * 4 + 1] = raw[i + 1]; seg[n * 4 + 2] = raw[i + 2]; seg[n * 4 + 3] = raw[i + 3];
+  }
+  const m = new THREE.MeshLambertMaterial({
+    color: 0x5c5e60,
+    side: skirtFade ? THREE.DoubleSide : THREE.FrontSide,
+    alphaToCoverage: skirtFade,
+    polygonOffset: skirtFade,
+    polygonOffsetFactor: skirtFade ? -4 : 0,
+    polygonOffsetUnits: skirtFade ? -4 : 0,
+  });
+  m.customProgramCacheKey = () => `asphalt-proc-${skirtFade ? 'f' : 'm'}-${n}`;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uHubSeg = { value: seg };
+    sh.uniforms.uHubCount = { value: n };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vAspPos;${skirtFade ? '\nattribute float aFade;\nvarying float vFade;' : ''}`)
+      .replace('#include <project_vertex>', `#include <project_vertex>\nvAspPos = (modelMatrix * vec4(transformed, 1.0)).xyz;${skirtFade ? '\nvFade = aFade;' : ''}`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vAspPos;
+uniform vec4 uHubSeg[${MAX_HUB_SEG}];
+uniform int uHubCount;
+${skirtFade ? 'varying float vFade;' : ''}
+${ASPHALT_GLSL}`)
+      .replace(
+        'vec4 diffuseColor = vec4( diffuse, opacity );',
+        `vec4 diffuseColor = vec4( diffuse, opacity );
+        float wear = hubWear(vAspPos.xz);
+        diffuseColor.rgb = proceduralAsphalt(vAspPos.xz, wear);${skirtFade ? '\n        diffuseColor.a *= vFade;' : ''}`,
+      );
   };
   return polyOff(m);
 }
@@ -581,8 +599,9 @@ export function buildStreets(data, heightAt, inBuilding = () => false, grade = n
   }
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
   const add = (m) => m && group.add(m);
-  const pav = pavingTex(), asphClean = asphaltTexClean(), asphWorn = asphaltTexWorn(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
-  const asphMat = makeAsphaltMaterial(asphClean, asphWorn, data.roads);
+  const pav = pavingTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
+  const asphMat = makeAsphaltMaterial(data.roads);
+  const asphSkirt = makeAsphaltMaterial(data.roads, true);
   add(asphalt.mesh(asphMat, 1));
   add(drive.mesh(asphMat, 1));
   add(walk.mesh(new THREE.MeshLambertMaterial({ map: sidewalkTex(), side: THREE.DoubleSide }), 2));
@@ -598,11 +617,11 @@ export function buildStreets(data, heightAt, inBuilding = () => false, grade = n
   const roseMat = polyOff(new THREE.MeshLambertMaterial({ map: rose }));
   add(red.mesh(roseMat, 1));
   add(rim.mesh(roseMat, 2));
-  add(skirtA.mesh(fadeMat(asphWorn), 3));
+  add(skirtA.mesh(asphSkirt, 3));
   add(skirtP.mesh(fadeMat(pav), 3));
   add(skirtH.mesh(fadeMat(spine), 3));
   add(skirtO.mesh(fadeMat(pav), 3));
-  add(skirtD.mesh(fadeMat(asphClean), 3));
+  add(skirtD.mesh(asphSkirt, 3));
   add(skirtR.mesh(fadeMat(rose), 3));
   add(skirtV.mesh(fadeMat(bricks), 3));
   group.add(buildVe3Plaza(heightAt, kinds.ve3));
