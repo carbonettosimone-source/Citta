@@ -5,7 +5,7 @@
  * tinto col colore dell'edificio.
  */
 import * as THREE from 'three';
-import { BAY, FLOOR } from './facade.js';
+import { BAY, FLOOR, UPPER_VARIANTS, GROUND_VARIANTS } from './facade.js';
 import { orthoMaterial } from './ortho.js';
 import { isPlazaBuilding } from './plaza-buildings.js';
 
@@ -38,7 +38,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   const group = new THREE.Group();
   group.name = 'buildings';
   const walls = facadeMats.map(() => new Buf());
-  const UPPER = facadeMats.length - 1; // l'ultimo materiale è il piano terra
+  const UPPER = UPPER_VARIANTS;
   const plain = new Buf(); // baracche, tettoie, timpani: senza finestre
   const roofs = new Map(); // file ortofoto → Buf
   const core = orthoMeta.tiles.filter((t) => t.level === 'core');
@@ -70,7 +70,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
     col.setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace);
     const windows = !NO_WINDOWS.has(b.t) && b.h >= 2.6;
     const wbuf = windows ? walls[Math.floor(hash(b.id) * UPPER)] : plain;
-    const gbuf = windows ? walls[UPPER] : plain;
+    const gbuf = windows ? walls[UPPER + Math.floor(hash(b.id * 5 + 2) * GROUND_VARIANTS)] : plain;
     let cx = 0, cz = 0; for (const [x, z] of pts) { cx += x; cz += z; } cx /= pts.length; cz /= pts.length;
     const tile = tileFor(cx, cz);
     const rb = roofBuf(tile);

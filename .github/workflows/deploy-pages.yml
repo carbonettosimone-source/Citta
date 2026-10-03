@@ -1,0 +1,54 @@
+name: Deploy GitHub Pages preview
+
+on:
+  push:
+    branches:
+      - 'cursor/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: _gh-pages-ref
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            acquedolci-lowpoly/package-lock.json
+            acquedolci-reale/package-lock.json
+
+      - name: Stage game data from gh-pages
+        run: |
+          mkdir -p acquedolci-reale/public/data
+          cp -r _gh-pages-ref/acquedolci-reale/data/* acquedolci-reale/public/data/
+
+      - name: Build site
+        run: node scripts/deploy-github-pages.mjs
+
+      - name: Publish to gh-pages branch
+        run: |
+          cd _site
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy preview from ${GITHUB_SHA}"
+          git branch -M gh-pages
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages

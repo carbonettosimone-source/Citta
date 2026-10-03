@@ -1,75 +1,28 @@
 /**
- * Texture di facciata disegnate a canvas: un modulo = una campata (3,5 m) × un piano (3,1 m), in
- * bianco — il colore vero dell'intonaco arriva dal vertex color dell'edificio (moltiplica). Quattro
- * varianti tipiche del paese: persiane verdi, persiane marroni, balcone con ringhiera, tapparella
- * (le palazzine del dopoguerra che dominano le foto panoramiche).
+ * Modulo facciata 3,5 m × 3,1 m (bianco × vertex color). Proporzioni e tipi tipici di Acquedolci:
+ * finestre rettangolari modeste, persiane marroni o verdi (chiuse o socchiuse), piano terra con
+ * persiane alte o saracinesca — come nelle foto panoramiche del paese (solo statistiche, niente pixel).
  */
 import * as THREE from 'three';
 import { NIGHT } from './daylight.js';
 
 export const BAY = 3.5, FLOOR = 3.1;
+export const UPPER_VARIANTS = 14;
+export const GROUND_VARIANTS = 4;
 
-function drawGround() {
-  // piano terra: saracinesca di negozio/garage e portoncino, come nelle vie del paese
-  const W = 128, H = 114;
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const g = cv.getContext('2d');
-  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
-  g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, H - 14, W, 14); // zoccolo
-  g.fillStyle = 'rgba(0,0,0,0.10)'; g.fillRect(0, 0, W, 5);        // marcapiano
-  const sx = 14, sw = 100, sy = 34, sh = H - 34;
-  g.fillStyle = '#8f9396'; g.fillRect(sx, sy, sw, sh);                // saracinesca
-  g.fillStyle = 'rgba(0,0,0,0.22)';
-  for (let y = sy + 3; y < H; y += 4) g.fillRect(sx, y, sw, 1);
-  g.fillStyle = '#d9d7d0'; g.fillRect(sx - 3, sy - 4, sw + 6, 4);    // architrave
-  const t = new THREE.CanvasTexture(cv);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  return t;
+function seeded(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
 }
 
-function draw(kind) {
-  const W = 128, H = 114; // proporzioni della campata 3,5 × 3,1 m
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const g = cv.getContext('2d');
-  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-  // leggera grana dell'intonaco
-  for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
-  // fascia marcapiano
-  g.fillStyle = 'rgba(0,0,0,0.10)'; g.fillRect(0, H - 5, W, 5);
-  const ww = 40, wh = 58, wx = (W - ww) / 2, wy = 24;
-  if (kind === 3) {
-    // palazzina anni '60-'80: finestra con tapparella abbassata a metà e cassonetto, davanzale in marmo
-    g.fillStyle = '#2b3136'; g.fillRect(wx, wy, ww, wh);
-    g.fillStyle = 'rgba(160,190,210,0.35)'; g.fillRect(wx + 3, wy + wh * 0.5, ww - 6, wh * 0.45);
-    const th = wh * (0.35 + Math.random() * 0.25);
-    g.fillStyle = '#c9c4b8'; g.fillRect(wx, wy, ww, th);
-    g.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = wy + 2; y < wy + th; y += 3) g.fillRect(wx, y, ww, 1);
-    g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(wx - 3, wy - 6, ww + 6, 6);
-    g.fillStyle = '#eceae4'; g.fillRect(wx - 5, wy + wh, ww + 10, 4);
-    return tex(cv);
-  }
-  const shutter = kind === 0 ? '#3f5f45' : kind === 1 ? '#6a4a32' : '#8a8a86';
-  // vano finestra
-  g.fillStyle = '#2b3136'; g.fillRect(wx, wy, ww, wh);
-  g.fillStyle = 'rgba(160,190,210,0.35)'; g.fillRect(wx + 3, wy + 3, ww - 6, wh / 2 - 4);
-  // persiane socchiuse ai lati
-  g.fillStyle = shutter;
-  g.fillRect(wx - 13, wy, 13, wh); g.fillRect(wx + ww, wy, 13, wh);
-  g.fillStyle = 'rgba(0,0,0,0.25)';
-  for (let y = wy + 4; y < wy + wh; y += 5) { g.fillRect(wx - 12, y, 11, 1); g.fillRect(wx + ww + 1, y, 11, 1); }
-  // davanzale / balcone
-  if (kind === 2) {
-    g.fillStyle = '#d8d6d0'; g.fillRect(wx - 18, wy + wh, ww + 36, 5);
-    g.fillStyle = '#3a3a3a';
-    g.fillRect(wx - 18, wy + wh - 22, ww + 36, 2);
-    for (let x = wx - 18; x <= wx + ww + 18; x += 5) g.fillRect(x, wy + wh - 22, 1.5, 22);
-  } else {
-    g.fillStyle = '#e8e6e0'; g.fillRect(wx - 4, wy + wh, ww + 8, 4);
-  }
-  return tex(cv);
-}
+/** Marrone legno e verde persiana — palette plaza-buildings / foto Commons */
+const BROWN = ['#6d4a34', '#7a5234', '#6a4832', '#6e4a30'];
+const GREEN = ['#2e6a3c', '#3a5c40', '#2c5c38', '#3f5f45'];
+const FRAME = '#3a3a38';
+const GLASS = '#8a9aa8';
 
 function tex(cv) {
   const t = new THREE.CanvasTexture(cv);
@@ -79,11 +32,124 @@ function tex(cv) {
   return t;
 }
 
-/**
- * Di notte una parte delle finestre si accende: il vano (stesso rettangolo disegnato in draw) emette
- * luce calda o fredda. Quali finestre, lo decide un hash della campata/piano (parte intera delle uv)
- * mescolato col colore dell'edificio, così ogni palazzo ha il suo schema.
- */
+function plaster(g, w, h, r) {
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 180; i++) {
+    g.fillStyle = `rgba(0,0,0,${r() * 0.04})`;
+    g.fillRect(r() * w, r() * h, 1.5, 1.5);
+  }
+  g.fillStyle = 'rgba(0,0,0,0.09)';
+  g.fillRect(0, h - 4, w, 4);
+}
+
+function shutterSlats(g, x, y, sw, sh, col) {
+  g.fillStyle = col;
+  g.fillRect(x, y, sw, sh);
+  g.fillStyle = 'rgba(0,0,0,0.2)';
+  for (let ly = y + 3; ly < y + sh - 2; ly += 5) g.fillRect(x + 1, ly, sw - 2, 1);
+}
+
+/** Finestra siciliana standard: vano, vetro, persiane ai lati, davanzale in pietra */
+function sicilianWindow(g, r, opts = {}) {
+  const W = 128, H = 114;
+  const ww = opts.wide ? 52 : 44;
+  const wh = opts.tall ? 62 : 54;
+  const wx = (W - ww) / 2;
+  const wy = opts.low ? 30 : 26;
+  const brown = r() < 0.68;
+  const sc = brown ? BROWN[Math.floor(r() * BROWN.length)] : GREEN[Math.floor(r() * GREEN.length)];
+  const sw = 12;
+  const halfOpen = r() < 0.12;
+
+  g.fillStyle = FRAME;
+  g.fillRect(wx - 1, wy - 1, ww + 2, wh + 2);
+  g.fillStyle = GLASS;
+  g.fillRect(wx + 2, wy + 2, ww - 4, wh - 4);
+  g.fillStyle = 'rgba(180,200,215,0.35)';
+  g.fillRect(wx + 3, wy + 3, ww - 6, (wh - 6) * (halfOpen ? 0.55 : 0.42));
+
+  if (halfOpen) {
+    shutterSlats(g, wx - sw, wy, sw, wh * 0.92, sc);
+    shutterSlats(g, wx + ww, wy, sw, wh * 0.92, sc);
+    g.fillStyle = sc;
+    g.fillRect(wx - sw + 2, wy + wh * 0.5, sw - 3, wh * 0.45);
+    g.fillRect(wx + ww + 1, wy + wh * 0.5, sw - 3, wh * 0.45);
+  } else {
+    shutterSlats(g, wx - sw + 1, wy, sw - 1, wh, sc);
+    shutterSlats(g, wx + ww, wy, sw - 1, wh, sc);
+  }
+
+  g.fillStyle = '#e0ddd4';
+  g.fillRect(wx - 3, wy + wh, ww + 6, 4);
+  g.fillStyle = 'rgba(0,0,0,0.08)';
+  g.fillRect(wx - 3, wy + wh + 3, ww + 6, 1);
+}
+
+function drawUpper(seed) {
+  const W = 128, H = 114;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const r = seeded(seed);
+  plaster(g, W, H, r);
+  const mode = seed % 5;
+  if (mode === 0) sicilianWindow(g, r, {});
+  else if (mode === 1) sicilianWindow(g, r, { wide: true });
+  else if (mode === 2) sicilianWindow(g, r, { tall: true });
+  else if (mode === 3) {
+    sicilianWindow(g, r, { low: true });
+    g.fillStyle = 'rgba(0,0,0,0.06)';
+    g.fillRect(8, H - 12, W - 16, 2);
+  } else {
+    sicilianWindow(g, r, {});
+    if (r() > 0.5) {
+      g.fillStyle = 'rgba(0,0,0,0.07)';
+      g.fillRect(10, 8, W - 20, 3);
+    }
+  }
+  return tex(cv);
+}
+
+function drawGround(seed) {
+  const W = 128, H = 114;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const r = seeded(seed + 4000);
+  plaster(g, W, H, r);
+  g.fillStyle = 'rgba(0,0,0,0.11)';
+  g.fillRect(0, H - 12, W, 12);
+  const v = seed % 4;
+  const sx = 12, sw = W - 24, sy = 28, sh = H - 30;
+  if (v === 0) {
+    const sc = r() < 0.55 ? BROWN[0] : GREEN[1];
+    shutterSlats(g, sx, sy, sw, sh, sc);
+    g.fillStyle = FRAME;
+    g.fillRect(sx + sw * 0.38, sy + sh * 0.15, sw * 0.24, sh * 0.7);
+  } else if (v === 1) {
+    g.fillStyle = '#8f9396';
+    g.fillRect(sx, sy, sw, sh);
+    g.fillStyle = 'rgba(0,0,0,0.2)';
+    for (let y = sy + 4; y < H - 4; y += 5) g.fillRect(sx, y, sw, 1);
+    g.fillStyle = '#d5d2ca';
+    g.fillRect(sx - 2, sy - 5, sw + 4, 5);
+  } else if (v === 2) {
+    const sc = BROWN[Math.floor(r() * BROWN.length)];
+    shutterSlats(g, sx, sy, sw * 0.42, sh, sc);
+    g.fillStyle = '#5a4030';
+    g.fillRect(sx + sw * 0.44, sy + 6, sw * 0.48, sh - 12);
+    g.fillStyle = '#3a2820';
+    g.fillRect(sx + sw * 0.48, sy + 12, sw * 0.4, sh - 24);
+  } else {
+    const sc = GREEN[Math.floor(r() * GREEN.length)];
+    shutterSlats(g, sx + 4, sy, sw - 8, sh * 0.88, sc);
+    g.fillStyle = FRAME;
+    g.fillRect(sx + sw * 0.35, sy + sh * 0.55, sw * 0.3, sh * 0.35);
+  }
+  return tex(cv);
+}
+
 function litWindows(m) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = NIGHT;
@@ -92,17 +158,30 @@ function litWindows(m) {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         if (uNight > 0.0) {
           vec2 cell = floor(vMapUv), f = fract(vMapUv);
-          float win = step(0.36, f.x) * step(f.x, 0.64) * step(0.30, f.y) * step(f.y, 0.77);
+          float win = step(0.32, f.x) * step(f.x, 0.68) * step(0.28, f.y) * step(f.y, 0.72);
           float h = fract(sin(dot(cell + vColor.rg * 97.0, vec2(12.9898, 78.233))) * 43758.5453);
-          vec3 warm = h < 0.27 ? vec3(1.0, 0.72, 0.4) : vec3(0.8, 0.86, 1.0);
-          totalEmissiveRadiance += win * step(h, 0.34) * uNight * warm * 1.3;
+          vec3 warm = h < 0.3 ? vec3(1.0, 0.74, 0.42) : vec3(0.82, 0.88, 1.0);
+          totalEmissiveRadiance += win * step(h, 0.32) * uNight * warm * 1.15;
         }`);
   };
   return m;
 }
 
 export function facadeMaterials() {
-  const mats = [0, 1, 2, 3].map((k) => litWindows(new THREE.MeshLambertMaterial({ map: draw(k), vertexColors: true, side: THREE.DoubleSide })));
-  mats.push(new THREE.MeshLambertMaterial({ map: drawGround(), vertexColors: true, side: THREE.DoubleSide }));
+  const mats = [];
+  for (let i = 0; i < UPPER_VARIANTS; i++) {
+    mats.push(litWindows(new THREE.MeshLambertMaterial({
+      map: drawUpper(8000 + i * 6151),
+      vertexColors: true,
+      side: THREE.DoubleSide,
+    })));
+  }
+  for (let i = 0; i < GROUND_VARIANTS; i++) {
+    mats.push(litWindows(new THREE.MeshLambertMaterial({
+      map: drawGround(12000 + i * 3571),
+      vertexColors: true,
+      side: THREE.DoubleSide,
+    })));
+  }
   return mats;
 }

@@ -16,16 +16,106 @@ function canvasTex(w, h, draw, repeat = true) {
   return t;
 }
 function rnd(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
+function polyOff(m) { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; }
 
-/** asfalto: grana fine, rappezzi e crepe — 4 m × 4 m per ripetizione */
-const asphaltTex = () => canvasTex(512, 512, (g, w, h) => {
-  const r = rnd(7);
-  g.fillStyle = '#5c5d5f'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '40,40,42' : '105,105,102'},${0.04 + r() * 0.05})`; g.beginPath(); g.ellipse(r() * w, r() * h, 20 + r() * 90, 10 + r() * 50, r() * 3, 0, 7); g.fill(); }
-  for (let i = 0; i < 16000; i++) { const v = 50 + r() * 70; g.fillStyle = `rgba(${v},${v},${v - 4},0.5)`; g.fillRect(r() * w, r() * h, 1.5, 1.5); }
-  g.strokeStyle = 'rgba(20,20,20,0.35)'; g.lineWidth = 1.2;
-  for (let i = 0; i < 5; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 40; y += (r() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); }
-});
+/** Punti della Via Paolo Ricca Salerno (OSM 199743600) per shader di usura asfalto */
+function hubRoadSegments(roads) {
+  const pts = [];
+  for (const rd of roads || []) {
+    if (!rd.name || !/Paolo Ricca/i.test(rd.name)) continue;
+    for (let i = 0; i < rd.p.length; i += 2) pts.push(rd.p[i], rd.p[i + 1]);
+  }
+  const segs = [];
+  for (let i = 0; i + 3 < pts.length; i += 2) segs.push(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]);
+  return segs;
+}
+
+const MAX_HUB_SEG = 32;
+const ASPHALT_GLSL = `
+#define HUB_N ${MAX_HUB_SEG}
+float aHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float aNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(aHash(i), aHash(i + vec2(1,0)), f.x), mix(aHash(i + vec2(0,1)), aHash(i + vec2(1,1)), f.x), f.y);
+}
+float aFbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { v += a * aNoise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
+float distSeg(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a, ap = p - a;
+  float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+  return length(ap - ab * t);
+}
+float hubWear(vec2 xz) {
+  float d = 1e6;
+  for (int i = 0; i < HUB_N; i++) {
+    vec4 s = uHubSeg[i];
+    float segL = length(s.zw - s.xy);
+    if (segL < 0.5) continue;
+    d = min(d, distSeg(xz, s.xy, s.zw));
+  }
+  return smoothstep(7.0, 32.0, d);
+}
+vec3 proceduralAsphalt(vec2 xz, float wear) {
+  vec2 p = xz;
+  float g0 = aFbm(p * 0.035);
+  float g1 = aFbm(p * 0.11 + 17.0);
+  float g2 = aFbm(p * 0.28 + 41.0);
+  float micro = aNoise(p * 1.7) * 0.5 + aNoise(p * 4.2) * 0.25;
+  vec3 base = vec3(0.34, 0.35, 0.36);
+  base += (g0 - 0.5) * 0.05;
+  base += (g1 - 0.5) * 0.035;
+  float patch = smoothstep(0.42, 0.72, g1) * smoothstep(0.3, 0.8, g2);
+  base = mix(base, base * vec3(0.9, 0.88, 0.86), patch * wear * 0.45);
+  float crack = aFbm(p * 0.55 + vec2(g2 * 3.0));
+  float crackLine = smoothstep(0.58, 0.64, crack) * smoothstep(0.72, 0.66, crack);
+  crackLine += smoothstep(0.48, 0.52, abs(sin(p.x * 0.08 + p.y * 0.11 + g0 * 5.0))) * 0.28 * wear;
+  base *= 1.0 - crackLine * 0.35;
+  base += (micro - 0.5) * 0.025;
+  float hubClean = 1.0 - wear;
+  base = mix(base, base * 1.05 + 0.015, hubClean * 0.4);
+  return clamp(base, 0.12, 1.0);
+}`;
+
+function makeAsphaltMaterial(roads, skirtFade = false) {
+  const raw = hubRoadSegments(roads);
+  const seg = new Float32Array(MAX_HUB_SEG * 4);
+  let n = 0;
+  for (let i = 0; i + 3 < raw.length && n < MAX_HUB_SEG; i += 4, n++) {
+    seg[n * 4] = raw[i]; seg[n * 4 + 1] = raw[i + 1]; seg[n * 4 + 2] = raw[i + 2]; seg[n * 4 + 3] = raw[i + 3];
+  }
+  const m = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    side: THREE.DoubleSide,
+    alphaToCoverage: skirtFade,
+    transparent: skirtFade,
+    polygonOffset: skirtFade,
+    polygonOffsetFactor: skirtFade ? -4 : 0,
+    polygonOffsetUnits: skirtFade ? -4 : 0,
+  });
+  m.customProgramCacheKey = () => `asphalt-proc-v2-${skirtFade ? 'f' : 'm'}-${n}`;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uHubSeg = { value: seg };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vAspPos;${skirtFade ? '\nattribute float aFade;\nvarying float vFade;' : ''}`)
+      .replace('#include <project_vertex>', `#include <project_vertex>\nvAspPos = (modelMatrix * vec4(transformed, 1.0)).xyz;${skirtFade ? '\nvFade = aFade;' : ''}`);
+    const wearGlsl = `
+\tfloat wear = hubWear(vAspPos.xz);
+\tdiffuseColor.rgb = proceduralAsphalt(vAspPos.xz, wear);
+\tdiffuseColor.a = opacity;${skirtFade ? '\n\tdiffuseColor.a *= vFade;' : ''}`;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vAspPos;
+uniform vec4 uHubSeg[${MAX_HUB_SEG}];
+${skirtFade ? 'varying float vFade;' : ''}
+${ASPHALT_GLSL}`)
+      .replace('\t#include <color_fragment>', `\t#include <color_fragment>${wearGlsl}`);
+  };
+  return polyOff(m);
+}
 /** marciapiede: mattonelle di cemento 40 cm, chiare, con fughe */
 const sidewalkTex = () => canvasTex(256, 256, (g, w, h) => {
   const r = rnd(11);
@@ -505,10 +595,10 @@ export function buildStreets(data, heightAt, inBuilding = () => false, grade = n
     }
   }
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
-  const polyOff = (m) => { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; };
   const add = (m) => m && group.add(m);
-  const pav = pavingTex(), asph = asphaltTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
-  const asphMat = polyOff(new THREE.MeshLambertMaterial({ map: asph }));
+  const pav = pavingTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
+  const asphMat = makeAsphaltMaterial(data.roads);
+  const asphSkirt = makeAsphaltMaterial(data.roads, true);
   add(asphalt.mesh(asphMat, 1));
   add(drive.mesh(asphMat, 1));
   add(walk.mesh(new THREE.MeshLambertMaterial({ map: sidewalkTex(), side: THREE.DoubleSide }), 2));
@@ -524,11 +614,11 @@ export function buildStreets(data, heightAt, inBuilding = () => false, grade = n
   const roseMat = polyOff(new THREE.MeshLambertMaterial({ map: rose }));
   add(red.mesh(roseMat, 1));
   add(rim.mesh(roseMat, 2));
-  add(skirtA.mesh(fadeMat(asph), 3));
+  add(skirtA.mesh(asphSkirt, 3));
   add(skirtP.mesh(fadeMat(pav), 3));
   add(skirtH.mesh(fadeMat(spine), 3));
   add(skirtO.mesh(fadeMat(pav), 3));
-  add(skirtD.mesh(fadeMat(asph), 3));
+  add(skirtD.mesh(asphSkirt, 3));
   add(skirtR.mesh(fadeMat(rose), 3));
   add(skirtV.mesh(fadeMat(bricks), 3));
   group.add(buildVe3Plaza(heightAt, kinds.ve3));
