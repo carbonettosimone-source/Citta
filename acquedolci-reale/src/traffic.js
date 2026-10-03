@@ -218,7 +218,6 @@ export function createTraffic(roads, heightAt) {
   if (!segs.length) return { group: new THREE.Group(), update() {} };
 
   const rng = (() => { let s = 42; return () => ((s = (s*16807+1)%2147483647) / 2147483647); })();
-  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
   const pickWeightedSeg = () => {
     let tot = 0;
     for (const s of segs) tot += s.weight;

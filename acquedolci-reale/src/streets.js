@@ -65,7 +65,6 @@ function makeAsphaltMaterial(cleanMap, wornMap, roads) {
     seg[n * 4] = raw[i]; seg[n * 4 + 1] = raw[i + 1]; seg[n * 4 + 2] = raw[i + 2]; seg[n * 4 + 3] = raw[i + 3];
   }
   const m = new THREE.MeshLambertMaterial({ map: cleanMap });
-  m.defines = { USE_WORN_ASPHALT: '' };
   m.customProgramCacheKey = () => `asphalt-wear-${n}`;
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uWornMap = { value: wornMap };
