@@ -16,16 +16,92 @@ function canvasTex(w, h, draw, repeat = true) {
   return t;
 }
 function rnd(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
+function polyOff(m) { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; }
 
-/** asfalto: grana fine, rappezzi e crepe — 4 m × 4 m per ripetizione */
-const asphaltTex = () => canvasTex(512, 512, (g, w, h) => {
-  const r = rnd(7);
-  g.fillStyle = '#5c5d5f'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '40,40,42' : '105,105,102'},${0.04 + r() * 0.05})`; g.beginPath(); g.ellipse(r() * w, r() * h, 20 + r() * 90, 10 + r() * 50, r() * 3, 0, 7); g.fill(); }
-  for (let i = 0; i < 16000; i++) { const v = 50 + r() * 70; g.fillStyle = `rgba(${v},${v},${v - 4},0.5)`; g.fillRect(r() * w, r() * h, 1.5, 1.5); }
-  g.strokeStyle = 'rgba(20,20,20,0.35)'; g.lineWidth = 1.2;
-  for (let i = 0; i < 5; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 40; y += (r() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); }
+/** asfalto liscio (via principale): poche crepe, rappezzi chiari */
+const asphaltTexClean = () => canvasTex(512, 512, (g, w, h) => {
+  const r = rnd(3);
+  g.fillStyle = '#636568'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 8; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '70,70,72' : '118,118,114'},${0.03 + r() * 0.04})`; g.beginPath(); g.ellipse(r() * w, r() * h, 30 + r() * 50, 14 + r() * 28, r() * 2, 0, 7); g.fill(); }
+  for (let i = 0; i < 9000; i++) { const v = 58 + r() * 55; g.fillStyle = `rgba(${v},${v},${v - 3},0.35)`; g.fillRect(r() * w, r() * h, 1.2, 1.2); }
+  g.strokeStyle = 'rgba(30,30,30,0.18)'; g.lineWidth = 0.9;
+  for (let i = 0; i < 2; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (r() - 0.5) * 28; y += (r() - 0.5) * 28; g.lineTo(x, y); } g.stroke(); }
 });
+/** asfalto usurato (vie secondarie): crepe, rappezzi scuri, macchie */
+const asphaltTexWorn = () => canvasTex(512, 512, (g, w, h) => {
+  const r = rnd(7);
+  g.fillStyle = '#525456'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 28; i++) { g.fillStyle = `rgba(${r() < 0.45 ? '32,32,34' : '96,94,88'},${0.06 + r() * 0.09})`; g.beginPath(); g.ellipse(r() * w, r() * h, 24 + r() * 110, 12 + r() * 62, r() * 3.2, 0, 7); g.fill(); }
+  for (let i = 0; i < 14; i++) {
+    g.fillStyle = `rgba(${70 + r() * 40},${68 + r() * 38},${64 + r() * 36},${0.25 + r() * 0.2})`;
+    const px = r() * w, py = r() * h, pw = 40 + r() * 120, ph = 25 + r() * 70;
+    g.beginPath(); g.ellipse(px, py, pw, ph, r() * 0.5, 0, 7); g.fill();
+  }
+  for (let i = 0; i < 22000; i++) { const v = 42 + r() * 75; g.fillStyle = `rgba(${v},${v},${v - 5},0.55)`; g.fillRect(r() * w, r() * h, 1.6, 1.6); }
+  g.strokeStyle = 'rgba(12,12,12,0.42)'; g.lineWidth = 1.35;
+  for (let i = 0; i < 11; i++) { g.beginPath(); let x = r() * w, y = r() * h; g.moveTo(x, y); for (let k = 0; k < 10; k++) { x += (r() - 0.5) * 48; y += (r() - 0.5) * 48; g.lineTo(x, y); } g.stroke(); }
+  g.strokeStyle = 'rgba(90,85,78,0.35)'; g.lineWidth = 2.2;
+  for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(r() * w, r() * h); g.lineTo(r() * w, r() * h); g.stroke(); }
+});
+
+/** Punti della Via Paolo Ricca Salerno (OSM 199743600) per shader di usura asfalto */
+function hubRoadSegments(roads) {
+  const pts = [];
+  for (const rd of roads || []) {
+    if (!rd.name || !/Paolo Ricca/i.test(rd.name)) continue;
+    for (let i = 0; i < rd.p.length; i += 2) pts.push(rd.p[i], rd.p[i + 1]);
+  }
+  const segs = [];
+  for (let i = 0; i + 3 < pts.length; i += 2) segs.push(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]);
+  return segs;
+}
+
+const MAX_HUB_SEG = 96;
+function makeAsphaltMaterial(cleanMap, wornMap, roads) {
+  const raw = hubRoadSegments(roads);
+  const seg = new Float32Array(MAX_HUB_SEG * 4);
+  let n = 0;
+  for (let i = 0; i + 3 < raw.length && n < MAX_HUB_SEG; i += 4, n++) {
+    seg[n * 4] = raw[i]; seg[n * 4 + 1] = raw[i + 1]; seg[n * 4 + 2] = raw[i + 2]; seg[n * 4 + 3] = raw[i + 3];
+  }
+  const m = new THREE.MeshLambertMaterial({ map: cleanMap });
+  m.defines = { USE_WORN_ASPHALT: '' };
+  m.customProgramCacheKey = () => `asphalt-wear-${n}`;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uWornMap = { value: wornMap };
+    sh.uniforms.uHubSeg = { value: seg };
+    sh.uniforms.uHubCount = { value: n };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vAspPos;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvAspPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vAspPos;
+uniform sampler2D uWornMap;
+uniform vec4 uHubSeg[${MAX_HUB_SEG}];
+uniform int uHubCount;
+float distSeg(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a, ap = p - a;
+  float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+  return length(ap - ab * t);
+}
+float hubWear(vec2 xz) {
+  float d = 1e6;
+  for (int i = 0; i < ${MAX_HUB_SEG}; i++) {
+    if (i >= uHubCount) break;
+    vec4 s = uHubSeg[i];
+    d = min(d, distSeg(xz, s.xy, s.zw));
+  }
+  return smoothstep(8.0, 34.0, d);
+}`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      float wear = hubWear(vAspPos.xz);
+      vec4 worn = texture2D(uWornMap, vMapUv);
+      diffuseColor.rgb = mix(diffuseColor.rgb, worn.rgb, wear * 0.92);
+      diffuseColor.rgb *= mix(1.0, 0.88, wear * 0.35);`);
+  };
+  return polyOff(m);
+}
 /** marciapiede: mattonelle di cemento 40 cm, chiare, con fughe */
 const sidewalkTex = () => canvasTex(256, 256, (g, w, h) => {
   const r = rnd(11);
@@ -505,10 +581,9 @@ export function buildStreets(data, heightAt, inBuilding = () => false, grade = n
     }
   }
   // doppia faccia: l'ordine dei vertici dei nastri dipende dal verso della via in OSM
-  const polyOff = (m) => { m.side = THREE.DoubleSide; m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; };
   const add = (m) => m && group.add(m);
-  const pav = pavingTex(), asph = asphaltTex(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
-  const asphMat = polyOff(new THREE.MeshLambertMaterial({ map: asph }));
+  const pav = pavingTex(), asphClean = asphaltTexClean(), asphWorn = asphaltTexWorn(), spine = bondTex('beige'), rose = bondTex('red'), lawn = grassTex(), bricks = bondTex('brick');
+  const asphMat = makeAsphaltMaterial(asphClean, asphWorn, data.roads);
   add(asphalt.mesh(asphMat, 1));
   add(drive.mesh(asphMat, 1));
   add(walk.mesh(new THREE.MeshLambertMaterial({ map: sidewalkTex(), side: THREE.DoubleSide }), 2));
@@ -524,11 +599,11 @@ export function buildStreets(data, heightAt, inBuilding = () => false, grade = n
   const roseMat = polyOff(new THREE.MeshLambertMaterial({ map: rose }));
   add(red.mesh(roseMat, 1));
   add(rim.mesh(roseMat, 2));
-  add(skirtA.mesh(fadeMat(asph), 3));
+  add(skirtA.mesh(fadeMat(asphWorn), 3));
   add(skirtP.mesh(fadeMat(pav), 3));
   add(skirtH.mesh(fadeMat(spine), 3));
   add(skirtO.mesh(fadeMat(pav), 3));
-  add(skirtD.mesh(fadeMat(asph), 3));
+  add(skirtD.mesh(fadeMat(asphClean), 3));
   add(skirtR.mesh(fadeMat(rose), 3));
   add(skirtV.mesh(fadeMat(bricks), 3));
   group.add(buildVe3Plaza(heightAt, kinds.ve3));

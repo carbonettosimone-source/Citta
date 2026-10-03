@@ -17,6 +17,7 @@ const POOL      = 140;  // auto totali nel pool
 const CULL      = 940;  // m — oltre questa distanza la macchina respawna
 const NEAR      = 12;   // m — tolleranza per connessione tra segmenti
 const ROAD_CULL = 1100; // m — usa solo strade entro questo raggio dall'origine
+const HUB_NAME = /Paolo Ricca/i; // Via Paolo Ricca Salerno (OSM 199743600)
 
 // ---- tipi di veicolo ---------------------------------------------------------
 // w larghezza, h altezza del corpo basso, l lunghezza
@@ -158,11 +159,15 @@ function buildRoadGraph(roads) {
       pts.push({ x, z, s: len });
     }
     if (len < 8) continue; // segmento troppo corto
+    const hub = !!(rd.name && HUB_NAME.test(rd.name));
+    const hw = rd.k === 'primary' ? 2.2 : rd.k === 'secondary' ? 0.45 : 0.7;
     segs.push({
       pts, len,
       start: pts[0],
       end: pts[pts.length-1],
       cw: rd.cw || 6,
+      hub,
+      weight: hub ? 14 : hw,
     });
   }
 
@@ -214,6 +219,21 @@ export function createTraffic(roads, heightAt) {
 
   const rng = (() => { let s = 42; return () => ((s = (s*16807+1)%2147483647) / 2147483647); })();
   const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  const pickWeightedSeg = () => {
+    let tot = 0;
+    for (const s of segs) tot += s.weight;
+    let r = rng() * tot;
+    for (const s of segs) { r -= s.weight; if (r <= 0) return s; }
+    return segs[Math.floor(rng() * segs.length)];
+  };
+  const pickConn = (connIdxs) => {
+    if (!connIdxs.length) return null;
+    let tot = 0;
+    for (const j of connIdxs) tot += segs[j].weight;
+    let r = rng() * tot;
+    for (const j of connIdxs) { r -= segs[j].weight; if (r <= 0) return j; }
+    return connIdxs[Math.floor(rng() * connIdxs.length)];
+  };
 
   // crea InstancedMesh per tipo
   const group = new THREE.Group(); group.name = 'traffic';
@@ -242,13 +262,13 @@ export function createTraffic(roads, heightAt) {
   function spawnCar(car, refX, refZ) {
     // scegli un segmento non troppo vicino al punto di riferimento
     let seg = null;
-    for (let tries = 0; tries < 40; tries++) {
-      const s = segs[Math.floor(rng() * segs.length)];
+    for (let tries = 0; tries < 48; tries++) {
+      const s = rng() < 0.82 ? pickWeightedSeg() : segs[Math.floor(rng() * segs.length)];
       const cx = (s.start.x + s.end.x) / 2, cz = (s.start.z + s.end.z) / 2;
       const d = Math.hypot(cx - refX, cz - refZ);
       if (d > 60 && d < CULL) { seg = s; break; }
     }
-    if (!seg) seg = segs[Math.floor(rng() * segs.length)];
+    if (!seg) seg = pickWeightedSeg();
 
     const segIdx = segs.indexOf(seg);
     const dist = rng() * seg.len;
@@ -305,7 +325,7 @@ export function createTraffic(roads, heightAt) {
         const atEnd = car.dist >= seg.len;
         const conns = atEnd ? seg.endConns : seg.startConns;
         if (conns.length > 0) {
-          const nextIdx = pick(conns);
+          const nextIdx = pickConn(conns);
           const next = segs[nextIdx];
           // determina in che direzione entriamo nel prossimo segmento
           const thisEp = atEnd ? seg.end : seg.start;

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  base: process.env.PAGES_BASE || '/',
   server: {
     host: true, // 0.0.0.0
     port: 5173,

@@ -5,7 +5,7 @@
  * tinto col colore dell'edificio.
  */
 import * as THREE from 'three';
-import { BAY, FLOOR } from './facade.js';
+import { BAY, FLOOR, UPPER_VARIANTS, GROUND_VARIANTS } from './facade.js';
 import { orthoMaterial } from './ortho.js';
 import { isPlazaBuilding } from './plaza-buildings.js';
 
@@ -38,7 +38,8 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   const group = new THREE.Group();
   group.name = 'buildings';
   const walls = facadeMats.map(() => new Buf());
-  const UPPER = facadeMats.length - 1; // l'ultimo materiale è il piano terra
+  const UPPER = UPPER_VARIANTS;
+  const trimItems = { cornice: [], eave: [], pipe: [], chimney: [] };
   const plain = new Buf(); // baracche, tettoie, timpani: senza finestre
   const roofs = new Map(); // file ortofoto → Buf
   const core = orthoMeta.tiles.filter((t) => t.level === 'core');
@@ -70,7 +71,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
     col.setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace);
     const windows = !NO_WINDOWS.has(b.t) && b.h >= 2.6;
     const wbuf = windows ? walls[Math.floor(hash(b.id) * UPPER)] : plain;
-    const gbuf = windows ? walls[UPPER] : plain;
+    const gbuf = windows ? walls[UPPER + Math.floor(hash(b.id * 5 + 2) * GROUND_VARIANTS)] : plain;
     let cx = 0, cz = 0; for (const [x, z] of pts) { cx += x; cz += z; } cx /= pts.length; cz /= pts.length;
     const tile = tileFor(cx, cz);
     const rb = roofBuf(tile);
@@ -129,6 +130,26 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
       };
       quad(gbuf, foot, split);
       quad(wbuf, split, top);
+      if (windows && open >= 0.4 && L >= 1.2) {
+        const tx = (x1 - x0) / L, tz = (z1 - z0) / L;
+        let nx = -tz, nz = tx;
+        if (insideRing(pts, (x0 + x1) / 2 + nx * 0.08, (z0 + z1) / 2 + nz * 0.08)) { nx = -nx; nz = -nz; }
+        const hCorn = hash(b.id * 11 + i);
+        if (hCorn > 0.25 && b.f >= 2) {
+          for (let k = 1; k < b.f; k++) {
+            const y = b.g + k * FLOOR;
+            if (y + 0.2 > top) break;
+            trimItems.cornice.push({ x0, z0, x1, z1, y, col });
+          }
+        }
+        if (hCorn > 0.55 && open >= 3) {
+          trimItems.eave.push({ x0, z0, x1, z1, y: top, nx, nz, col });
+        }
+      }
+    }
+    if (windows && b.h >= 5 && hash(b.id * 19) > 0.42) {
+      const [px, pz] = pts[Math.floor(hash(b.id * 13) * pts.length)];
+      trimItems.pipe.push({ x: px, z: pz, y0: foot, y1: top - 0.3, col });
     }
 
     // --- tetto
@@ -182,6 +203,17 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
       for (let i = 0; i < pts.length; i++) { const [x0, z0] = pts[i], [x1, z1] = pts[(i + 1) % pts.length]; const L = Math.hypot(x1 - x0, z1 - z0); if (L > best) { best = L; ang = Math.atan2(x1 - x0, z1 - z0); } }
       for (const [type, x, z, hh] of b.x) roofItems.push({ type, x, z, y: b.roof ? peak : top, h: hh, ang, col: col.clone() });
     }
+    if (b.roof && b.h >= 4.5 && hash(b.id * 23) > 0.38) {
+      const nCh = hash(b.id * 29) > 0.7 ? 2 : 1;
+      for (let c = 0; c < nCh; c++) {
+        const t = 0.2 + hash(b.id * 31 + c) * 0.6;
+        const [x0, z0] = pts[0], [x1, z1] = pts[1];
+        trimItems.chimney.push({
+          x: x0 + (x1 - x0) * t, z: z0 + (z1 - z0) * t, y: peak, h: 1.4 + hash(b.id + c) * 1.8,
+          col: col.clone().multiplyScalar(0.82),
+        });
+      }
+    }
     footprints.push({ pts, top: peak, minX: Math.min(...pts.map((p) => p[0])), maxX: Math.max(...pts.map((p) => p[0])), minZ: Math.min(...pts.map((p) => p[1])), maxZ: Math.max(...pts.map((p) => p[1])), canopy: isCanopy });
   }
 
@@ -197,6 +229,7 @@ export function buildBuildings({ model, orthoMeta, textures, facadeMats }) {
   }
   group.add(buildRoofItems(roofItems));
   group.add(buildBalconies(balconies));
+  group.add(buildTrimMeshes(trimItems));
   return { group, footprints };
 }
 
@@ -279,6 +312,73 @@ function insideRing(pts, x, z) {
   let ins = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) if ((pts[i][1] > z) !== (pts[j][1] > z) && x < ((pts[j][0] - pts[i][0]) * (z - pts[i][1])) / (pts[j][1] - pts[i][1]) + pts[i][0]) ins = !ins;
   return ins;
+}
+
+/** Cornici, grondaie, pluviali e comignoli procedurali (poche draw call con InstancedMesh). */
+function buildTrimMeshes({ cornice, eave, pipe, chimney }) {
+  const g = new THREE.Group();
+  g.name = 'trim';
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+  const cornGeo = new THREE.BoxGeometry(1, 0.09, 0.14);
+  if (cornice.length) {
+    const im = new THREE.InstancedMesh(cornGeo, new THREE.MeshLambertMaterial({ vertexColors: true }), cornice.length);
+    im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cornice.length * 3), 3);
+    cornice.forEach((c, i) => {
+      const L = Math.hypot(c.x1 - c.x0, c.z1 - c.z0) || 1;
+      q.setFromAxisAngle(up, Math.atan2(c.x1 - c.x0, c.z1 - c.z0));
+      m.compose(p.set((c.x0 + c.x1) / 2, c.y, (c.z0 + c.z1) / 2), q, s.set(L, 1, 1));
+      im.setMatrixAt(i, m);
+      im.setColorAt(i, c.col.clone().multiplyScalar(0.9));
+    });
+    im.instanceMatrix.needsUpdate = true;
+    im.instanceColor.needsUpdate = true;
+    im.castShadow = true;
+    g.add(im);
+  }
+  const eaveGeo = new THREE.BoxGeometry(1, 0.07, 0.22);
+  if (eave.length) {
+    const im = new THREE.InstancedMesh(eaveGeo, new THREE.MeshLambertMaterial({ vertexColors: true }), eave.length);
+    im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(eave.length * 3), 3);
+    eave.forEach((e, i) => {
+      const L = Math.hypot(e.x1 - e.x0, e.z1 - e.z0) || 1;
+      q.setFromAxisAngle(up, Math.atan2(e.x1 - e.x0, e.z1 - e.z0));
+      m.compose(p.set((e.x0 + e.x1) / 2 + e.nx * 0.12, e.y + 0.04, (e.z0 + e.z1) / 2 + e.nz * 0.12), q, s.set(L, 1, 1));
+      im.setMatrixAt(i, m);
+      im.setColorAt(i, e.col.clone().multiplyScalar(0.88));
+    });
+    im.instanceMatrix.needsUpdate = true;
+    im.instanceColor.needsUpdate = true;
+    im.castShadow = true;
+    g.add(im);
+  }
+  const pipeGeo = new THREE.CylinderGeometry(0.045, 0.05, 1, 6);
+  pipeGeo.translate(0, 0.5, 0);
+  if (pipe.length) {
+    const im = new THREE.InstancedMesh(pipeGeo, new THREE.MeshLambertMaterial({ color: 0x4a4e52 }), pipe.length);
+    pipe.forEach((t, i) => {
+      m.compose(p.set(t.x, (t.y0 + t.y1) / 2, t.z), q.identity(), s.set(1, t.y1 - t.y0, 1));
+      im.setMatrixAt(i, m);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    im.castShadow = true;
+    g.add(im);
+  }
+  const chimGeo = new THREE.BoxGeometry(0.55, 1, 0.55);
+  chimGeo.translate(0, 0.5, 0);
+  if (chimney.length) {
+    const im = new THREE.InstancedMesh(chimGeo, new THREE.MeshLambertMaterial({ vertexColors: true }), chimney.length);
+    im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(chimney.length * 3), 3);
+    chimney.forEach((c, i) => {
+      m.compose(p.set(c.x, c.y + c.h * 0.5, c.z), q.identity(), s.set(1, c.h, 1));
+      im.setMatrixAt(i, m);
+      im.setColorAt(i, c.col);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    im.instanceColor.needsUpdate = true;
+    im.castShadow = true;
+    g.add(im);
+  }
+  return g;
 }
 
 /** balcone: soletta in aggetto di 90 cm con ringhiera in ferro, davanti alla portafinestra */
