@@ -30,8 +30,9 @@ function hubRoadSegments(roads) {
   return segs;
 }
 
-const MAX_HUB_SEG = 96;
+const MAX_HUB_SEG = 32;
 const ASPHALT_GLSL = `
+#define HUB_N ${MAX_HUB_SEG}
 float aHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float aNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -50,9 +51,10 @@ float distSeg(vec2 p, vec2 a, vec2 b) {
 }
 float hubWear(vec2 xz) {
   float d = 1e6;
-  for (int i = 0; i < ${MAX_HUB_SEG}; i++) {
-    if (i >= uHubCount) break;
+  for (int i = 0; i < HUB_N; i++) {
     vec4 s = uHubSeg[i];
+    float segL = length(s.zw - s.xy);
+    if (segL < 0.5) continue;
     d = min(d, distSeg(xz, s.xy, s.zw));
   }
   return smoothstep(7.0, 32.0, d);
@@ -63,22 +65,19 @@ vec3 proceduralAsphalt(vec2 xz, float wear) {
   float g1 = aFbm(p * 0.11 + 17.0);
   float g2 = aFbm(p * 0.28 + 41.0);
   float micro = aNoise(p * 1.7) * 0.5 + aNoise(p * 4.2) * 0.25;
-  vec3 base = vec3(0.36, 0.37, 0.38);
-  base += (g0 - 0.5) * 0.06;
-  base += (g1 - 0.5) * 0.04;
+  vec3 base = vec3(0.34, 0.35, 0.36);
+  base += (g0 - 0.5) * 0.05;
+  base += (g1 - 0.5) * 0.035;
   float patch = smoothstep(0.42, 0.72, g1) * smoothstep(0.3, 0.8, g2);
-  base = mix(base, base * vec3(0.88, 0.86, 0.84), patch * (0.35 + wear * 0.55));
-  float seam = abs(sin(p.x * 0.19 + g0 * 2.0)) * abs(sin(p.y * 0.23 + g1 * 2.0));
-  base *= 1.0 - seam * 0.04 * (0.3 + wear);
+  base = mix(base, base * vec3(0.9, 0.88, 0.86), patch * wear * 0.45);
   float crack = aFbm(p * 0.55 + vec2(g2 * 3.0));
   float crackLine = smoothstep(0.58, 0.64, crack) * smoothstep(0.72, 0.66, crack);
-  crackLine += smoothstep(0.48, 0.52, abs(sin(p.x * 0.08 + p.y * 0.11 + g0 * 5.0))) * 0.35;
-  base *= 1.0 - crackLine * (0.25 + wear * 0.45);
-  base += (micro - 0.5) * 0.03;
+  crackLine += smoothstep(0.48, 0.52, abs(sin(p.x * 0.08 + p.y * 0.11 + g0 * 5.0))) * 0.28 * wear;
+  base *= 1.0 - crackLine * 0.35;
+  base += (micro - 0.5) * 0.025;
   float hubClean = 1.0 - wear;
-  base = mix(base, base * vec3(1.06, 1.05, 1.04) + 0.02, hubClean * 0.55);
-  base = mix(base, base * 0.9, wear * 0.2);
-  return clamp(base, 0.0, 1.0);
+  base = mix(base, base * 1.05 + 0.015, hubClean * 0.4);
+  return clamp(base, 0.12, 1.0);
 }`;
 
 function makeAsphaltMaterial(roads, skirtFade = false) {
@@ -89,33 +88,31 @@ function makeAsphaltMaterial(roads, skirtFade = false) {
     seg[n * 4] = raw[i]; seg[n * 4 + 1] = raw[i + 1]; seg[n * 4 + 2] = raw[i + 2]; seg[n * 4 + 3] = raw[i + 3];
   }
   const m = new THREE.MeshLambertMaterial({
-    color: 0x5c5e60,
-    side: skirtFade ? THREE.DoubleSide : THREE.FrontSide,
+    color: 0xffffff,
+    side: THREE.DoubleSide,
     alphaToCoverage: skirtFade,
+    transparent: skirtFade,
     polygonOffset: skirtFade,
     polygonOffsetFactor: skirtFade ? -4 : 0,
     polygonOffsetUnits: skirtFade ? -4 : 0,
   });
-  m.customProgramCacheKey = () => `asphalt-proc-${skirtFade ? 'f' : 'm'}-${n}`;
+  m.customProgramCacheKey = () => `asphalt-proc-v2-${skirtFade ? 'f' : 'm'}-${n}`;
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uHubSeg = { value: seg };
-    sh.uniforms.uHubCount = { value: n };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vAspPos;${skirtFade ? '\nattribute float aFade;\nvarying float vFade;' : ''}`)
       .replace('#include <project_vertex>', `#include <project_vertex>\nvAspPos = (modelMatrix * vec4(transformed, 1.0)).xyz;${skirtFade ? '\nvFade = aFade;' : ''}`);
+    const wearGlsl = `
+\tfloat wear = hubWear(vAspPos.xz);
+\tdiffuseColor.rgb = proceduralAsphalt(vAspPos.xz, wear);
+\tdiffuseColor.a = opacity;${skirtFade ? '\n\tdiffuseColor.a *= vFade;' : ''}`;
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vAspPos;
 uniform vec4 uHubSeg[${MAX_HUB_SEG}];
-uniform int uHubCount;
 ${skirtFade ? 'varying float vFade;' : ''}
 ${ASPHALT_GLSL}`)
-      .replace(
-        'vec4 diffuseColor = vec4( diffuse, opacity );',
-        `vec4 diffuseColor = vec4( diffuse, opacity );
-        float wear = hubWear(vAspPos.xz);
-        diffuseColor.rgb = proceduralAsphalt(vAspPos.xz, wear);${skirtFade ? '\n        diffuseColor.a *= vFade;' : ''}`,
-      );
+      .replace('\t#include <color_fragment>', `\t#include <color_fragment>${wearGlsl}`);
   };
   return polyOff(m);
 }

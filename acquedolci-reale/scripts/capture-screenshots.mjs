@@ -35,17 +35,11 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 await ready(page);
 
-await cam(page, -72, -8, 42);
-await page.screenshot({ path: join(out, 'no-black-pipes-overhead.png') });
+await cam(page, -120, -15, 58);
+await page.screenshot({ path: join(out, 'roads-visible-from-above.png') });
 
-await cam(page, -130, -18, 55);
-await page.screenshot({ path: join(out, 'road-no-tile-repeat.png') });
-
-await cam(page, -48, -32, 22);
-await page.screenshot({ path: join(out, 'facade-sicilian-windows.png') });
-
-await cam(page, -158, -10, 28);
-await page.screenshot({ path: join(out, 'via-ricca-cleaner-asphalt.png') });
+await cam(page, -68, -6, 14);
+await page.screenshot({ path: join(out, 'roads-visible-street-level.png') });
 
 await browser.close();
 console.log('Screenshots in', out);
