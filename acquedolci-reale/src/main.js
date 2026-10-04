@@ -238,8 +238,8 @@ function setupCharScreen(char) {
     const sc = new THREE.Scene();
     sc.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 1.6));
     const key = new THREE.DirectionalLight(0xfff2dc, 2.2); key.position.set(2, 3, 4); sc.add(key);
-    const cam = new THREE.PerspectiveCamera(30, cv.width / cv.height, 0.1, 20);
-    cam.position.set(0, 1.6, 3.4); cam.lookAt(0, 1.2, 0);
+    const cam = new THREE.PerspectiveCamera(28, cv.width / cv.height, 0.1, 20);
+    cam.position.set(0, 1.0, 5.6); cam.lookAt(0, 0.92, 0);
     const disc = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 }));
     disc.rotation.x = -Math.PI / 2; sc.add(disc);
     pv = { r, sc, cam, mesh: null, t: 0, on: false };
